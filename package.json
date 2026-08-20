@@ -9,6 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
+    "@astryxdesign/cli": "^0.1.2",
+    "@astryxdesign/core": "^0.1.2",
+    "@astryxdesign/theme-neutral": "^0.1.2",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4"

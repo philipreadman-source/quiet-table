@@ -1,0 +1,328 @@
+QUIET TABLE — UX/UI DECISION LOG
+Compiled 2026-07-13
+
+>>> Demo talk track (TLDR + wizard vs agentic): **ux-decisions.md** <<<
+>>> This file is the chronological archive only — too dense to present from.
+
+Note on timestamps: I don't have access to precise per-message clock times
+for this session (the session-history tools available to me only cover
+other sessions, not this one). Entries below are dated 2026-07-13 and
+numbered in the order they happened. Edit freely — add real times if you
+have them from your own record of the conversation.
+
+---
+
+[2026-07-13 #1] PIVOT — Card-first, general table-finding
+"i'd like to move away from purely chat - imagine if we only focus on
+finding users a table, lets sideline the 'quiet spot' and 'ride home' and
+'after gallery' - this is all additional context and info per user that
+the system can ask and gleam during the flow. I'd like to start with nice
+cards - find a table: card could be 'date night' 'group' 'michelin star'
+[...] point is to flex the agentic flow"
+Decision: Replaced the gallery-specific scripted flow with a general
+table-finder. Added a fixed, instant 4-card opening screen (Date night /
+Group / Michelin star / Casual). Gallery/quiet/ride-home became optional
+context the agent can pick up on, not the centerpiece.
+
+[2026-07-13 #2] CORRECTION — Card styling/padding
+"im curious why these cards have no styling or padding or anything, doesnt
+astryx apply some styles"
+Decision: Traced to a real bug in Astryx's SelectableCard/Card padding
+prop (step 4 — the documented default — silently produces 0px; explained
+further in the dev notes). Fixed by passing an explicit inline style
+(`style={{padding: 'var(--spacing-4)'}}`) rather than the `padding` prop.
+
+[2026-07-13 #3] UX CALL — Group size buckets
+"i think a nice UI for this is nicer a group can be 3-9 then maybe its
+10+"
+Decision: Added a second deterministic card step after tapping "Group":
+two bucket cards, 3–9 people / 10+ people.
+
+[2026-07-13 #4] REFINEMENT — Exact number chips instead of buckets
+"maybe [3][4][5][6][7][8][9+] as cards - does astryx have a ui solution"
+Decision: Replaced the two-bucket cards with a single row of seven
+SelectableCard chips (3, 4, 5, 6, 7, 8, 9+). Considered Astryx's
+ToggleButtonGroup first (semantically closer) but its default styling is
+an invisible toolbar-button treatment until pressed — wrong visual
+language for a chip row — so stuck with SelectableCard for visual
+consistency.
+
+[2026-07-13 #5] UX CALL — Keep date -> time in structured UI
+"theres no need to switch to convo ui from date to time selection. once
+user picks the date, show the available times. whats astryx got for a
+time selction ui?"
+Decision: Kept the flow in the deterministic card wizard rather than
+handing off to chat between date and time. Astryx has no dedicated
+time-slot-picker component, so reused the same SelectableCard chip-row
+pattern as the group-size step, populated with common dinner-hour slots.
+(This built on an earlier exchange where I confirmed Astryx's Calendar
+component and wired it in as the date-picking step.)
+
+[2026-07-13 #6] CONTENT CORRECTION — Inconsistent vibe suggestions
+"date night should not be in the group dinners... ill let you know these
+content boxes later"
+Decision: Added a system-prompt guardrail: the agent must keep any
+vibe/occasion options consistent with context already established (e.g.
+never offer "date night" once party size is 3+). Flagged as the first of
+more content-box feedback to come — held off on broader content changes
+per your note.
+
+[2026-07-13 #7] UX CALL — Randomized availability
+"also, we can randomise available dates and times for this prototype, irl
+this would be powered by the restaurants systems."
+Decision: Added deterministic pseudo-random availability — ~75% of
+calendar dates selectable (rest greyed out via dateConstraints), ~70% of
+time slots open (rest shown disabled with a "Booked" label). Seeded by
+date/slot string so it's stable across re-renders rather than flickering.
+
+[2026-07-13 #8] UX CALL — Intent card order + new "Business" card
+"also order these: causal >datenight>mich star>group... add a another for
+'business'"
+Decision: Reordered the opening intent cards to Casual -> Date night ->
+Michelin star -> Business -> Group (Business inserted before Group per
+the instruction). Added a new "Business" card — subtitle "Professional,
+easy to talk shop", sends "I need a table for a business dinner." Business
+goes straight to the date step like the other non-Group cards (no size
+sub-step).
+
+[2026-07-13 #9] BUG FOUND + UX CALL — Location has no real backing
+Screenshot showed the agent stuck asking "the first pass didn't give me
+casual spots near you at 7pm. Where should I look?" — followed by: "here
+we've ran into a location issue - 'near you' means nothing without running
+a detection on location - can be build this in using browser info?"
+Decision: Wired in browser Geolocation, reverse-geocoded via OpenStreetMap
+Nominatim (free, no API key) to a neighborhood/city label. That label is
+sent with every message and injected into the agent's system prompt as
+known context, so it can default search_tables' "near" field instead of
+asking. Fully graceful fallback if permission is denied/unavailable —
+behaves exactly as before (asks for location).
+
+What's wired:
+On page load, the app silently requests browser geolocation
+(navigator.geolocation). If you allow it, coordinates get reverse-geocoded
+via OpenStreetMap's free Nominatim API to a neighborhood/city label.
+That label gets sent to /api/agent on every message and injected into the
+system prompt as known context — so the agent can default search_tables's
+near field to it without asking, instead of hitting the dead end you saw.
+Fully graceful if denied/unavailable: userLocation just stays null and the
+agent asks as it already does today — no regression.
+
+---
+
+[2026-07-13 #10] BUG FOUND + FIX — Party size chip UI missing outside Group
+"look at the current state in the local - you missed that asling me party
+number did not supply the number cards UI."
+Decision: Party size was only ever collected as a deterministic card step
+for the "Group" intent — every other intent (Casual, Date night, Michelin
+star, Business) skipped straight to the date picker with no size in the
+message, so the agent had to ask for it afterward as free text with no
+card UI. Fixed by making party size a universal wizard step for every
+intent: stage order is now intent -> size -> date -> time for all five
+cards, using one shared chip row (1, 2, 3, 4, 5, 6, 7, 8, 9+ — widened
+from the old 3-9+ range since it's no longer Group-specific). Verified
+in-browser: tapping "Casual" now shows the number chips, and the combined
+message sent to the agent ("Something casual, nothing fussy. Party of 2.
+On Wednesday, July 15 around 8:00pm.") already has full context, so the
+agent skips straight to search_tables instead of asking a follow-up.
+
+---
+
+[2026-07-13 #11] UX CALL — Location step + contextual composer placeholder
+"in order to supply restaurants we must lock down the location, it would
+say near you, and user confirms OR we can use near by cities... the chat
+is always present so theres a fall back too. this faded out inout text
+could auto update to the context thats needed, eg location "near me",
+"popular places near by" then this text would read "or tell me where you
+want to eat""
+Decision: Added a "location" step to the wizard, between party size and
+date (intent -> size -> location -> date -> time). If browser geolocation
+already resolved a label, it's offered as one confirm card ("Near
+{label}"); if not (denied/unavailable), the step shows a "Share my
+location" retry button instead of a fake nearby-cities list — didn't
+mock up city data here since that's the same "don't fall back on fake
+data" problem flagged for venues. The always-present chat composer is the
+explicit fallback either way — typing a place (or anything else) skips
+straight to the agent, same escape hatch that already existed. Also made
+the composer's placeholder text contextual to the current wizard step
+instead of one static line — "Or tell me how many...", "Or tell me where
+you want to eat", "Or tell me when...", "Or tell me what time..." — each
+step now hints at exactly what typing would replace.
+
+---
+
+[2026-07-13 #12] UX CALL — Date night skips the size step
+"for step 2 on "date night" we wont ask for number of diners - its alwasy
+2 people, we just need to skip to next and confirm its for 2"
+Decision: "Date night" now carries a fixedPartySize of '2' on its
+INTENT_CARDS entry. Tapping it sets party size to 2 directly, folds
+"Party of 2." into the draft message immediately, and jumps straight to
+the location step — the size chip row never renders for this intent.
+Added a small sizeStepSkipped flag so the location step's Back button
+returns to "intent" (not "size") when the size step was never shown.
+Confirmation happens the same way it does for every other step: the
+final combined message sent to the agent spells it out explicitly
+("I'm looking for a date night table. Party of 2. Near Amsterdam. On
+Tuesday, July 14 around 8:00pm."), consistent with how size/location/
+date/time already surface in that one outgoing line rather than a
+separate confirmation UI per step.
+
+---
+
+[2026-07-13 #13] FEATURE — Real restaurant data via web_search
+"can you use basic web search, or trip advisor to actually find real
+restaurants in amsterdam?"
+Decision: Added Anthropic's server-side web_search tool (web_search_20260209,
+GA, no beta header) to the agent's tool list. System prompt now instructs the
+agent to search the web for real, current restaurants matching the vibe and
+location first, grounding every proposed venue in an actual named result —
+search_tables (the old 6-venue mock catalog) is now an explicit fallback,
+only used if web_search comes back empty. Also fixed checkVenueAvailability
+in booking-data.ts, which previously reported available:false for ANY venue
+not in the hardcoded VENUES list — real venues found via web_search now get
+deterministic pseudo-availability (same seeded-random pattern already used
+for dates/times) instead of a false "not found". Hit one real bug along the
+way: web_search's dynamic filtering runs code execution server-side, and a
+follow-up request in our multi-turn tool loop failed with "container_id is
+required" until we started forwarding response.container.id back on
+subsequent iterations. Verified end-to-end: "casual dinner for 2 in
+Amsterdam this Thursday around 7pm" returned two real, currently-existing
+Amsterdam restaurants (De Zingende Zwaan, Bar Bellini) with real
+descriptions, not the old mock venues.
+
+---
+
+[2026-07-13 #14] BUG FOUND + FIX — Chat density set on the wrong component
+"then tidy the UI, the chat we have needs better padding and spacing -
+check this for spec: import {ChatMessage} from '@astryxdesign/core/Chat'"
+Decision: Checked the real component specs via `astryx component`.
+`density="spacious"` had been set on `<ChatLayout>` since the very first
+build — but ChatLayout's prop table doesn't include `density` at all (it
+adapts automatically via container width). The prop that actually controls
+message spacing lives on `<ChatMessageList>`, defaults to `'balanced'` when
+unset, and flows to every ChatMessage via context. So density had silently
+never been "spacious" this whole time. Moved `density="spacious"` from
+ChatLayout to ChatMessageList. Verified via computed styles: the message
+list's class list now includes `spacious` (previously just the base
+classes), confirming the fix actually takes effect rather than being a
+cosmetic no-op.
+
+---
+
+[2026-07-14 #15] BUG FOUND + FIX — LayoutContent padding={0} was wrong
+"the very left of our layout / container has 0 padding, and out text input
+box is also a mess please refer to: import {ChatComposer} from
+'@astryxdesign/core/Chat'"
+Decision: Checked LayoutContent's actual type definition — its own doc
+comment says "Use padding={0} if you need edge-to-edge content" (tables,
+etc.), which is exactly the wrong call for a chat surface. That explicit
+override had zeroed padding on all four sides since the first build, which
+is why content sat flush against the browser's left edge. Removed the
+override so LayoutContent falls back to its automatic context-aware
+padding. Checked ChatComposer's own spec too — its props were already used
+correctly (onSubmit/isDisabled/placeholder); computed styles confirmed it
+already has a real white rounded container with shadow (page-radius, 28px
+corners) per spec, it was just invisible because it had no breathing room
+from the edge. The floating dark circle with "N" that appears bottom-left
+in every screenshot is not part of the page's DOM at all (confirmed via
+querying for it) — it's an artifact of the browser preview tooling, not
+app UI, so left alone.
+
+[2026-07-14 #16] UX CALL — Michelin star caps party size at 4, then 4+
+"michelin star option, max people 4 then a card for 4+ - the reality is
+theres not many options for 4+ seating in michelin stars, so its nicer ux
+to offer 1 through 4, then 4+ and then if user says 4+ we can think about
+those results."
+Decision: Party size chips are now per-intent instead of one fixed global
+list. Michelin star shows [1, 2, 3, 4, 4+] instead of the full 1-9+ range;
+every other intent keeps the existing 1-9+ chips. partySizeFragment()
+generalized to turn any "N+" chip into "Party of N or more." (was
+hardcoded to only recognize "9+"). Deliberately did not add special
+handling for what happens after picking "4+" — per your note, that's a
+later problem for the agent/results layer, not the wizard.
+
+[2026-07-14 #17] SIGNIFICANT UX UPDATE — Rich venue option cards (mock social proof, ratings, links)
+"for these cards lets make them more engaging, view menu, google reviews etc.
+and also, we can fake this… john recently liked this… trusted friends… dont
+pull token credits for this yet."
+Decision: Venue options are no longer title + "Choose X" only. Added a local
+mock catalog in src/lib/venue-options.ts (no API calls — USE_LOCAL_FALLBACK
+stays true). Each card now shows:
+  • Social proof line (accent) — e.g. "John recently liked this" from mock
+    contacts/Instagram; formatSocialProof() in venue-options.ts.
+  • Ratings — fake Google + TripAdvisor stars and review count.
+  • Secondary buttons — View menu, Google reviews, TripAdvisor; open static
+    URLs in a new tab on click; stopPropagation so they don't select the card.
+  • Primary tap still selects venue → detail; detail repeats proof + links
+    before Book. Card CTA text → "See details".
+Implementation: VenueOptionCardContent + VenueLinkActions in page.tsx;
+getVenueOptionsForIntent() / findVenueOption() / enrichVenueOption() in
+lib; route.ts fallback uses catalog for options and detail meta. Documented
+in ux-notes.md under "Rich venue option cards (2026-07-14)".
+
+[2026-07-14 #18] RULE — Casual party size caps at 6; 6+ handoffs to group flow
+"casual > how many of you? > lets stop it at 6, then have a 6+, then that auto
+moves it to group flow"
+Decision: Casual size chips are now [1, 2, 3, 4, 5, 6, 6+] — no 7/8/9+ on
+casual. Picking 6+ from casual rewrites intent to group message, switches
+acknowledgement to "Group dinner, nice.", keeps partySize 6+, and downstream
+venue options use GROUP_OPTIONS (Cecconi's, MOMO mock). Implemented in
+applyPartySizeSelection() / page.tsx; group branch in getVenueOptionsForIntent().
+Documented as a product rule in rules.md and ux-notes.md § "Casual party size
+& group handoff".
+
+[2026-07-14 #19] REVERTED — DateTimeInput single step (didn't work well)
+Tried merging date + time into Astryx DateTimeInput; reverted to Calendar
+(date) + SelectableCard time chips (two steps). ux-notes/rules entries for
+DateTimeInput removed.
+
+[2026-07-14 #20] UX CALL — Per-venue availability reflects the picked time
+"if a user now taps 9:30pm - maybe there is more options, or one of these
+options isn't available. we're faking this obv but i think we should
+reflect reality here."
+Decision: Added isVenueAvailableAt(venueId, date, time) and
+nextAvailableTimeForVenue() in venue-options.ts — a fine-grained, seeded
+fake independent from the existing coarse timeSlotAvailability(date) used
+for the time-chip step. Venue card meta line now reads "Available at
+9:30pm" or "Fully booked at 9:30pm — next table 8:30pm" instead of the old
+always-true "Available at the selected time". Same check applied
+server-side in route.ts's fallback detail branch. Explicitly deferred:
+zero-venues-available-at-a-time is a separate design problem, not handled
+here. Documented in rules.md § "Venue availability" and ux-notes.md §
+"Per-venue availability".
+
+[2026-07-21 #21] UX CALL — Plentiful +15 mix & sparse ±15–30 stretch
+"for popular results, say 4 or more let's make a couple of the results not
+the exact time… if user picks 8pm - show a 8:15pm… if a result is really
+good find, the user is likely happy to wait 15 mins more. Also, part of
+the 0 or below 3 results - we can stretch to the 15-30 min before after."
+Decision: Docs previously only said exact-or-±30 for all results — not the
+plentiful mix or sparse stretch as distinct rules. Now:
+- Sparse (<3): lean on ±15/±30 to fill the list (already in filter).
+- Plentiful (4+ exact): assignOfferedAvailabilityForResults marks ~2 as
+  +15 near offers; card copy is just "Available at 8:15pm" (no aim suffix).
+  Wired in route.ts fallback meta; cards prefer server meta.
+Documented in rules.md, agentic-booking-flow-planning.md, ax-brain.md.
+
+[2026-07-21 #22] UX CALL — Composer teaser updates after results
+"our catch-all text input has a fixed line of copy… As the ux flows through
+this teaser line should update… for this screenshot where results have been
+presented the text could be Can't find what you're looking? Or have any
+questions..."
+Decision: Fixed bug where hasStarted always forced the intent placeholder.
+resolveComposerPlaceholder now picks by phase — wizard stage, dietary,
+results, or post-summary default. Results copy:
+"Can't find what you're looking for? Or have any questions..."
+Other post-summary lines are soft stand-ins until a full per-step matrix
+is specified. Noted in rules.md § Composer teaser.
+
+[2026-07-21 #23] UX CALL — View menu always on; exact or AI overview
+"Lets add the view menu cta back into to cards - we will either pull the
+exact menu, or use agent to scan website / socials and give a menu
+overview - this would come with a caveat that its an overview form AI."
+Decision: View menu is always shown on option + detail cards. Exact
+menu_url opens externally; otherwise inline AI overview with caveat
+"AI overview from the restaurant’s website and socials — not the live
+menu." resolveMenuAction + fallback overview copy in venue-options.ts.
+Live agent system prompt updated with the same rule. Noted in rules.md.
+
+---

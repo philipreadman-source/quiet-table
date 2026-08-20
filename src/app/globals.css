@@ -31,15 +31,53 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* ChatMessageList renders a flex spacer that pins messages to the bottom
+   (standard messaging UX). Our wizard reads top-down, so the spacer only
+   adds empty scroll height above the first prompt. */
+.astryx-chat-message-list > div > div[aria-hidden] {
+  display: none;
+}
+
+/* ChatLayout defaults: message area min-height 100% + sticky dock in flow
+   adds ~one composer-height of empty scroll. Shrink to content for wizard. */
+.astryx-chat-layout > div:first-child {
+  min-height: auto;
+  padding-bottom: calc(94px + 24px + var(--spacing-4));
+}
+
+.astryx-chat-message-list,
+.astryx-chat-message-list > div {
+  flex: 0 1 auto;
+}
+
+/* Pin catch-all composer to viewport bottom, aligned with the 800px chat column */
+.astryx-chat-layout > div:last-child {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 800px;
+  padding-inline: var(--spacing-4);
+  box-sizing: border-box;
+}
+
+/* Short assistant replies: middle-align avatar with the text block / first line.
+   Tall blocks (wizard cards, venue lists) keep Astryx default flex-start. */
+.astryx-chat-message.assistant.chat-message--inline {
+  align-items: center;
+}
+
+/* Quiet Table (Q) text bubbles — faded brand olive, matches avatar mark (#a8c29f). */
+.astryx-chat-message-bubble[data-sender='assistant'][data-variant='filled'] {
+  background-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-accent-muted));
+  color: var(--color-text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -1,0 +1,192 @@
+/* Inner layout only — SelectableCard keeps Astryx padding/radius. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.image {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  border-radius: var(--radius-container, 10px);
+  background-position: center;
+  background-size: cover;
+  background-color: #444;
+}
+
+@media (min-width: 480px) {
+  .image {
+    width: 124px;
+    height: 124px;
+  }
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding-top: 2px;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: inherit;
+}
+
+.metaLine {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #a3a3a3;
+}
+
+.michelinLink {
+  color: #c4b5a0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.aiBlurbBlock {
+  min-width: 0;
+}
+
+.aiBlurbText {
+  margin: 0;
+}
+
+.aiBlurbTextClamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.readMore {
+  margin: 4px 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #c4b5a0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.readMore:hover {
+  color: #e8dcc8;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #444;
+  color: #fafafa;
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+
+.chipIcon {
+  display: flex;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: #a8c29f;
+}
+
+/* Expandable band under header — room for more icon+text rows */
+.metaRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.metaRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.metaRowIcon {
+  flex: 0 0 auto;
+  display: flex;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  color: #a3a3a3;
+}
+
+.metaRowIcon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.metaRowText {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: #a3a3a3;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.actionGrow {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.shareButton {
+  flex: 0 0 auto;
+}
+
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.overviewCaveat {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: #a3a3a3;
+}
+
+.overviewBody {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: #a3a3a3;
+}

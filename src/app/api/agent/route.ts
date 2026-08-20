@@ -36,6 +36,10 @@ const client = new Anthropic();
 // Set false for live agent demos when Anthropic billing is topped up.
 const USE_LOCAL_FALLBACK = true;
 
+/** Shown when the composer gets free text the mock catalog cannot handle. */
+const FALLBACK_ASLEEP_MESSAGE =
+  'The agent is currently asleep, you can browse the UX in fallback mode.';
+
 function agentErrorResponse(error: unknown) {
   console.error('[agent] Anthropic request failed:', error);
   let detail = 'Agent unavailable';
@@ -298,7 +302,7 @@ export async function POST(request: Request) {
   };
 
   if (USE_LOCAL_FALLBACK) {
-    return NextResponse.json(buildFallbackResponse(message, draft));
+    return NextResponse.json({...buildFallbackResponse(message, draft), fallback: true});
   }
 
   const contextLines = [
@@ -352,7 +356,7 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       if (USE_LOCAL_FALLBACK) {
-        return NextResponse.json(buildFallbackResponse(message, draft));
+        return NextResponse.json({...buildFallbackResponse(message, draft), fallback: true});
       }
       return agentErrorResponse(error);
     }
@@ -563,7 +567,7 @@ function buildFallbackResponse(message: string, draft?: BookingDraft) {
   }
 
   return {
-    text: 'I have the booking details. Pick a venue and I can take you to confirmation.',
+    text: FALLBACK_ASLEEP_MESSAGE,
     ui: {interactive: {type: 'none'}},
   };
 }

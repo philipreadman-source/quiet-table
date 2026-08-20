@@ -44,7 +44,7 @@ import {
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
 
 const QUIET_TABLE_AVATAR = (
-  <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="small" />
+  <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="xsmall" />
 );
 
 const DEMO_USER = getUserMemory();
@@ -55,7 +55,6 @@ const chatShell: CSSProperties = {
   width: '100%',
   minWidth: 0,
   height: '100%',
-  backgroundColor: '#444',
 };
 const chatLayout: CSSProperties = {flex: 1, minHeight: 0, width: '100%', maxWidth: 800};
 const chatBubblePadding: CSSProperties = {

@@ -73,7 +73,17 @@ a {
   align-items: center;
 }
 
-/* Quiet Table (Q) text bubbles — faded brand olive, matches avatar mark (#a8c29f). */
+/* Ghost wizard blocks — content width, aligned left in the message column. */
+.astryx-chat-message-bubble[data-variant='ghost'] {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.astryx-chat-message-bubble[data-variant='ghost'].wizard-block--wide {
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+}
 .astryx-chat-message-bubble[data-sender='assistant'][data-variant='filled'] {
   background-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-accent-muted));
   color: var(--color-text-primary);

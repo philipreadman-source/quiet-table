@@ -62,6 +62,12 @@ const chatBubblePadding: CSSProperties = {
   paddingBlock: 'var(--spacing-4)',
   paddingInline: 'var(--spacing-5)',
 };
+/** Wizard card blocks — flush left; no top inset so cards line up with the avatar. */
+const wizardBubblePadding: CSSProperties = {
+  paddingBlockStart: 0,
+  paddingBlockEnd: 'var(--spacing-4)',
+  paddingInline: 0,
+};
 /** Short text replies — middle-align avatar with the text (not tall card blocks). */
 const chatMessageInlineStyle: CSSProperties = {alignItems: 'center'};
 
@@ -1019,8 +1025,8 @@ export default function Home() {
 
                     {visibleStages.includes('intent') && (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
-                        <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
-                          <VStack gap={2}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
+                          <VStack gap={2} align="start">
                             {INTENT_CARDS.map((card) => (
                               <SelectableCard
                                 key={card.id}
@@ -1073,7 +1079,7 @@ export default function Home() {
 
                     {visibleStages.includes('size') && (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
-                        <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <VStack gap={3}>
                             <Text>
                               {intentAcknowledgement != null
@@ -1109,7 +1115,7 @@ export default function Home() {
 
                     {visibleStages.includes('location') && (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
-                        <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <VStack gap={3}>
                             <Text>
                               {intentAcknowledgement != null
@@ -1153,7 +1159,7 @@ export default function Home() {
 
                     {visibleStages.includes('occasion') && (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
-                        <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <VStack gap={3}>
                             <Text>What kind of night is it?</Text>
                             <VStack gap={2}>
@@ -1184,7 +1190,7 @@ export default function Home() {
 
                     {visibleStages.includes('spend') && (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
-                        <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <VStack gap={3}>
                             <Text>What sort of budget are we thinking?</Text>
                             <VStack gap={2}>
@@ -1215,7 +1221,7 @@ export default function Home() {
 
                     {visibleStages.includes('date') && (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
-                        <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
+                        <ChatMessageBubble variant="ghost" className="wizard-block--wide" style={wizardBubblePadding}>
                           <VStack gap={3}>
                             <Text>Which night?</Text>
                             <Card padding={3}>
@@ -1240,7 +1246,7 @@ export default function Home() {
 
                     {visibleStages.includes('time') && bookingDraft.date != null && (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
-                        <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <VStack gap={3}>
                             <Text>What time on {formatDateForMessage(bookingDraft.date)}?</Text>
                             <HStack gap={2} wrap="wrap">
@@ -1275,7 +1281,7 @@ export default function Home() {
                         avatar={QUIET_TABLE_AVATAR}
                         className="chat-message--inline"
                         style={chatMessageInlineStyle}>
-                        <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <Text color="secondary">{summaryMessage.text}</Text>
                         </ChatMessageBubble>
                       </ChatMessage>
@@ -1307,7 +1313,7 @@ export default function Home() {
                             key={`thread-${index}`}
                             sender="assistant"
                             avatar={QUIET_TABLE_AVATAR}>
-                            <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
+                            <ChatMessageBubble variant="ghost" className="wizard-block--wide" style={wizardBubblePadding}>
                               <AgentUiBlock
                                 ui={item.ui}
                                 venueOptions={item.venueOptions}
@@ -1332,7 +1338,7 @@ export default function Home() {
                         avatar={QUIET_TABLE_AVATAR}
                         className="chat-message--inline"
                         style={chatMessageInlineStyle}>
-                        <ChatMessageBubble variant="ghost" style={chatBubblePadding}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <Text color="secondary">Thinking…</Text>
                         </ChatMessageBubble>
                       </ChatMessage>

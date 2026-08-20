@@ -940,6 +940,117 @@ export function findVenueOption(idOrTitle: string): VenueOptionCard | undefined 
   );
 }
 
+function normalizeVenueTitle(title: string): string {
+  return title.trim().toLowerCase();
+}
+
+function preferCanonicalVenueId(id: string): boolean {
+  return !id.includes('-date') && !id.includes('-group') && !id.includes('-michelin');
+}
+
+/** Neighbourhood token from subtitle — e.g. "De Pijp · seafood" → "De Pijp". */
+export function venueNeighbourhood(option: VenueOptionCard): string | null {
+  const subtitle = option.subtitle?.trim();
+  if (subtitle == null || subtitle.length === 0) return null;
+  const separator = subtitle.indexOf(' · ');
+  return separator >= 0 ? subtitle.slice(0, separator).trim() : subtitle;
+}
+
+/** One card per restaurant title — drops intent-specific duplicates (e.g. bar-fisk-date). */
+export function listUniqueCatalogVenues(): VenueOptionCard[] {
+  const byTitle = new Map<string, VenueOptionCard>();
+  for (const option of ALL_VENUE_OPTIONS) {
+    const key = normalizeVenueTitle(option.title);
+    const existing = byTitle.get(key);
+    if (existing == null) {
+      byTitle.set(key, option);
+      continue;
+    }
+    if (preferCanonicalVenueId(option.id) && !preferCanonicalVenueId(existing.id)) {
+      byTitle.set(key, option);
+    }
+  }
+  return [...byTitle.values()];
+}
+
+const ONBOARDING_POPULAR_VENUE_IDS = new Set([
+  'bar-fisk',
+  'de-kas',
+  'cafe-de-klos',
+  'rijks',
+  'cecconis',
+  'momo',
+  'graphite',
+  'sla-amsterdam',
+]);
+
+function popularCatalogVenues(limit: number): VenueOptionCard[] {
+  return [...listUniqueCatalogVenues()]
+    .sort((a, b) => {
+      const boostA = ONBOARDING_POPULAR_VENUE_IDS.has(a.id) ? 1 : 0;
+      const boostB = ONBOARDING_POPULAR_VENUE_IDS.has(b.id) ? 1 : 0;
+      if (boostB !== boostA) return boostB - boostA;
+      return (b.google_rating ?? 0) - (a.google_rating ?? 0);
+    })
+    .slice(0, limit);
+}
+
+/** Local typeahead over the mock catalog — instant, no agent round-trip. */
+export function searchCatalogVenues(query: string, limit = 8): VenueOptionCard[] {
+  const needle = query.trim().toLowerCase();
+  if (needle.length < 2) return [];
+
+  return listUniqueCatalogVenues()
+    .map((venue) => {
+      const title = venue.title.toLowerCase();
+      const subtitle = venue.subtitle?.toLowerCase() ?? '';
+      const neighbourhood = venueNeighbourhood(venue)?.toLowerCase() ?? '';
+      let score = 0;
+      if (title === needle) score = 100;
+      else if (title.startsWith(needle)) score = 80;
+      else if (title.includes(needle)) score = 60;
+      else if (neighbourhood.includes(needle) || subtitle.includes(needle)) score = 40;
+      else return null;
+      return {venue, score};
+    })
+    .filter((row): row is {venue: VenueOptionCard; score: number} => row != null)
+    .sort((a, b) => b.score - a.score || a.venue.title.localeCompare(b.venue.title))
+    .slice(0, limit)
+    .map((row) => row.venue);
+}
+
+/** Suggest venues near the user's home area — matches neighbourhood in catalog subtitles. */
+export function suggestVenuesForArea(area: string, limit = 6): VenueOptionCard[] {
+  const needle = area.trim().toLowerCase();
+  if (needle.length === 0 || needle === 'amsterdam') {
+    return popularCatalogVenues(limit);
+  }
+
+  const venues = listUniqueCatalogVenues();
+  const matched = venues.filter((venue) => {
+    const neighbourhood = venueNeighbourhood(venue)?.toLowerCase() ?? '';
+    const subtitle = venue.subtitle?.toLowerCase() ?? '';
+    return (
+      neighbourhood.includes(needle) ||
+      needle.includes(neighbourhood) ||
+      subtitle.includes(needle)
+    );
+  });
+
+  const ranked = matched.sort((a, b) => (b.google_rating ?? 0) - (a.google_rating ?? 0));
+  if (ranked.length >= limit) return ranked.slice(0, limit);
+
+  const seen = new Set(ranked.map((venue) => venue.id));
+  for (const venue of popularCatalogVenues(limit)) {
+    if (ranked.length >= limit) break;
+    if (!seen.has(venue.id)) {
+      ranked.push(venue);
+      seen.add(venue.id);
+    }
+  }
+  return ranked.slice(0, limit);
+}
+
 /** Merge sparse agent/fallback payloads with the local mock catalog. */
 export function enrichVenueOption(option: VenueOptionCard): VenueOptionCard {
   if (option.michelin_guide_url != null) {

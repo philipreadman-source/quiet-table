@@ -20,44 +20,7 @@ export type FriendFoodProfile = {
   topPicks: FriendPick[];
 };
 
-/** Demo close friend — ramen, KBBQ, Asian fusion (Amsterdam). */
-export const SAVAS_OZAY: FriendFoodProfile = {
-  id: 'savas',
-  name: 'Savas',
-  fullName: 'Savas Ozay',
-  relationship: 'close_friend',
-  homeArea: 'Amsterdam',
-  tasteSummary: 'Ramen, Korean BBQ, and Asian fusion',
-  cuisineAffinities: ['japanese', 'korean', 'asian-fusion', 'ramen'],
-  topPicks: [
-    {
-      venueId: 'genki',
-      title: 'Genki',
-      vibe: 'casual ramen spot',
-      note: 'Go-to for tonkotsu — quick, fun, reliably good.',
-      visitedAt: '2026-07-10',
-      rating: 'loved',
-    },
-    {
-      venueId: 'kimchi-premium',
-      title: 'Kimchi Premium',
-      vibe: 'Korean BBQ, group-friendly',
-      note: 'Brings groups for table grills — banchan is the star.',
-      visitedAt: '2026-06-22',
-      rating: 'loved',
-    },
-    {
-      venueId: 'taiko',
-      title: 'Taiko',
-      vibe: 'date-night Asian fusion, mid-range',
-      note: 'Date spot — sharing plates, dim room, cocktails.',
-      visitedAt: '2026-05-15',
-      rating: 'loved',
-    },
-  ],
-};
-
-/** Demo close friend — quiet date nights, wine bars, European. */
+/** Synthetic close friend until real users join the graph — quiet date nights, wine. */
 export const MAYA_CHEN: FriendFoodProfile = {
   id: 'maya',
   name: 'Maya',
@@ -94,44 +57,7 @@ export const MAYA_CHEN: FriendFoodProfile = {
   ],
 };
 
-/** Demo close friend — groups, Italian, loud-casual energy. */
-export const EMMA_VAN_DIJK: FriendFoodProfile = {
-  id: 'emma',
-  name: 'Emma',
-  fullName: 'Emma van Dijk',
-  relationship: 'close_friend',
-  homeArea: 'Amsterdam',
-  tasteSummary: 'Group dinners, Italian, shareable tables',
-  cuisineAffinities: ['italian', 'casual', 'group-friendly'],
-  topPicks: [
-    {
-      venueId: 'cecconis',
-      title: "Cecconi's Amsterdam",
-      vibe: 'group-friendly Italian, lively',
-      note: 'Default for six-plus — long tables, everyone leaves happy.',
-      visitedAt: '2026-07-02',
-      rating: 'loved',
-    },
-    {
-      venueId: 'momo',
-      title: 'MOMO Restaurant',
-      vibe: 'group Pan-Asian, big tables',
-      note: 'When the group wants variety — seats everyone properly.',
-      visitedAt: '2026-05-28',
-      rating: 'loved',
-    },
-    {
-      venueId: 'gruppo-di-amici',
-      title: 'Gruppo di Amici',
-      vibe: 'casual Italian neighbourhood',
-      note: 'Low-key pasta night with friends — no reservation stress.',
-      visitedAt: '2026-03-11',
-      rating: 'liked',
-    },
-  ],
-};
-
-const DEMO_FRIENDS: FriendFoodProfile[] = [SAVAS_OZAY, MAYA_CHEN, EMMA_VAN_DIJK];
+const DEMO_FRIENDS: FriendFoodProfile[] = [MAYA_CHEN];
 
 function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');

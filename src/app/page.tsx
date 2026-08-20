@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect, useMemo, useState, type CSSProperties, type MouseEvent} from 'react';
+import {useRouter} from 'next/navigation';
 import {Sparkles} from 'lucide-react';
 import {HStack, VStack, Layout, LayoutContent} from '@astryxdesign/core/Layout';
 import {
@@ -32,7 +33,12 @@ import {
   type MenuAction,
   type VenueOptionCard,
 } from '@/lib/venue-options';
-import {getUserMemory} from '@/lib/user-memory';
+import {getUserMemory, type UserMemory} from '@/lib/user-memory';
+import {
+  hasOnboardingUsername,
+  loadTasteProfile,
+  type TasteProfile,
+} from '@/lib/taste-profile';
 import {
   DATE_NIGHT_OCCASION_CARDS,
   type DateNightOccasion,
@@ -42,12 +48,12 @@ import {
   type DateNightSpend,
 } from '@/lib/date-night-spend';
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
+import {reverseGeocode} from '@/lib/reverse-geocode';
 
 const QUIET_TABLE_AVATAR = (
   <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="xsmall" />
 );
 
-const DEMO_USER = getUserMemory();
 
 const root: CSSProperties = {height: '100dvh', width: '100%'};
 const chatShell: CSSProperties = {
@@ -541,6 +547,7 @@ function AgentUiBlock({
   onSend,
   onSelectVenue,
   showMoreEnabled = true,
+  userMemory,
 }: {
   ui: UiDirective;
   venueOptions?: VenueOptionCard[];
@@ -548,6 +555,7 @@ function AgentUiBlock({
   onSend: (text: string, draft?: BookingDraft, options?: SendOptions) => void;
   onSelectVenue: (title: string) => void;
   showMoreEnabled?: boolean;
+  userMemory: UserMemory;
 }) {
   const interactive = ui.interactive;
 
@@ -621,6 +629,7 @@ function AgentUiBlock({
                   time={bookingDraft.time}
                   dietaryNeeds={bookingDraft.dietaryNeeds}
                   onBookTable={() => onSelectVenue(enriched.title)}
+                  userMemory={userMemory}
                 />
               </SelectableCard>
             );
@@ -771,11 +780,12 @@ async function callAgent(
   message: string,
   location: string | null,
   draft: BookingDraft,
+  tasteProfile: TasteProfile | null,
 ): Promise<{text: string; ui: UiDirective | null}> {
   const res = await fetch('/api/agent', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({history, message, location, draft}),
+    body: JSON.stringify({history, message, location, draft, tasteProfile}),
   });
   const body = (await res.json()) as {text: string; ui: UiDirective | null; error?: string};
   if (!res.ok) {
@@ -784,29 +794,11 @@ async function callAgent(
   return body;
 }
 
-// Reverse-geocodes browser coordinates to a short place label via Nominatim
-// (OpenStreetMap's free geocoder — no API key needed, fine at prototype
-// volume). Never throws: any failure here just means the agent asks for a
-// location the old way, same as if geolocation permission was denied.
-async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14`,
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const address = data?.address ?? {};
-    const place = address.suburb ?? address.neighbourhood ?? address.city ?? address.town;
-    return place ?? data?.display_name ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export default function Home() {
-  const [messages, setMessages] = useState<ChatTurn[]>([
-    {role: 'assistant', text: `Welcome back, ${DEMO_USER.firstName}. Let's find your table.`},
-  ]);
+  const router = useRouter();
+  const [tasteProfile, setTasteProfile] = useState<TasteProfile | null>(null);
+  const [ready, setReady] = useState(false);
+  const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [postSummaryThread, setPostSummaryThread] = useState<PostSummaryItem[]>([]);
   const [wizardComposerThread, setWizardComposerThread] = useState<PostSummaryItem[]>([]);
   const [locationFromComposer, setLocationFromComposer] = useState(false);
@@ -867,9 +859,30 @@ export default function Home() {
     );
   };
 
+  const userMemory = useMemo(() => getUserMemory(tasteProfile), [tasteProfile]);
+
+  useEffect(() => {
+    const profile = loadTasteProfile();
+    if (!hasOnboardingUsername(profile)) {
+      router.replace('/onboarding');
+      return;
+    }
+    setTasteProfile(profile);
+    const name = profile!.username.trim();
+    setMessages([
+      {
+        role: 'assistant',
+        text: name.length > 0 ? `Welcome, ${name}. Let's find your table.` : `Welcome. Let's find your table.`,
+      },
+    ]);
+    setReady(true);
+  }, [router]);
+
   useEffect(() => {
     requestLocation();
   }, []);
+
+  if (!ready) return null;
 
   const send = async (text: string, draftOverride?: BookingDraft, options?: SendOptions) => {
     if (text.trim().length === 0 || isLoading) return;
@@ -957,7 +970,13 @@ export default function Home() {
 
     setIsLoading(true);
     try {
-      const {text: replyText, ui} = await callAgent(history, text, nextDraft.location ?? userLocation, nextDraft);
+      const {text: replyText, ui} = await callAgent(
+        history,
+        text,
+        nextDraft.location ?? userLocation,
+        nextDraft,
+        tasteProfile,
+      );
       const appendResponse = (prev: PostSummaryItem[]) =>
         appendAgentResponseToThread(prev, replyText, ui, options?.mergeOptions === true);
       if (isSummaryTurn || summaryExists) {
@@ -1322,6 +1341,7 @@ export default function Home() {
                                   setBookingDraft((prev) => withDraftField(prev, 'venue', title))
                                 }
                                 showMoreEnabled={index === lastOptionsUiIndex}
+                                userMemory={userMemory}
                               />
                             </ChatMessageBubble>
                           </ChatMessage>

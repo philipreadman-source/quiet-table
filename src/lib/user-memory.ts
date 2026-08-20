@@ -1,4 +1,5 @@
 import type {DietaryNeeds} from '@/lib/venue-options';
+import type {TasteProfile} from '@/lib/taste-profile';
 
 export type VisitRating = 'liked' | 'disliked' | 'neutral';
 
@@ -14,6 +15,8 @@ export type UserMemory = {
   homeArea: string;
   recentVisits: VenueVisit[];
   savedVenueIds: string[];
+  excludedVenueIds: string[];
+  anchorVenueIds: string[];
   preferences: {
     noise?: 'quiet' | 'lively' | 'any';
     dietaryLean?: DietaryNeeds;
@@ -21,40 +24,39 @@ export type UserMemory = {
   };
 };
 
-/** Demo persona — Aiden, returning Amsterdam diner with a little history. */
-export const DEMO_USER_MEMORY: UserMemory = {
-  firstName: 'Aiden',
+export const EMPTY_USER_MEMORY: UserMemory = {
+  firstName: '',
   homeArea: 'Amsterdam',
-  recentVisits: [
-    {
-      venueId: 'bar-fisk',
-      visitedAt: '2026-06-20',
-      rating: 'disliked',
-      notes: 'Too loud and rushed for a relaxed dinner.',
-    },
-    {
-      venueId: 'cafe-de-klos',
-      visitedAt: '2026-05-08',
-      rating: 'liked',
-      notes: 'Cozy ribs night — would go back.',
-    },
-    {
-      venueId: 'de-kas',
-      visitedAt: '2026-03-14',
-      rating: 'liked',
-      notes: 'Great date-night meal in the greenhouse.',
-    },
-  ],
-  savedVenueIds: ['graphite'],
-  preferences: {
-    noise: 'quiet',
-    dietaryLean: 'vegetarian',
-    notes: 'Prefers calmer rooms and places with solid veg options.',
-  },
+  recentVisits: [],
+  savedVenueIds: [],
+  excludedVenueIds: [],
+  anchorVenueIds: [],
+  preferences: {},
 };
 
-export function getUserMemory(): UserMemory {
-  return DEMO_USER_MEMORY;
+export function profileToUserMemory(profile: TasteProfile): UserMemory {
+  return {
+    firstName: profile.username,
+    homeArea: profile.homeArea || 'Amsterdam',
+    recentVisits: profile.recentVisits.map((visit) => ({
+      venueId: visit.venueId,
+      visitedAt: visit.visitedAt,
+      rating: visit.rating,
+      notes: visit.notes,
+    })),
+    savedVenueIds: profile.savedVenueIds,
+    excludedVenueIds: profile.excludedVenueIds,
+    anchorVenueIds: profile.anchorVenueIds,
+    preferences: profile.preferences,
+  };
+}
+
+/** Resolve taste profile when provided (API); otherwise empty memory — no demo persona. */
+export function getUserMemory(profile?: TasteProfile | null): UserMemory {
+  if (profile != null && profile.username.trim().length > 0) {
+    return profileToUserMemory(profile);
+  }
+  return EMPTY_USER_MEMORY;
 }
 
 function daysSince(isoDate: string): number {
@@ -69,6 +71,7 @@ function visitForVenue(memory: UserMemory, venueId: string): VenueVisit | undefi
 
 /** Hide venues the user recently disliked — the concierge shouldn't re-suggest them. */
 export function isVenueExcluded(venueId: string, memory: UserMemory, withinDays = 120): boolean {
+  if (memory.excludedVenueIds.includes(venueId)) return true;
   const visit = visitForVenue(memory, venueId);
   if (visit == null || visit.rating !== 'disliked') return false;
   return daysSince(visit.visitedAt) <= withinDays;
@@ -84,6 +87,7 @@ export function excludedVenueTitles(options: {id: string; title: string}[], memo
 
 /** Positive signals boost ranking; dislikes that weren't filtered still sink. */
 export function memoryRankScore(venueId: string, memory: UserMemory): number {
+  if (memory.anchorVenueIds.includes(venueId)) return 4;
   const visit = visitForVenue(memory, venueId);
   if (visit?.rating === 'liked') return 3;
   if (visit?.rating === 'disliked') return -5;
@@ -92,6 +96,7 @@ export function memoryRankScore(venueId: string, memory: UserMemory): number {
 }
 
 export function formatPersonalizationBadge(venueId: string, memory: UserMemory): string | null {
+  if (memory.firstName.length === 0) return null;
   const visit = visitForVenue(memory, venueId);
   if (visit?.rating === 'liked') {
     const weeks = Math.max(1, Math.round(daysSince(visit.visitedAt) / 7));
@@ -105,8 +110,6 @@ export function buildVenueListPersonalizationNote(
   memory: UserMemory,
   excludedTitles: string[],
 ): string | null {
-  // FLAG: FALLBACK_VENUE_INTRO_IS_TEMPLATE — factual exclusions only for local fallback.
-  // Soft taste lines (e.g. "favouring calmer spots") are live-agent copy, not fallback.
   void memory;
   if (excludedTitles.length === 0) return null;
   return excludedTitles.length === 1
@@ -120,7 +123,7 @@ export function dietaryQuestionForMemory(_memory?: UserMemory): string {
 
 export function summarizeUserMemoryForAgent(memory: UserMemory) {
   return {
-    firstName: memory.firstName,
+    username: memory.firstName,
     homeArea: memory.homeArea,
     recentVisits: memory.recentVisits.map((visit) => ({
       venueId: visit.venueId,
@@ -129,6 +132,8 @@ export function summarizeUserMemoryForAgent(memory: UserMemory) {
       notes: visit.notes,
     })),
     savedVenueIds: memory.savedVenueIds,
+    anchorVenueIds: memory.anchorVenueIds,
+    excludedVenueIds: memory.excludedVenueIds,
     preferences: memory.preferences,
   };
 }

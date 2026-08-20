@@ -30,6 +30,7 @@ import {
   summarizeFriendForAgent,
   summarizeFriendGraphForAgent,
 } from '@/lib/friend-graph-mock';
+import type {TasteProfile} from '@/lib/taste-profile';
 
 const client = new Anthropic();
 // UI/UX build sessions: mock catalog only — no Anthropic credits.
@@ -62,7 +63,7 @@ Social graph & trust (Friend Foodie layer):
 - When recommending, prioritize restaurants friends have visited and rated highly. Note which friend(s) went and what they said when that data exists in get_user_dining_history or context — surface it on cards via subtitle or meta (e.g. "Maya booked last month").
 - If you have no logged friend-visit data for this user/city, say so plainly in spoken text — do not invent friend reviews or fake social proof. Offer general (non-friend-sourced) suggestions ranked by vibe, taste memory, and availability instead.
 - Passive signals beat reviews: a friend's booking or save is enough; don't ask users to write reviews in chat.
-- Use get_friend_food_profile when the user names a friend or asks for picks in a friend's taste. Demo close friends: Savas Ozay (ramen, KBBQ, Asian fusion), Maya Chen (quiet date nights, wine), Emma van Dijk (groups, Italian).
+- Use get_friend_food_profile when the user names a friend or asks for picks in a friend's taste. Synthetic demo friend until real users join: Maya Chen (quiet date nights, wine).
 - Use get_contact_preferences when a named guest is mentioned for dietary needs. Help build the graph over time by acknowledging saves, likes, and bookings the user makes in-session.
 - As the social graph grows, warm friend signals should progressively outweigh generic picks; when the graph is empty, lean on taste memory and honest fit copy.
 
@@ -100,10 +101,10 @@ const domainTools: Anthropic.Tool[] = [
   {
     name: 'get_friend_food_profile',
     description:
-      'Look up a close friend\'s food taste, cuisine affinities, and Amsterdam venue picks (visits + notes). Use when the user asks for recs in a friend\'s taste or names a friend like Savas.',
+      'Look up a close friend\'s food taste, cuisine affinities, and Amsterdam venue picks (visits + notes). Use when the user asks for recs in a friend\'s taste or names Maya.',
     input_schema: {
       type: 'object',
-      properties: {name: {type: 'string', description: 'Friend first name or id, e.g. Savas, Maya, Emma'}},
+      properties: {name: {type: 'string', description: 'Friend first name or id, e.g. Maya'}},
       required: ['name'],
     },
   },
@@ -270,10 +271,14 @@ function isDraftReadyForVenues(draft?: BookingDraft): boolean {
   return draft?.intent != null && draft.partySize != null && draft.location != null && draft.time != null;
 }
 
-function executeDomainTool(name: string, input: Record<string, unknown>): unknown {
+function executeDomainTool(
+  name: string,
+  input: Record<string, unknown>,
+  tasteProfile?: TasteProfile | null,
+): unknown {
   switch (name) {
     case 'get_user_dining_history':
-      return summarizeUserMemoryForAgent(getUserMemory());
+      return summarizeUserMemoryForAgent(getUserMemory(tasteProfile));
     case 'get_friend_food_profile': {
       const friend = getFriendFoodProfile(String(input.name ?? ''));
       return friend != null
@@ -294,23 +299,25 @@ function executeDomainTool(name: string, input: Record<string, unknown>): unknow
 }
 
 export async function POST(request: Request) {
-  const {history, message, location, draft} = (await request.json()) as {
+  const {history, message, location, draft, tasteProfile} = (await request.json()) as {
     history: ChatTurn[];
     message: string;
     location?: string | null;
     draft?: BookingDraft;
+    tasteProfile?: TasteProfile | null;
   };
 
   if (USE_LOCAL_FALLBACK) {
-    return NextResponse.json({...buildFallbackResponse(message, draft), fallback: true});
+    return NextResponse.json({...buildFallbackResponse(message, draft, tasteProfile), fallback: true});
   }
 
+  const memory = getUserMemory(tasteProfile);
   const contextLines = [
     location != null && location.trim().length > 0
       ? `Known browser location: "${location}". Treat this as the default search area unless the user names a different place.`
       : null,
     draft != null ? `Current booking draft JSON: ${JSON.stringify(draft)}.` : null,
-    `User dining memory JSON: ${JSON.stringify(summarizeUserMemoryForAgent(getUserMemory()))}.`,
+    `User dining memory JSON: ${JSON.stringify(summarizeUserMemoryForAgent(memory))}.`,
     `Close friends food graph JSON: ${JSON.stringify(summarizeFriendGraphForAgent())}.`,
   ].filter(Boolean);
 
@@ -356,7 +363,7 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       if (USE_LOCAL_FALLBACK) {
-        return NextResponse.json({...buildFallbackResponse(message, draft), fallback: true});
+        return NextResponse.json({...buildFallbackResponse(message, draft, tasteProfile), fallback: true});
       }
       return agentErrorResponse(error);
     }
@@ -396,9 +403,13 @@ export async function POST(request: Request) {
         return {type: 'tool_result', tool_use_id: block.id, content: 'displayed to user'};
       }
       const input = block.input as Record<string, unknown>;
-      const result = executeDomainTool(block.name, input);
+      const result = executeDomainTool(block.name, input, tasteProfile);
       if (block.name === 'create_booking') tableBookingResult = result as ReturnType<typeof createBooking>;
-      executedCalls.push({name: block.name, target: describeCallTarget(block.name, input), status: 'complete'});
+      executedCalls.push({
+        name: block.name,
+        target: describeCallTarget(block.name, input, tasteProfile),
+        status: 'complete',
+      });
       return {type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result)};
     });
 
@@ -441,8 +452,12 @@ function dedupeExecutedCalls(calls: {name: string; target: string; status: 'comp
   });
 }
 
-function buildFallbackResponse(message: string, draft?: BookingDraft) {
-  const userMemory = getUserMemory();
+function buildFallbackResponse(
+  message: string,
+  draft?: BookingDraft,
+  tasteProfile?: TasteProfile | null,
+) {
+  const userMemory = getUserMemory(tasteProfile);
   const venue = draft?.venue;
   const time = draft?.time ?? 'the selected time';
   const partySize = Number.parseInt(draft?.partySize ?? '2', 10);
@@ -581,10 +596,14 @@ function fallbackIntentLabel(intent: string) {
   return 'casual';
 }
 
-function describeCallTarget(name: string, input: Record<string, unknown>): string {
+function describeCallTarget(
+  name: string,
+  input: Record<string, unknown>,
+  tasteProfile?: TasteProfile | null,
+): string {
   switch (name) {
     case 'get_user_dining_history':
-      return getUserMemory().firstName;
+      return getUserMemory(tasteProfile).firstName || 'guest';
     case 'get_friend_food_profile':
       return String(input.name ?? '');
     case 'get_contact_preferences':

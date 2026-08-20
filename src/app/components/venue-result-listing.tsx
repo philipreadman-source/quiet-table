@@ -15,7 +15,7 @@ import {
   type DietaryNeeds,
   type VenueOptionCard,
 } from '@/lib/venue-options';
-import {formatPersonalizationBadge, getUserMemory} from '@/lib/user-memory';
+import {formatPersonalizationBadge, getUserMemory, type UserMemory} from '@/lib/user-memory';
 import styles from './venue-result-listing.module.css';
 
 function stopCardSelect(event: MouseEvent) {
@@ -170,19 +170,22 @@ export function VenueResultListingContent({
   time,
   dietaryNeeds,
   onBookTable,
+  userMemory,
 }: {
   option: VenueOptionCard;
   date?: string;
   time?: string;
   dietaryNeeds?: DietaryNeeds;
   onBookTable: () => void;
+  userMemory?: UserMemory;
 }) {
   const enriched = enrichVenueOption(option);
   const social = formatSocialProof(enriched.social_proof);
   const michelinLine = formatMichelinLine(enriched);
   const ratings = enriched.michelin_guide_url != null ? null : formatRatingsLine(enriched);
   const dietaryBadge = formatDietaryBadge(enriched, dietaryNeeds);
-  const personalizationBadge = formatPersonalizationBadge(enriched.id, getUserMemory());
+  const memory = userMemory ?? getUserMemory();
+  const personalizationBadge = formatPersonalizationBadge(enriched.id, memory);
   const menuAction = resolveMenuAction(enriched);
   const aiWriteUps = venueAiWriteUps(enriched);
 

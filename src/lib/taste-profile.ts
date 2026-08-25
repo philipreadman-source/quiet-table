@@ -93,8 +93,6 @@ export const CUISINE_OPTIONS: {id: CuisineId; label: string}[] = [
 
 export const ONBOARDING_STEP_ORDER: OnboardingStepId[] = [
   'basics',
-  'last_meal',
-  'vibe',
   'cuisine',
   'venue_quiz',
   'invite_friends',

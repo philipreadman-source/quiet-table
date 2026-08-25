@@ -2,6 +2,7 @@
 
 import {useCallback, useEffect, useMemo, useState, type CSSProperties} from 'react';
 import {useRouter, useSearchParams} from 'next/navigation';
+import {Share2} from 'lucide-react';
 import {VStack, Layout, LayoutContent, HStack} from '@astryxdesign/core/Layout';
 import {Text} from '@astryxdesign/core/Text';
 import {Button} from '@astryxdesign/core/Button';
@@ -9,15 +10,8 @@ import {TextInput} from '@astryxdesign/core/TextInput';
 import {SelectableCard} from '@astryxdesign/core/SelectableCard';
 import {Avatar} from '@astryxdesign/core/Avatar';
 import tasteQuizVenues from '@/data/taste-quiz-venues.json';
-import {reverseGeocode} from '@/lib/reverse-geocode';
+import {findVenueOption} from '@/lib/venue-options';
 import {
-  findVenueOption,
-  searchCatalogVenues,
-  suggestVenuesForArea,
-  type VenueOptionCard,
-} from '@/lib/venue-options';
-import {
-  applyLovedVenues,
   applyVenueReaction,
   createEmptyTasteProfile,
   CUISINE_OPTIONS,
@@ -32,7 +26,6 @@ import {
   saveTasteProfile,
   validateUsername,
   type CuisineId,
-  type NoisePreference,
   type OnboardingStepId,
   type TasteProfile,
   type VenueReaction,
@@ -51,12 +44,6 @@ const Q_AVATAR = (
   <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="xsmall" />
 );
 
-const VIBE_OPTIONS: {id: NoisePreference; title: string; subtitle: string}[] = [
-  {id: 'quiet', title: 'Quiet', subtitle: 'Calm rooms, easy conversation'},
-  {id: 'any', title: 'Either', subtitle: 'No strong preference'},
-  {id: 'lively', title: 'Buzzing', subtitle: 'Energy and a bit of noise'},
-];
-
 const REACTION_OPTIONS: {id: VenueReaction; label: string}[] = [
   {id: 'love', label: 'Love it'},
   {id: 'fine', label: 'Fine'},
@@ -68,35 +55,6 @@ function stepIndex(step: OnboardingStepId): number {
   return ONBOARDING_STEP_ORDER.indexOf(step);
 }
 
-function LovedVenueCard({
-  venue,
-  isSelected,
-  onToggle,
-}: {
-  venue: VenueOptionCard;
-  isSelected: boolean;
-  onToggle: (venueId: string, selected: boolean) => void;
-}) {
-  return (
-    <SelectableCard
-      label={venue.title}
-      isSelected={isSelected}
-      onChange={(selected) => onToggle(venue.id, selected)}
-      style={{padding: 'var(--spacing-4)', width: '100%'}}>
-      <VStack gap={0} align="start">
-        <Text type="label" weight="semibold">
-          {venue.title}
-        </Text>
-        {venue.subtitle != null && (
-          <Text type="supporting" color="secondary">
-            {venue.subtitle}
-          </Text>
-        )}
-      </VStack>
-    </SelectableCard>
-  );
-}
-
 export function OnboardingFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -106,22 +64,32 @@ export function OnboardingFlow() {
   const [profile, setProfile] = useState<TasteProfile>(() => loadTasteProfile() ?? createEmptyTasteProfile());
   const [usernameInput, setUsernameInput] = useState(profile.username);
   const [homeAreaInput, setHomeAreaInput] = useState(profile.homeArea);
-  const [lastMealInput, setLastMealInput] = useState(profile.lastMeal?.rawText ?? '');
-  const [selectedLovedVenueIds, setSelectedLovedVenueIds] = useState<string[]>(() => [
-    ...profile.anchorVenueIds,
-  ]);
-  const [suggestionArea, setSuggestionArea] = useState(profile.homeArea || 'Amsterdam');
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [quizIndex, setQuizIndex] = useState(0);
-  const [inviteLabel, setInviteLabel] = useState('');
   const [copyNote, setCopyNote] = useState<string | null>(null);
 
   useEffect(() => {
+    if (step === 'vibe' || step === 'last_meal') setStep('cuisine');
+  }, [step]);
+
+  useEffect(() => {
+    if (searchParams.get('reset') === '1') {
+      const fresh = createEmptyTasteProfile();
+      saveTasteProfile(fresh);
+      setProfile(fresh);
+      setUsernameInput('');
+      setHomeAreaInput('Amsterdam');
+      setStep('basics');
+      setQuizIndex(0);
+      window.history.replaceState(null, '', '/onboarding');
+      return;
+    }
+
     const existing = loadTasteProfile();
     if (existing != null && hasOnboardingUsername(existing) && existing.onboarding.completedAt != null) {
       router.replace('/');
     }
-  }, [router]);
+  }, [router, searchParams]);
 
   useEffect(() => {
     if (referrerId != null && referrerId.length > 0) {
@@ -137,43 +105,6 @@ export function OnboardingFlow() {
       });
     }
   }, [referrerId]);
-
-  useEffect(() => {
-    if (step !== 'last_meal') return;
-    setSuggestionArea(profile.homeArea || 'Amsterdam');
-    setSelectedLovedVenueIds([...profile.anchorVenueIds]);
-    if (typeof navigator === 'undefined' || navigator.geolocation == null) return;
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        void reverseGeocode(position.coords.latitude, position.coords.longitude).then((place) => {
-          if (place != null && place.trim().length > 0) {
-            setSuggestionArea(place);
-          }
-        });
-      },
-      () => {},
-      {timeout: 5000},
-    );
-  }, [step, profile.homeArea, profile.anchorVenueIds]);
-
-  const searchQuery = lastMealInput.trim();
-  const isSearching = searchQuery.length >= 2;
-  const searchResults = useMemo(
-    () => (isSearching ? searchCatalogVenues(searchQuery) : []),
-    [isSearching, searchQuery],
-  );
-  const suggestedVenues = useMemo(
-    () => suggestVenuesForArea(suggestionArea),
-    [suggestionArea],
-  );
-  const displayVenues = isSearching ? searchResults : suggestedVenues;
-
-  const toggleLovedVenue = (venueId: string, selected: boolean) => {
-    setSelectedLovedVenueIds((prev) => {
-      if (selected) return prev.includes(venueId) ? prev : [...prev, venueId];
-      return prev.filter((id) => id !== venueId);
-    });
-  };
 
   const persist = useCallback((next: TasteProfile) => {
     const refreshed = refreshTasteConfidence(next);
@@ -218,22 +149,6 @@ export function OnboardingFlow() {
     });
   };
 
-  const handleLastMealContinue = () => {
-    const hasSelection = selectedLovedVenueIds.length > 0;
-    const hasText = lastMealInput.trim().length > 0;
-    if (!hasSelection && !hasText) {
-      advanceFrom('last_meal', profile);
-      return;
-    }
-    advanceFrom('last_meal', applyLovedVenues(profile, selectedLovedVenueIds, lastMealInput));
-  };
-
-  const lovedSelectionCount = selectedLovedVenueIds.length;
-  const continueLabel =
-    lovedSelectionCount > 0
-      ? `Continue (${lovedSelectionCount} selected)`
-      : 'Continue';
-
   const toggleCuisine = (id: CuisineId) => {
     const current = profile.preferences.cuisineAffinities ?? [];
     const next = current.includes(id) ? current.filter((c) => c !== id) : [...current, id];
@@ -253,28 +168,40 @@ export function OnboardingFlow() {
     setQuizIndex((i) => i + 1);
   };
 
-  const copyInvite = async (label?: string) => {
+  const recordInviteSent = (channel: 'share_sheet' | 'copy_link') => {
+    persist({
+      ...profile,
+      social: {
+        ...profile.social,
+        invites: {
+          ...profile.social.invites,
+          sent: [
+            ...profile.social.invites.sent,
+            {sentAt: new Date().toISOString(), channel},
+          ],
+        },
+      },
+    });
+  };
+
+  const shareInvite = async () => {
     const message = inviteShareMessage(profile.username || 'Someone', inviteUrl);
+    if (typeof navigator !== 'undefined' && navigator.share != null) {
+      try {
+        await navigator.share({title: 'Quiet Table', text: message, url: inviteUrl});
+        recordInviteSent('share_sheet');
+        setCopyNote('Invite shared.');
+        return;
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return;
+      }
+    }
     try {
       await navigator.clipboard.writeText(message);
-      const sent = {
-        label: label?.trim() || undefined,
-        sentAt: new Date().toISOString(),
-        channel: 'copy_link' as const,
-      };
-      persist({
-        ...profile,
-        social: {
-          ...profile.social,
-          invites: {
-            ...profile.social.invites,
-            sent: [...profile.social.invites.sent, sent],
-          },
-        },
-      });
+      recordInviteSent('copy_link');
       setCopyNote('Invite link copied.');
     } catch {
-      setCopyNote('Could not copy — select and copy manually.');
+      setCopyNote('Could not share — copy the link from your browser bar.');
     }
   };
 
@@ -310,7 +237,7 @@ export function OnboardingFlow() {
                   }
                 />
                 <TextInput
-                  label="Home area"
+                  label="Location"
                   value={homeAreaInput}
                   onChange={setHomeAreaInput}
                   placeholder="Amsterdam"
@@ -318,90 +245,6 @@ export function OnboardingFlow() {
                 <HStack gap={2} wrap="wrap">
                   <Button label="Continue" onClick={handleBasicsContinue} />
                 </HStack>
-              </VStack>
-            )}
-
-            {step === 'last_meal' && (
-              <VStack gap={3}>
-                <Text type="label" weight="semibold">
-                  Places you&apos;ve loved?
-                </Text>
-                <Text color="secondary">
-                  Pick a few near {suggestionArea}, or search for others — optional.
-                </Text>
-
-                {!isSearching && (
-                  <Text type="supporting" color="secondary">
-                    Suggested near you
-                  </Text>
-                )}
-                {isSearching && (
-                  <Text type="supporting" color="secondary">
-                    Matches for &ldquo;{searchQuery}&rdquo;
-                  </Text>
-                )}
-
-                <VStack gap={2} align="start" style={{width: '100%'}}>
-                  {displayVenues.map((venue) => (
-                    <LovedVenueCard
-                      key={venue.id}
-                      venue={venue}
-                      isSelected={selectedLovedVenueIds.includes(venue.id)}
-                      onToggle={toggleLovedVenue}
-                    />
-                  ))}
-                  {isSearching && displayVenues.length === 0 && (
-                    <Text type="supporting" color="secondary">
-                      No matches in our list — try another name, or Continue with your text.
-                    </Text>
-                  )}
-                </VStack>
-
-                <TextInput
-                  label="Search or type a name"
-                  value={lastMealInput}
-                  onChange={setLastMealInput}
-                  placeholder="De Kas, Bar Fisk…"
-                />
-
-                <HStack gap={2} wrap="wrap">
-                  <Button label={continueLabel} onClick={handleLastMealContinue} />
-                  <Button label="Skip" variant="ghost" onClick={skipStep} />
-                </HStack>
-              </VStack>
-            )}
-
-            {step === 'vibe' && (
-              <VStack gap={3}>
-                <Text type="label" weight="semibold">
-                  What vibe do you want most nights?
-                </Text>
-                <VStack gap={2} align="start">
-                  {VIBE_OPTIONS.map((option) => (
-                    <SelectableCard
-                      key={option.id}
-                      label={option.title}
-                      isSelected={profile.preferences.noise === option.id}
-                      onChange={(selected) => {
-                        if (!selected) return;
-                        advanceFrom('vibe', {
-                          ...profile,
-                          preferences: {...profile.preferences, noise: option.id},
-                        });
-                      }}
-                      style={{padding: 'var(--spacing-4)'}}>
-                      <VStack gap={0}>
-                        <Text type="label" weight="semibold">
-                          {option.title}
-                        </Text>
-                        <Text type="supporting" color="secondary">
-                          {option.subtitle}
-                        </Text>
-                      </VStack>
-                    </SelectableCard>
-                  ))}
-                </VStack>
-                <Button label="Skip" variant="ghost" onClick={skipStep} />
               </VStack>
             )}
 
@@ -487,16 +330,13 @@ export function OnboardingFlow() {
                 <Text type="supporting" color="secondary">
                   {invitesSent} of {profile.social.invites.targetCount} invited
                 </Text>
-                <TextInput
-                  label="Nickname (optional)"
-                  value={inviteLabel}
-                  onChange={setInviteLabel}
-                  placeholder="Maya"
-                />
-                <HStack gap={2} wrap="wrap">
+                <HStack gap={2} vAlign="center" wrap="wrap">
                   <Button
-                    label="Copy invite link"
-                    onClick={() => void copyInvite(inviteLabel)}
+                    label="Share invite"
+                    icon={<Share2 size={18} />}
+                    isIconOnly
+                    variant="secondary"
+                    onClick={() => void shareInvite()}
                     isDisabled={!hasOnboardingUsername(profile)}
                   />
                   <Button label="Done" onClick={() => finish(profile)} />

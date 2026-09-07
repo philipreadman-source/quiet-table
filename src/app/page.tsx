@@ -884,6 +884,25 @@ export default function Home() {
 
   if (!ready) return null;
 
+  const demoResetAvatar = (
+    <button
+      type="button"
+      onClick={() => router.push('/onboarding?reset=1')}
+      aria-label="Restart onboarding demo"
+      title="Restart onboarding demo"
+      style={{
+        background: 'none',
+        border: 'none',
+        padding: 0,
+        cursor: 'pointer',
+        borderRadius: '9999px',
+        display: 'inline-flex',
+        lineHeight: 0,
+      }}>
+      <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="xsmall" />
+    </button>
+  );
+
   const send = async (text: string, draftOverride?: BookingDraft, options?: SendOptions) => {
     if (text.trim().length === 0 || isLoading) return;
     const summaryExists = messages.some((m) => m.kind === 'summary');
@@ -1027,7 +1046,7 @@ export default function Home() {
                         <ChatMessage
                           key={index}
                           sender="assistant"
-                          avatar={QUIET_TABLE_AVATAR}
+                          avatar={index === 0 ? demoResetAvatar : QUIET_TABLE_AVATAR}
                           className="chat-message--inline"
                           style={chatMessageInlineStyle}>
                           <ChatMessageBubble style={chatBubblePadding}>

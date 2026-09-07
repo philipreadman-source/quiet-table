@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:3003": "NODE_OPTIONS='--max-old-space-size=4096' next dev --port 3003",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

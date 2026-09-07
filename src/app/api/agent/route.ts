@@ -35,7 +35,7 @@ import type {TasteProfile} from '@/lib/taste-profile';
 const client = new Anthropic();
 // UI/UX build sessions: mock catalog only — no Anthropic credits.
 // Set false for live agent demos when Anthropic billing is topped up.
-const USE_LOCAL_FALLBACK = true;
+const USE_LOCAL_FALLBACK = false;
 
 /** Shown when the composer gets free text the mock catalog cannot handle. */
 const FALLBACK_ASLEEP_MESSAGE =

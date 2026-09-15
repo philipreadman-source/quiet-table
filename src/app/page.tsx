@@ -151,6 +151,10 @@ function partySizeSummaryPhrase(value: string): string {
     : `for a party of ${value}`;
 }
 
+function isSoloPartySize(size: string | undefined): boolean {
+  return size === '1';
+}
+
 /** Short intent label for the summary bubble — not the full chip message. */
 function intentSummaryLabel(intent: string | undefined): string | null {
   if (intent == null) return null;
@@ -238,12 +242,17 @@ function resolveComposerPlaceholder(args: {
   return STAGE_PLACEHOLDERS[args.stage];
 }
 
-function wizardStageOrder(sizeStepSkipped: boolean, dateNightStepsIncluded: boolean): WizardStage[] {
+function wizardStageOrder(
+  sizeStepSkipped: boolean,
+  dateNightStepsIncluded: boolean,
+  skipGoingWith: boolean,
+): WizardStage[] {
+  const goingWith: WizardStage[] = skipGoingWith ? [] : ['goingWith'];
   if (sizeStepSkipped && dateNightStepsIncluded) {
     return ['intent', 'location', 'occasion', 'spend', 'date', 'time'];
   }
   if (sizeStepSkipped) return ['intent', 'location', 'date', 'time'];
-  return ['intent', 'size', 'goingWith', 'location', 'date', 'time'];
+  return ['intent', 'size', ...goingWith, 'location', 'date', 'time'];
 }
 
 function visibleWizardStages(
@@ -251,8 +260,9 @@ function visibleWizardStages(
   wizardComplete: boolean,
   sizeStepSkipped: boolean,
   dateNightStepsIncluded: boolean,
+  skipGoingWith: boolean,
 ): WizardStage[] {
-  const order = wizardStageOrder(sizeStepSkipped, dateNightStepsIncluded);
+  const order = wizardStageOrder(sizeStepSkipped, dateNightStepsIncluded, skipGoingWith);
   if (wizardComplete) return order;
   const idx = order.indexOf(stage);
   return order.slice(0, Math.max(0, idx + 1));
@@ -903,9 +913,17 @@ export default function Home() {
   // A real deployment would start this at null and rely on requestLocation.
   const userLocation = bookingDraft.location ?? null;
   const wizardComplete = messages.some((m) => m.kind === 'summary');
+  const skipGoingWithStep = isSoloPartySize(bookingDraft.partySize);
   const visibleStages = useMemo(
-    () => visibleWizardStages(stage, wizardComplete, sizeStepSkipped, dateNightStepsIncluded),
-    [stage, wizardComplete, sizeStepSkipped, dateNightStepsIncluded],
+    () =>
+      visibleWizardStages(
+        stage,
+        wizardComplete,
+        sizeStepSkipped,
+        dateNightStepsIncluded,
+        skipGoingWithStep,
+      ),
+    [stage, wizardComplete, sizeStepSkipped, dateNightStepsIncluded, skipGoingWithStep],
   );
   const summaryIndex = messages.findIndex((m) => m.kind === 'summary');
   const messagesBeforeSummary = summaryIndex >= 0 ? messages.slice(0, summaryIndex) : messages;
@@ -1243,8 +1261,20 @@ export default function Home() {
                                     if (isGroupHandoffFromCasual(bookingDraft, size)) {
                                       setIntentAcknowledgement(GROUP_INTENT_ACKNOWLEDGEMENT);
                                     }
-                                    setBookingDraft((prev) => applyPartySizeSelection(prev, size));
-                                    setStage('goingWith');
+                                    const solo = isSoloPartySize(size);
+                                    setBookingDraft((prev) => {
+                                      const next = applyPartySizeSelection(prev, size);
+                                      if (!solo) return next;
+                                      return {
+                                        ...next,
+                                        goingWithFriendIds: undefined,
+                                        goingWithSkipped: true,
+                                        partyDietarySummary: undefined,
+                                        dietaryNeeds:
+                                          next.partyDietarySummary != null ? undefined : next.dietaryNeeds,
+                                      };
+                                    });
+                                    setStage(solo ? stageAfterGoingWith() : 'goingWith');
                                   }}>
                                   <Text type="label" weight="semibold" justify="center">
                                     {size}

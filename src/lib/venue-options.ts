@@ -261,14 +261,14 @@ export type SocialProof = {
   name: string;
   /** Demo graph friend id when proof comes from close-friend picks. */
   friendId?: string;
-  action: 'liked' | 'booked' | 'recommended' | 'saved';
+  action: 'liked' | 'loved' | 'repeat_booker' | 'booked' | 'recommended' | 'saved';
   source: SocialProofSource;
   when?: string;
 };
 
 export type DietaryTag = 'vegetarian-friendly' | 'vegan-friendly' | 'limited-veg';
 
-export type DietaryNeeds = 'none' | 'vegetarian' | 'vegan' | 'mixed';
+export type DietaryNeeds = 'none' | 'vegetarian' | 'vegan' | 'mixed' | 'pescatarian';
 
 export const VENUE_PAGE_SIZE = 3;
 
@@ -326,14 +326,16 @@ export function resolveMenuAction(option: VenueOptionCard): MenuAction | null {
   return null;
 }
 
-function socialProofLine(proof: SocialProof): string {
+function socialProofLine(proof: SocialProof): string | null {
   const when = proof.when != null ? ` ${proof.when}` : '';
   switch (proof.source) {
     case 'contact':
-      if (proof.action === 'liked') return `${proof.name} recently liked this`;
-      if (proof.action === 'booked') return `${proof.name} booked here${when}`;
+      if (proof.action === 'repeat_booker') return `${proof.name} is a regular here`;
+      if (proof.action === 'loved') return `${proof.name} loved this`;
+      if (proof.action === 'liked') return `${proof.name} liked this`;
+      if (proof.action === 'booked' || proof.action === 'saved') return null;
       if (proof.action === 'recommended') return `${proof.name} recommended this`;
-      return `${proof.name} saved this`;
+      return null;
     case 'instagram':
       return `${proof.name} liked this on Instagram`;
     case 'tripadvisor':
@@ -375,7 +377,7 @@ const CASUAL_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.3,
     review_count: 8900,
     dietary_tags: ['limited-veg'],
-    social_proof: {name: 'Emma', action: 'booked', source: 'contact', when: 'last month'},
+    social_proof: {name: 'Emma', action: 'loved', source: 'contact', when: 'last month'},
   },
   {
     id: 'genki',
@@ -451,7 +453,7 @@ const CASUAL_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.0,
     review_count: 4500,
     dietary_tags: ['limited-veg'],
-    social_proof: {name: 'Tom', action: 'booked', source: 'contact', when: 'last week'},
+    social_proof: {name: 'Tom', action: 'loved', source: 'contact', when: 'last week'},
   },
   {
     id: 'kimchi-premium',
@@ -568,7 +570,7 @@ const DATE_NIGHT_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.2,
     review_count: 2800,
     dietary_tags: ['vegetarian-friendly', 'vegan-friendly'],
-    social_proof: {name: 'Lisa', action: 'booked', source: 'contact', when: 'for an anniversary'},
+    social_proof: {name: 'Lisa', action: 'loved', source: 'contact', when: 'for an anniversary'},
   },
   {
     id: 'restaurant-212',
@@ -599,7 +601,7 @@ const MICHELIN_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.6,
     review_count: 3200,
     dietary_tags: ['vegetarian-friendly'],
-    social_proof: {name: 'Marco', action: 'booked', source: 'contact', when: 'in March'},
+    social_proof: {name: 'Marco', action: 'loved', source: 'contact', when: 'in March'},
   },
   {
     id: 'graphite',
@@ -729,7 +731,7 @@ const GROUP_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.2,
     review_count: 1800,
     dietary_tags: ['vegetarian-friendly'],
-    social_proof: {name: 'Tom', action: 'booked', source: 'contact', when: 'for a team dinner'},
+    social_proof: {name: 'Tom', action: 'loved', source: 'contact', when: 'for a team dinner'},
   },
   {
     id: 'momo',
@@ -792,7 +794,7 @@ const GROUP_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.4,
     review_count: 1100,
     dietary_tags: ['vegan-friendly', 'vegetarian-friendly'],
-    social_proof: {name: 'Nina', action: 'booked', source: 'contact', when: 'with a group'},
+    social_proof: {name: 'Nina', action: 'loved', source: 'contact', when: 'with a group'},
   },
   {
     id: 'restaurant-canvas',
@@ -862,7 +864,7 @@ function dietaryRankScore(tags: DietaryTag[] | undefined, needs: DietaryNeeds | 
     if (t.includes('limited-veg')) return -2;
     return -1;
   }
-  if (needs === 'vegetarian' || needs === 'mixed') {
+  if (needs === 'vegetarian' || needs === 'mixed' || needs === 'pescatarian') {
     if (t.includes('vegan-friendly') || t.includes('vegetarian-friendly')) return 2;
     if (t.includes('limited-veg')) return -1;
     return 0;
@@ -944,6 +946,11 @@ export function formatDietaryBadge(
     if (tags.includes('vegan-friendly')) return 'Good vegan options';
     if (tags.includes('vegetarian-friendly')) return 'Vegetarian options — limited vegan menu';
     return 'Limited veg — check menu';
+  }
+  if (needs === 'pescatarian') {
+    if (tags.includes('vegetarian-friendly')) return 'Vegetarian menu · fish/seafood OK';
+    if (tags.includes('vegan-friendly')) return 'Plant-forward · check fish options';
+    return 'Limited veg — confirm fish/no meat';
   }
   if (needs === 'vegetarian' || needs === 'mixed') {
     if (tags.includes('vegan-friendly') || tags.includes('vegetarian-friendly')) return 'Good vegetarian options';

@@ -13,10 +13,15 @@ import type {TasteProfile} from '@/lib/taste-profile';
 import {buildFallbackResponse} from '@/lib/fallback-response';
 import {catalogAgentContextLine} from '@/lib/venue-options';
 
+/**
+ * USE_LOCAL_FALLBACK=true  → buildFallbackResponse only. No Anthropic, web_search, or MCP — zero agent credits.
+ * USE_LOCAL_FALLBACK=false → Live agent: Claude + web_search + search_quiet_table_catalog (local catalog tools).
+ * Override via env (e.g. USE_LOCAL_FALLBACK=true in .env.local for UI work).
+ */
+const USE_LOCAL_FALLBACK =
+  process.env.USE_LOCAL_FALLBACK === 'true' || process.env.USE_LOCAL_FALLBACK === '1';
+
 const client = new Anthropic();
-// UI/UX build sessions: mock catalog only — no Anthropic credits.
-// Set false for live agent demos when Anthropic billing is topped up.
-const USE_LOCAL_FALLBACK = false;
 
 function agentErrorResponse(error: unknown) {
   console.error('[agent] Anthropic request failed:', error);
@@ -33,6 +38,9 @@ const SYSTEM_PROMPT = `You are the agent behind Quiet Table — a close-friend r
 
 Identity & tone:
 - Be concise, warm, and practical — like a well-connected friend giving a recommendation, not a search engine listing.
+- Spoken text is short. Default max ~40 words per turn; venue-results intro max ~55 words. Never recap the full booking draft (party, city, date, time) — the user already set that in the wizard.
+- Do not narrate tools or process ("cross-referencing the catalog", "let me pull up", "great news — all six are available"). Put detail on cards; speech is the headline only.
+- Use Markdown bullets sparingly (2–3 bullets max) when comparing friend signals or dietary notes; otherwise one or two plain sentences.
 - The core job is still finding and booking a table: vibe/occasion, party size, date/time. Ask only for what the booking draft doesn't already have.
 - Ask clarifying questions when a request is ambiguous (city, occasion, budget) — but respect that the web wizard may already have captured party size, date, time, and dietary needs via cards and pickers; don't re-ask what's in the draft.
 
@@ -59,6 +67,7 @@ Discovery & menus (catalog + web — both):
 UI & booking (Quiet Table layer — non-negotiable):
 - The UI is the primary path. Prefer structured render_ui controls (venue cards, detail, confirm, success) over prose-only next steps. Spoken text explains why the UI choices are shown; it doesn't replace them.
 - Treat the booking draft JSON from the client as source of truth. If the user's latest text changes part of it, acknowledge and return the next useful UI control.
+- When draft.goingWithFriendIds is set: boost venues from those friends' catalog picks (search_quiet_table_catalog / get_friend_food_profile), surface their social lines on cards, and honor draft.dietaryNeeds + draft.partyDietarySummary from companion restrictions (e.g. pescatarian — fish OK, no meat).
 - Optional context (noise preference, tie-in plans, dietary for a named guest) — pick up naturally if mentioned; never assume or center the flow on it.
 - Call get_user_dining_history when you need taste memory. Never re-suggest venues the user recently disliked; boost places they liked or saved.
 - Never call create_booking without explicit prior confirmation in this conversation.
@@ -68,7 +77,7 @@ UI & booking (Quiet Table layer — non-negotiable):
 - Put AI menu summaries on the card (description / menu_overview), not behind View menu. View menu only for real menu_url.
 - Keep occasion options consistent with draft context — e.g. never offer "date night" when party size ≥ 3.
 - You have Astryx design system access via MCP — consult it when choosing render_ui patterns.
-- First venue-results spoken text (interactive.type "options" after draft complete) MUST be context-aware: weave intent, occasion, spend, location, aimed time, dietaryNeeds, memory, and honest cold-start framing if no friend data. One short paragraph only — not repeated on "show more".`;
+- First venue-results spoken text (interactive.type "options" after draft complete): one tight hook only — e.g. vibe + strongest friend or dietary note + "pick a table below". No venue essays, no repeating card copy, empty string OK on "show more". Example shape: "Saturday date night — leaning on Maya's favourites and your taste profile. Three strong fits at 8:30."`;
 
 const domainTools: Anthropic.Tool[] = [
   {
@@ -260,6 +269,9 @@ type BookingDraft = {
   occasion?: string;
   spend?: string;
   occasionNotes?: string;
+  goingWithFriendIds?: string[];
+  goingWithSkipped?: boolean;
+  partyDietarySummary?: string;
 };
 
 function isDraftReadyForVenues(draft?: BookingDraft): boolean {

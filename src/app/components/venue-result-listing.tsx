@@ -198,7 +198,7 @@ export function VenueResultListingContent({
   const memory = userMemory ?? getUserMemory();
   const personalizationBadge = formatPersonalizationBadge(enriched.id, memory);
   const menuAction = resolveMenuAction(enriched);
-  const aiWriteUps = venueAiWriteUps(enriched);
+  const aiWriteUps = venueAiWriteUps(enriched).slice(0, 1);
 
   const availabilityLine =
     enriched.meta ??

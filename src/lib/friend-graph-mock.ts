@@ -1,4 +1,4 @@
-import type {SocialProof} from '@/lib/venue-options';
+import type {DietaryNeeds, SocialProof} from '@/lib/venue-options';
 
 export type FriendPick = {
   venueId: string;
@@ -7,6 +7,8 @@ export type FriendPick = {
   note: string;
   visitedAt: string;
   rating: 'loved' | 'liked';
+  /** 2+ → card shows repeat-guest social line (still requires liked/loved). */
+  visitCount?: number;
 };
 
 export type FriendFoodProfile = {
@@ -42,6 +44,7 @@ export const SAVAS_OZAY: FriendFoodProfile = {
       note: 'Go-to tonkotsu — quick, fun.',
       visitedAt: '2026-05-12',
       rating: 'loved',
+      visitCount: 3,
     },
     {
       venueId: 'kimchi-premium',
@@ -137,7 +140,40 @@ export const EMMA_VAN_DIJK: FriendFoodProfile = {
   ],
 };
 
-const DEMO_FRIENDS: FriendFoodProfile[] = [SAVAS_OZAY, MAYA_CHEN, EMMA_VAN_DIJK];
+export const ANNA_VAN_BERG: FriendFoodProfile = {
+  id: 'anna',
+  name: 'Anna',
+  fullName: 'Anna van Berg',
+  relationship: 'close_friend',
+  homeArea: 'Amsterdam',
+  tasteSummary: 'Neighbourhood gems, wine bars, Instagram finds',
+  cuisineAffinities: ['modern-european', 'other'],
+  topPicks: [],
+};
+
+export const TOM_JANSEN: FriendFoodProfile = {
+  id: 'tom',
+  name: 'Tom',
+  fullName: 'Tom Jansen',
+  relationship: 'close_friend',
+  homeArea: 'Amsterdam',
+  tasteSummary: 'Steak, cocktails, late reservations',
+  cuisineAffinities: ['steak-grill', 'other'],
+  topPicks: [],
+};
+
+const DEMO_FRIENDS: FriendFoodProfile[] = [
+  SAVAS_OZAY,
+  MAYA_CHEN,
+  EMMA_VAN_DIJK,
+  ANNA_VAN_BERG,
+  TOM_JANSEN,
+];
+
+/** Five faces shown on the “Who are you going with?” wizard step (room for + grid later). */
+export function listWizardCompanionFriends(): readonly FriendFoodProfile[] {
+  return DEMO_FRIENDS.slice(0, 5);
+}
 
 function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -198,21 +234,117 @@ export function getMentionedFriend(text: string): FriendFoodProfile | undefined 
   );
 }
 
-/** Card social line when a demo friend has visited this venue. */
-export function friendSocialProofForVenue(venueId: string): SocialProof | undefined {
-  for (const friend of DEMO_FRIENDS) {
-    const pick = friend.topPicks.find((p) => p.venueId === venueId);
-    if (pick == null) continue;
-    const when = daysAgoLabel(pick.visitedAt);
+function socialProofFromFriendPick(friend: FriendFoodProfile, venueId: string): SocialProof | undefined {
+  const pick = friend.topPicks.find((p) => p.venueId === venueId);
+  if (pick == null) return undefined;
+  if (pick.rating !== 'loved' && pick.rating !== 'liked') return undefined;
+  const visits = pick.visitCount ?? 1;
+  const when = daysAgoLabel(pick.visitedAt);
+  if (visits >= 2) {
     return {
       name: friend.name,
       friendId: friend.id,
-      action: pick.rating === 'loved' ? 'booked' : 'liked',
+      action: 'repeat_booker',
       source: 'contact',
-      when,
     };
   }
+  return {
+    name: friend.name,
+    friendId: friend.id,
+    action: pick.rating === 'loved' ? 'loved' : 'liked',
+    source: 'contact',
+    when,
+  };
+}
+
+/** Card social line when a demo friend has visited this venue — prefer selected companions first. */
+export function friendSocialProofForVenue(
+  venueId: string,
+  preferCompanionIds?: string[],
+): SocialProof | undefined {
+  if (preferCompanionIds != null) {
+    for (const id of preferCompanionIds) {
+      const friend = getFriendFoodProfile(id);
+      if (friend == null) continue;
+      const proof = socialProofFromFriendPick(friend, venueId);
+      if (proof != null) return proof;
+    }
+  }
+  for (const friend of DEMO_FRIENDS) {
+    const proof = socialProofFromFriendPick(friend, venueId);
+    if (proof != null) return proof;
+  }
   return undefined;
+}
+
+export type FriendDietaryLean = 'none' | 'pescatarian' | 'vegetarian' | 'vegan';
+
+export function friendDietaryLean(friend: FriendFoodProfile): FriendDietaryLean {
+  const notes = friend.dietaryNotes?.toLowerCase() ?? '';
+  if (notes.includes('vegan')) return 'vegan';
+  if (notes.includes('pescatarian') || notes.includes('fish')) return 'pescatarian';
+  if (notes.includes('vegetarian')) return 'vegetarian';
+  return 'none';
+}
+
+/** Map wizard companion picks → table dietary needs + copy for the agent/UI. */
+export function derivePartyDietaryFromCompanions(friendIds: string[]): {
+  dietaryNeeds: DietaryNeeds;
+  summary: string;
+} | null {
+  if (friendIds.length === 0) return null;
+
+  const friends = friendIds
+    .map((id) => getFriendFoodProfile(id))
+    .filter((friend): friend is FriendFoodProfile => friend != null);
+  if (friends.length === 0) return null;
+
+  const leans = friends.map(friendDietaryLean);
+  const names = friends.map((f) => f.name);
+  const hasRestriction = leans.some((lean) => lean !== 'none');
+  if (!hasRestriction) return null;
+
+  const hasVegan = leans.includes('vegan');
+  const hasPesc = leans.includes('pescatarian');
+  const hasVeg = leans.includes('vegetarian');
+  const hasUnrestricted = leans.includes('none');
+
+  if (hasVegan) {
+    return {
+      dietaryNeeds: 'vegan',
+      summary: `${names.join(' and ')} — vegan at the table.`,
+    };
+  }
+
+  if (hasPesc && hasUnrestricted) {
+    return {
+      dietaryNeeds: 'mixed',
+      summary: `${names.filter((_, i) => leans[i] === 'pescatarian').join(' and ')} is pescatarian (fish OK, no meat) — mixed party.`,
+    };
+  }
+
+  if (hasPesc && !hasUnrestricted) {
+    return {
+      dietaryNeeds: 'pescatarian',
+      summary: `${names.join(' and ')} — pescatarian (fish and seafood OK, no meat).`,
+    };
+  }
+
+  if (hasVeg && hasUnrestricted) {
+    return {
+      dietaryNeeds: 'mixed',
+      summary: `${names.join(', ')} — vegetarian needs in the group.`,
+    };
+  }
+
+  if (hasVeg) {
+    return {
+      dietaryNeeds: 'vegetarian',
+      summary: `${names.join(' and ')} — vegetarian at the table.`,
+    };
+  }
+
+  return null;
 }
 
 function daysAgoLabel(isoDate: string): string | undefined {
@@ -223,20 +355,52 @@ function daysAgoLabel(isoDate: string): string | undefined {
   return undefined;
 }
 
-/** Boost ranking when a named friend's picks align with the brief. */
+function scoreFriendVenuePick(
+  friend: FriendFoodProfile,
+  venueId: string,
+  intent?: string,
+  contextText?: string,
+): number {
+  const pick = friend.topPicks.find((p) => p.venueId === venueId);
+  if (pick == null) return 0;
+  let score = pick.rating === 'loved' ? 4 : 2;
+  const intentLower = (intent ?? contextText ?? '').toLowerCase();
+  if (intentLower.includes('date') && pick.vibe.includes('date-night')) score += 6;
+  if (intentLower.includes('group') && pick.vibe.includes('group')) score += 5;
+  if (intentLower.includes('casual') && pick.vibe.includes('casual')) score += 4;
+  return score;
+}
+
+/** Boost ranking for each companion’s catalog picks (wizard “going with”) plus any friend named in text. */
+export function friendRankScoreForCompanions(
+  venueId: string,
+  companionIds: string[] | undefined,
+  contextText: string,
+  intent?: string,
+): number {
+  let total = 0;
+  const seen = new Set<string>();
+
+  for (const id of companionIds ?? []) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const friend = getFriendFoodProfile(id);
+    if (friend != null) total += scoreFriendVenuePick(friend, venueId, intent, contextText);
+  }
+
+  const mentioned = getMentionedFriend(contextText);
+  if (mentioned != null && !seen.has(mentioned.id)) {
+    total += scoreFriendVenuePick(mentioned, venueId, intent, contextText);
+  }
+
+  return total;
+}
+
+/** @deprecated Prefer friendRankScoreForCompanions */
 export function friendRankScore(
   venueId: string,
   contextText: string,
   intent?: string,
 ): number {
-  const friend = getMentionedFriend(contextText);
-  if (friend == null) return 0;
-  const pick = friend.topPicks.find((p) => p.venueId === venueId);
-  if (pick == null) return 0;
-  let score = pick.rating === 'loved' ? 4 : 2;
-  const intentLower = (intent ?? contextText).toLowerCase();
-  if (intentLower.includes('date') && pick.vibe.includes('date-night')) score += 6;
-  if (intentLower.includes('group') && pick.vibe.includes('group')) score += 5;
-  if (intentLower.includes('casual') && pick.vibe.includes('casual')) score += 4;
-  return score;
+  return friendRankScoreForCompanions(venueId, undefined, contextText, intent);
 }

@@ -47,6 +47,12 @@ import {
   type DateNightSpend,
 } from '@/lib/date-night-spend';
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
+import {WizardGoingWithStep} from '@/app/components/wizard-going-with-step';
+import {
+  derivePartyDietaryFromCompanions,
+  getFriendFoodProfile,
+  listWizardCompanionFriends,
+} from '@/lib/friend-graph-mock';
 import {reverseGeocode} from '@/lib/reverse-geocode';
 import {parseLocationFromMessage} from '@/lib/parse-location';
 
@@ -73,8 +79,8 @@ const wizardBubblePadding: CSSProperties = {
   paddingBlockEnd: 'var(--spacing-4)',
   paddingInline: 0,
 };
-/** Short text replies — middle-align avatar with the text (not tall card blocks). */
-const chatMessageInlineStyle: CSSProperties = {alignItems: 'center'};
+/** Text + tool/status replies — top-align Q with the bubble (multi-line stays natural). */
+const chatMessageInlineStyle: CSSProperties = {alignItems: 'flex-start'};
 
 // Fixed, art-directed opening move — instant, no round-trip. Every card
 // runs the same wizard next: intent -> party size -> date -> time. Party
@@ -156,16 +162,29 @@ function intentSummaryLabel(intent: string | undefined): string | null {
   return intent.replace(/\.$/, '');
 }
 
+function goingWithSummaryPhrase(draft: BookingDraft): string | null {
+  const ids = draft.goingWithFriendIds;
+  if (ids == null || ids.length === 0 || draft.goingWithSkipped === true) return null;
+  const names = ids
+    .map((id) => getFriendFoodProfile(id)?.name)
+    .filter((name): name is string => name != null && name.length > 0);
+  if (names.length === 0) return null;
+  if (names.length === 1) return `with ${names[0]}`;
+  if (names.length === 2) return `with ${names[0]} and ${names[1]}`;
+  return `with ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 function formatDraftSummary(draft: BookingDraft): string {
   const intent = intentSummaryLabel(draft.intent);
   const party = draft.partySize != null ? partySizeSummaryPhrase(draft.partySize) : null;
+  const companions = goingWithSummaryPhrase(draft);
   const place = draft.location != null ? `in ${draft.location}` : null;
   const when =
     draft.date != null && draft.time != null
       ? `${formatDateForMessage(draft.date)} around ${draft.time}`
       : null;
 
-  const lead = [intent, party, place].filter(Boolean).join(', ');
+  const lead = [intent, party, companions, place].filter(Boolean).join(', ');
   if (lead.length === 0) return when != null ? `${when}.` : '';
   if (when == null) return `${lead}.`;
   return `${lead}. ${when}.`;
@@ -175,13 +194,14 @@ const GROUP_INTENT_MESSAGE = 'I need a table for a group.';
 const CASUAL_INTENT_MESSAGE = 'Something casual, nothing fussy.';
 const GROUP_INTENT_ACKNOWLEDGEMENT = 'Group dinner, nice.';
 
-type WizardStage = 'intent' | 'size' | 'location' | 'occasion' | 'spend' | 'date' | 'time';
+type WizardStage = 'intent' | 'size' | 'goingWith' | 'location' | 'occasion' | 'spend' | 'date' | 'time';
 
 // Composer teaser updates with the flow — typing is always a valid escape hatch.
 // Wizard steps are set; post-summary phases (dietary, etc.) can be re-specced later.
 const STAGE_PLACEHOLDERS: Record<WizardStage, string> = {
   intent: "Or just tell me what you're after...",
   size: 'Or tell me how many...',
+  goingWith: 'Or say who is joining...',
   location: 'Or specify a location...',
   occasion: 'Or describe the occasion...',
   spend: 'Or say what you want to spend...',
@@ -222,7 +242,7 @@ function wizardStageOrder(sizeStepSkipped: boolean, dateNightStepsIncluded: bool
     return ['intent', 'location', 'occasion', 'spend', 'date', 'time'];
   }
   if (sizeStepSkipped) return ['intent', 'location', 'date', 'time'];
-  return ['intent', 'size', 'location', 'date', 'time'];
+  return ['intent', 'size', 'goingWith', 'location', 'date', 'time'];
 }
 
 function visibleWizardStages(
@@ -253,7 +273,44 @@ type BookingDraft = {
   occasion?: DateNightOccasion;
   spend?: DateNightSpend;
   occasionNotes?: string;
+  goingWithFriendIds?: string[];
+  goingWithSkipped?: boolean;
+  /** Set from companion dietary leans (e.g. Emma pescatarian). */
+  partyDietarySummary?: string;
 };
+
+const WIZARD_COMPANION_FRIENDS = listWizardCompanionFriends();
+
+function stageAfterGoingWith(): WizardStage {
+  return 'location';
+}
+
+function toggleGoingWithFriend(draft: BookingDraft, friendId: string, selected: boolean): BookingDraft {
+  const current = draft.goingWithFriendIds ?? [];
+  const next = selected ? [...current, friendId] : current.filter((id) => id !== friendId);
+  const withIds: BookingDraft = {
+    ...draft,
+    goingWithFriendIds: next.length > 0 ? next : undefined,
+    goingWithSkipped: false,
+  };
+  return applyCompanionPartyInfluence(withIds);
+}
+
+function applyCompanionPartyInfluence(draft: BookingDraft): BookingDraft {
+  const ids = draft.goingWithFriendIds;
+  if (ids == null || ids.length === 0 || draft.goingWithSkipped === true) {
+    return {...draft, partyDietarySummary: undefined};
+  }
+  const derived = derivePartyDietaryFromCompanions(ids);
+  if (derived == null) {
+    return {...draft, partyDietarySummary: undefined};
+  }
+  return {
+    ...draft,
+    dietaryNeeds: derived.dietaryNeeds,
+    partyDietarySummary: derived.summary,
+  };
+}
 
 const DIETARY_CHOICES: {label: string; value: DietaryNeeds}[] = [
   {label: 'No restrictions', value: 'none'},
@@ -1160,7 +1217,7 @@ export default function Home() {
                                       setIntentAcknowledgement(GROUP_INTENT_ACKNOWLEDGEMENT);
                                     }
                                     setBookingDraft((prev) => applyPartySizeSelection(prev, size));
-                                    setStage('location');
+                                    setStage('goingWith');
                                   }}>
                                   <Text type="label" weight="semibold" justify="center">
                                     {size}
@@ -1169,6 +1226,35 @@ export default function Home() {
                               ))}
                             </HStack>
                           </VStack>
+                        </ChatMessageBubble>
+                      </ChatMessage>
+                    )}
+
+                    {visibleStages.includes('goingWith') && (
+                      <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
+                          <WizardGoingWithStep
+                            intentLead={intentAcknowledgement}
+                            friends={WIZARD_COMPANION_FRIENDS}
+                            selectedFriendIds={bookingDraft.goingWithFriendIds ?? []}
+                            onToggleFriend={(friendId, selected) => {
+                              setBookingDraft((prev) => toggleGoingWithFriend(prev, friendId, selected));
+                            }}
+                            onSkip={() => {
+                              setBookingDraft((prev) => ({
+                                ...prev,
+                                goingWithFriendIds: undefined,
+                                goingWithSkipped: true,
+                                partyDietarySummary: undefined,
+                                ...(prev.partyDietarySummary != null ? {dietaryNeeds: undefined} : {}),
+                              }));
+                              setStage(stageAfterGoingWith());
+                            }}
+                            onContinue={() => {
+                              setBookingDraft((prev) => applyCompanionPartyInfluence(prev));
+                              setStage(stageAfterGoingWith());
+                            }}
+                          />
                         </ChatMessageBubble>
                       </ChatMessage>
                     )}

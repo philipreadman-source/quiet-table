@@ -1,7 +1,9 @@
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
 import {
+  getFriendFoodProfile,
   getMentionedFriend,
-  friendRankScore,
+  friendRankScoreForCompanions,
+  friendSocialProofForVenue,
 } from '@/lib/friend-graph-mock';
 import {
   assignOfferedAvailabilityForResults,
@@ -39,9 +41,12 @@ type BookingDraft = {
   date?: string;
   time?: string;
   venue?: string;
-  dietaryNeeds?: 'none' | 'vegetarian' | 'vegan' | 'mixed';
+  dietaryNeeds?: 'none' | 'vegetarian' | 'vegan' | 'mixed' | 'pescatarian';
   venueResultsPage?: number;
   personalizationNoteShown?: boolean;
+  goingWithFriendIds?: string[];
+  goingWithSkipped?: boolean;
+  partyDietarySummary?: string;
 };
 
 export type ClarifyOption = {id: string; label: string};
@@ -104,14 +109,18 @@ function buildVenueOptionsFallbackResponse(
     time,
     draft.dietaryNeeds ?? 'none',
     (venueId) =>
-      memoryRankScore(venueId, userMemory) + friendRankScore(venueId, message, draft.intent),
+      memoryRankScore(venueId, userMemory) +
+      friendRankScoreForCompanions(venueId, draft.goingWithFriendIds, message, draft.intent),
   );
   const {options: pageOptions, hasMore, total} = paginateVenueOptions(ranked, page);
   const offeredById =
     dateIso != null ? assignOfferedAvailabilityForResults(ranked, dateIso, time) : new Map();
   const optionsOut = pageOptions.map((option) => {
     const offered = offeredById.get(option.id);
-    return offered != null ? {...option, meta: formatOfferedAvailabilityLine(offered)} : option;
+    let row = offered != null ? {...option, meta: formatOfferedAvailabilityLine(offered)} : option;
+    const companionProof = friendSocialProofForVenue(row.id, draft.goingWithFriendIds);
+    if (companionProof != null) row = {...row, social_proof: companionProof};
+    return row;
   });
 
   let title = buildVenueOptionsTitle(total, time, dateIso, ranked);
@@ -133,18 +142,34 @@ function buildVenueOptionsFallbackResponse(
       : null;
   const mentionedFriend = getMentionedFriend(message);
   const location = draft.location ?? 'Amsterdam';
+  const companionNames =
+    draft.goingWithFriendIds
+      ?.map((id) => getFriendFoodProfile(id)?.name)
+      .filter((name): name is string => name != null && name.length > 0) ?? [];
+  const friendHint =
+    companionNames.length > 0
+      ? companionNames.length === 1
+        ? `${companionNames[0]}'s picks first`
+        : `${companionNames.slice(0, 2).join(' & ')}'s picks weighted`
+      : mentionedFriend != null
+        ? `${mentionedFriend.name}'s taste in the mix`
+        : null;
 
-  let factsLine: string;
-  if (options?.locationChanged === true) {
-    factsLine =
-      mentionedFriend != null
-        ? `Switching to ${location} — ${total} ${fallbackIntentLabel(draft.intent!)} picks, with ${mentionedFriend.name}'s taste in the mix.`
-        : `Switching to ${location} — here are ${total} ${fallbackIntentLabel(draft.intent!)} options. Pick one to book.`;
-  } else if (mentionedFriend != null) {
-    factsLine = `I found ${total} ${fallbackIntentLabel(draft.intent!)} options around ${location} — factoring in ${mentionedFriend.name}'s taste where it fits. Pick one to book.`;
-  } else {
-    factsLine = `I found ${total} ${fallbackIntentLabel(draft.intent!)} options around ${location}. Pick one to book.`;
+  const lead =
+    options?.locationChanged === true
+      ? `${total} ${fallbackIntentLabel(draft.intent!)} options in ${location}.`
+      : `${total} ${fallbackIntentLabel(draft.intent!)} options at ${time}.`;
+
+  const bullets: string[] = [lead.trim()];
+  if (friendHint != null) bullets.push(friendHint);
+  if (draft.partyDietarySummary != null && draft.partyDietarySummary.length > 0) {
+    const shortDietary = draft.partyDietarySummary.split('—')[0]?.trim() ?? draft.partyDietarySummary;
+    if (shortDietary.length > 0 && shortDietary.length < 80) bullets.push(shortDietary);
   }
+  const factsLine =
+    bullets.length <= 1
+      ? `${bullets[0] ?? lead} Pick one below.`
+      : `${bullets.map((line) => `- ${line}`).join('\n')}\n\nPick one below.`;
 
   const response = {
     text: page === 0 ? [exclusionNote, factsLine].filter(Boolean).join(' ') : '',
@@ -252,7 +277,8 @@ function tryBroadCatalogOptions(
     time,
     draft?.dietaryNeeds ?? 'none',
     (venueId) =>
-      memoryRankScore(venueId, userMemory) + friendRankScore(venueId, message, intent),
+      memoryRankScore(venueId, userMemory) +
+      friendRankScoreForCompanions(venueId, draft?.goingWithFriendIds, message, intent),
   );
   const {options: pageOptions, hasMore, total} = paginateVenueOptions(ranked, 0);
   const offeredById =
@@ -336,12 +362,16 @@ export function buildFallbackResponse(
   }
 
   if (isDraftReadyForVenues(effectiveDraft) && effectiveDraft!.dietaryNeeds == null) {
+    const question =
+      effectiveDraft!.partyDietarySummary != null
+        ? `Any other dietary needs beyond your group? (${effectiveDraft!.partyDietarySummary})`
+        : dietaryQuestionForMemory(userMemory);
     return {
       text: '',
       ui: {
         interactive: {
           type: 'dietary',
-          question: dietaryQuestionForMemory(userMemory),
+          question,
         },
       },
     };

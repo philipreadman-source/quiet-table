@@ -67,10 +67,9 @@ a {
   box-sizing: border-box;
 }
 
-/* Short assistant replies: middle-align avatar with the text block / first line.
-   Tall blocks (wizard cards, venue lists) keep Astryx default flex-start. */
+/* Assistant text / tool rows: top-align avatar with the bubble. */
 .astryx-chat-message.assistant.chat-message--inline {
-  align-items: center;
+  align-items: flex-start;
 }
 
 /* Ghost wizard blocks — content width, aligned left in the message column. */

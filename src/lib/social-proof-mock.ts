@@ -2,12 +2,12 @@ import type {SocialProof, SocialProofSource} from '@/lib/venue-options';
 
 /** Demo contacts for deterministic live-venue social proof (~45% of cards). */
 const MOCK_PROOF_POOL: Pick<SocialProof, 'name' | 'action' | 'when'>[] = [
-  {name: 'Emma', action: 'booked', when: 'last month'},
+  {name: 'Emma', action: 'loved', when: 'last month'},
   {name: 'John', action: 'liked'},
   {name: 'Lisa', action: 'recommended', when: 'for a date night'},
-  {name: 'Tom', action: 'booked', when: 'last week'},
-  {name: 'Sophie', action: 'saved'},
-  {name: 'Marco', action: 'booked', when: 'in March'},
+  {name: 'Tom', action: 'liked', when: 'last week'},
+  {name: 'Sophie', action: 'liked'},
+  {name: 'Marco', action: 'loved', when: 'in March'},
   {name: 'Anna', action: 'liked'},
   {name: 'Chris', action: 'recommended'},
 ];

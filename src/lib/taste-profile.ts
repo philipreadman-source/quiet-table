@@ -112,8 +112,8 @@ export function createEmptyTasteProfile(userId?: string): TasteProfile {
   return {
     userId: resolvedUserId,
     username: '',
-    avatarSrc: PRINCIPAL_AVATAR_SRC,
-    homeArea: 'Amsterdam',
+    avatarSrc: undefined,
+    homeArea: '',
     preferences: {},
     anchorVenueIds: [],
     excludedVenueIds: [],
@@ -131,6 +131,13 @@ export function createEmptyTasteProfile(userId?: string): TasteProfile {
     },
     updatedAt: now,
   };
+}
+
+export function validateHomeArea(raw: string): {ok: true; value: string} | {ok: false; error: string} {
+  const value = raw.trim();
+  if (value.length < 2) return {ok: false, error: 'Enter your city or neighborhood.'};
+  if (value.length > 80) return {ok: false, error: 'Max 80 characters.'};
+  return {ok: true, value};
 }
 
 export function validateUsername(raw: string): {ok: true; value: string} | {ok: false; error: string} {
@@ -300,9 +307,6 @@ export function loadTasteProfile(): TasteProfile | null {
     const raw = window.localStorage.getItem(TASTE_PROFILE_STORAGE_KEY);
     if (raw == null) return null;
     const profile = JSON.parse(raw) as TasteProfile;
-    if (profile.avatarSrc == null || profile.avatarSrc.length === 0) {
-      return {...profile, avatarSrc: PRINCIPAL_AVATAR_SRC};
-    }
     return profile;
   } catch {
     return null;

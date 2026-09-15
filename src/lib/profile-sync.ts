@@ -1,8 +1,10 @@
 import {
+  createEmptyTasteProfile,
   hasOnboardingUsername,
   saveTasteProfileToLocalStorage,
   type TasteProfile,
 } from '@/lib/taste-profile';
+import {localTasteProfileForUser} from '@/lib/taste-profile-session';
 
 export function shouldSyncProfileToServer(profile: TasteProfile): boolean {
   return profile.userId.trim().length > 0 && hasOnboardingUsername(profile);
@@ -34,13 +36,25 @@ export async function fetchTasteProfileFromServer(): Promise<TasteProfile | null
   }
 }
 
-/** Merge server copy when newer; seed server from local when missing. */
-export async function hydrateTasteProfileWithServer(local: TasteProfile): Promise<TasteProfile> {
+/** Merge server copy when newer; never apply another user's localStorage to this Clerk id. */
+export async function hydrateTasteProfileWithServer(clerkUserId: string): Promise<TasteProfile> {
+  const userId = clerkUserId.trim();
+  const local = localTasteProfileForUser(userId);
   const remote = await fetchTasteProfileFromServer();
+
   if (remote == null) {
-    void pushTasteProfileToServer(local);
+    if (hasOnboardingUsername(local)) {
+      void pushTasteProfileToServer(local);
+    }
     return local;
   }
+
+  if (remote.userId !== userId) {
+    const fresh = createEmptyTasteProfile(userId);
+    saveTasteProfileToLocalStorage(fresh);
+    return fresh;
+  }
+
   const remoteTime = Date.parse(remote.updatedAt);
   const localTime = Date.parse(local.updatedAt);
   if (Number.isFinite(remoteTime) && Number.isFinite(localTime) && remoteTime > localTime) {

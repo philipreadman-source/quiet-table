@@ -69,7 +69,7 @@ const CUISINE_KEYWORDS: {id: CuisineId; pattern: RegExp}[] = [
 
 export function isAmsterdamCatalogArea(area: string): boolean {
   const normalized = area.trim().toLowerCase();
-  if (normalized.length === 0) return true;
+  if (normalized.length === 0) return false;
   return normalized === 'amsterdam' || normalized.includes('amsterdam');
 }
 

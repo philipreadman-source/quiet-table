@@ -25,7 +25,13 @@ function parseCuisines(raw: string | null): CuisineId[] {
 
 export async function GET(request: Request) {
   const {searchParams} = new URL(request.url);
-  const area = searchParams.get('area')?.trim() || 'Amsterdam';
+  const area = searchParams.get('area')?.trim() ?? '';
+  if (area.length < 2) {
+    return NextResponse.json(
+      {venues: [], area: '', cuisines: [], error: 'Location is required for the quiz.'},
+      {status: 400},
+    );
+  }
   const cuisines = parseCuisines(searchParams.get('cuisines'));
   const limitRaw = Number.parseInt(searchParams.get('limit') ?? '5', 10);
   const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 20) : 5;

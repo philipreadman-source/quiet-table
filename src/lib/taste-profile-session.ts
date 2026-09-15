@@ -5,33 +5,28 @@ import {
   type TasteProfile,
 } from '@/lib/taste-profile';
 
-/** Binds local taste data to the signed-in Clerk user id (migrates anonymous UUID profiles once). */
-export function bindTasteProfileToUserId(
-  existing: TasteProfile | null | undefined,
-  clerkUserId: string,
-): TasteProfile {
+/** Taste profile owned by this Clerk user — never merge another account's localStorage row. */
+export function localTasteProfileForUser(clerkUserId: string): TasteProfile {
   const userId = clerkUserId.trim();
   if (userId.length === 0) {
     throw new Error('Clerk user id is required.');
   }
-  const local = existing ?? loadTasteProfile();
-  if (local == null || local.userId === userId) {
-    const next = local ?? createEmptyTasteProfile(userId);
-    if (next.userId !== userId) {
-      const rebound = {...next, userId, updatedAt: new Date().toISOString()};
-      saveTasteProfileToLocalStorage(rebound);
-      return rebound;
-    }
-    if (local == null) saveTasteProfileToLocalStorage(next);
-    return next;
+  const local = loadTasteProfile();
+  if (local != null && local.userId === userId) {
+    return local;
   }
-  const migrated: TasteProfile = {
-    ...local,
-    userId,
-    updatedAt: new Date().toISOString(),
-  };
-  saveTasteProfileToLocalStorage(migrated);
-  return migrated;
+  const fresh = createEmptyTasteProfile(userId);
+  saveTasteProfileToLocalStorage(fresh);
+  return fresh;
+}
+
+/** @deprecated Use localTasteProfileForUser — kept for call-site migration. */
+export function bindTasteProfileToUserId(
+  existing: TasteProfile | null | undefined,
+  clerkUserId: string,
+): TasteProfile {
+  void existing;
+  return localTasteProfileForUser(clerkUserId);
 }
 
 export const PENDING_INVITE_REF_STORAGE_KEY = 'quiet-table.pending-invite-ref';

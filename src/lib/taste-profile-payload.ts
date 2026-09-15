@@ -1,5 +1,5 @@
 import type {TasteProfile} from '@/lib/taste-profile';
-import {PRINCIPAL_AVATAR_SRC, validateUsername} from '@/lib/taste-profile';
+import {validateUsername} from '@/lib/taste-profile';
 
 /** Shared client/server validation for PUT /api/profile. */
 export function parseTasteProfilePayload(
@@ -62,11 +62,7 @@ export function parseTasteProfilePayloadForSession(
 }
 
 export function normalizeTasteProfileRecord(profile: TasteProfile): TasteProfile {
-  return {
-    ...profile,
-    avatarSrc:
-      profile.avatarSrc != null && profile.avatarSrc.length > 0
-        ? profile.avatarSrc
-        : PRINCIPAL_AVATAR_SRC,
-  };
+  const avatarSrc =
+    profile.avatarSrc != null && profile.avatarSrc.length > 0 ? profile.avatarSrc : undefined;
+  return {...profile, avatarSrc};
 }

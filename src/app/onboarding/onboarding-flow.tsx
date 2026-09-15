@@ -21,21 +21,18 @@ import {
   isOnboardingComplete,
   inviteShareMessage,
   inviteShareUrl,
-  loadTasteProfile,
   markStepSkipped,
   ONBOARDING_STEP_ORDER,
   refreshTasteConfidence,
   saveTasteProfile,
+  validateHomeArea,
   validateUsername,
   type CuisineId,
   type OnboardingStepId,
   type TasteProfile,
   type VenueReaction,
 } from '@/lib/taste-profile';
-import {
-  bindTasteProfileToUserId,
-  consumePendingInviteRef,
-} from '@/lib/taste-profile-session';
+import {consumePendingInviteRef, localTasteProfileForUser} from '@/lib/taste-profile-session';
 
 const shell: CSSProperties = {
   minHeight: '100dvh',
@@ -71,8 +68,9 @@ export function OnboardingFlow() {
   const [step, setStep] = useState<OnboardingStepId>('basics');
   const [profile, setProfile] = useState<TasteProfile | null>(null);
   const [usernameInput, setUsernameInput] = useState('');
-  const [homeAreaInput, setHomeAreaInput] = useState('Amsterdam');
+  const [homeAreaInput, setHomeAreaInput] = useState('');
   const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [homeAreaError, setHomeAreaError] = useState<string | null>(null);
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizVenues, setQuizVenues] = useState<TasteQuizVenue[]>([]);
   const [quizLoading, setQuizLoading] = useState(false);
@@ -91,7 +89,8 @@ export function OnboardingFlow() {
       saveTasteProfile(fresh);
       setProfile(fresh);
       setUsernameInput('');
-      setHomeAreaInput('Amsterdam');
+      setHomeAreaInput('');
+      setHomeAreaError(null);
       setStep('basics');
       setQuizIndex(0);
       setQuizVenues([]);
@@ -101,35 +100,34 @@ export function OnboardingFlow() {
       return;
     }
 
-    let bound = bindTasteProfileToUserId(loadTasteProfile(), clerkUserId);
-    const inviteRef = referrerId?.trim() || consumePendingInviteRef();
-    if (
-      inviteRef != null &&
-      inviteRef.length > 0 &&
-      !bound.social.friendUserIds.includes(inviteRef)
-    ) {
-      bound = {
-        ...bound,
-        social: {
-          ...bound.social,
-          friendUserIds: [...bound.social.friendUserIds, inviteRef],
-        },
-      };
-      saveTasteProfile(bound);
-    }
-
     let cancelled = false;
     void import('@/lib/profile-sync').then(({hydrateTasteProfileWithServer}) =>
-      hydrateTasteProfileWithServer(bound),
+      hydrateTasteProfileWithServer(clerkUserId),
     ).then((hydrated) => {
+      const inviteRef = referrerId?.trim() || consumePendingInviteRef();
+      let next = hydrated;
+      if (
+        inviteRef != null &&
+        inviteRef.length > 0 &&
+        !hydrated.social.friendUserIds.includes(inviteRef)
+      ) {
+        next = {
+          ...hydrated,
+          social: {
+            ...hydrated.social,
+            friendUserIds: [...hydrated.social.friendUserIds, inviteRef],
+          },
+        };
+        saveTasteProfile(next);
+      }
       if (cancelled) return;
-      if (isOnboardingComplete(hydrated)) {
+      if (isOnboardingComplete(next)) {
         router.replace('/');
         return;
       }
-      setProfile(hydrated);
-      setUsernameInput(hydrated.username);
-      setHomeAreaInput(hydrated.homeArea);
+      setProfile(next);
+      setUsernameInput(next.username);
+      setHomeAreaInput(next.homeArea);
       setProfileReady(true);
     });
 
@@ -143,7 +141,13 @@ export function OnboardingFlow() {
 
     let cancelled = false;
     const cuisines = profile.preferences.cuisineAffinities ?? [];
-    const area = profile.homeArea.trim() || 'Amsterdam';
+    const area = profile.homeArea.trim();
+    if (area.length < 2) {
+      setQuizVenues([]);
+      setQuizError('Add your location on the first step, then come back to the quiz.');
+      setQuizLoading(false);
+      return;
+    }
 
     setQuizLoading(true);
     setQuizError(null);
@@ -221,11 +225,17 @@ export function OnboardingFlow() {
       setUsernameError(validated.error);
       return;
     }
+    const areaCheck = validateHomeArea(homeAreaInput);
+    if (!areaCheck.ok) {
+      setHomeAreaError(areaCheck.error);
+      return;
+    }
     setUsernameError(null);
+    setHomeAreaError(null);
     advanceFrom('basics', {
       ...profile,
       username: validated.value,
-      homeArea: homeAreaInput.trim() || 'Amsterdam',
+      homeArea: areaCheck.value,
     });
   };
 
@@ -307,7 +317,7 @@ export function OnboardingFlow() {
     );
   }
 
-  const quizAreaLabel = profile.homeArea.trim() || 'Amsterdam';
+  const quizAreaLabel = profile.homeArea.trim();
 
   return (
     <Layout
@@ -332,7 +342,7 @@ export function OnboardingFlow() {
                   label="Username"
                   value={usernameInput}
                   onChange={setUsernameInput}
-                  placeholder="philip"
+                  placeholder="maya"
                   status={
                     usernameError != null ? {type: 'error', message: usernameError} : undefined
                   }
@@ -341,7 +351,10 @@ export function OnboardingFlow() {
                   label="Location"
                   value={homeAreaInput}
                   onChange={setHomeAreaInput}
-                  placeholder="Amsterdam"
+                  placeholder="City or neighborhood"
+                  status={
+                    homeAreaError != null ? {type: 'error', message: homeAreaError} : undefined
+                  }
                 />
                 <HStack gap={2} wrap="wrap">
                   <Button label="Continue" onClick={handleBasicsContinue} />

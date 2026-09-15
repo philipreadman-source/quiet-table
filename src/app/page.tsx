@@ -34,12 +34,7 @@ import {
   type VenueOptionCard,
 } from '@/lib/venue-options';
 import {getUserMemory, type UserMemory} from '@/lib/user-memory';
-import {
-  isOnboardingComplete,
-  loadTasteProfile,
-  type TasteProfile,
-} from '@/lib/taste-profile';
-import {bindTasteProfileToUserId} from '@/lib/taste-profile-session';
+import {isOnboardingComplete, type TasteProfile} from '@/lib/taste-profile';
 import {
   DATE_NIGHT_OCCASION_CARDS,
   type DateNightOccasion,
@@ -952,9 +947,8 @@ export default function Home() {
   useEffect(() => {
     if (!isAuthLoaded || clerkUserId == null) return;
     let cancelled = false;
-    const local = bindTasteProfileToUserId(loadTasteProfile(), clerkUserId);
     void import('@/lib/profile-sync').then(({hydrateTasteProfileWithServer}) =>
-      hydrateTasteProfileWithServer(local),
+      hydrateTasteProfileWithServer(clerkUserId),
     ).then((profile) => {
       if (cancelled) return;
       if (!isOnboardingComplete(profile)) {

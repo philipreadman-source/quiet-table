@@ -39,9 +39,14 @@ export type PendingInvite = {
   channel: 'share_sheet' | 'sms' | 'copy_link';
 };
 
+/** Demo principal portrait — served from public/ for local + Vercel. */
+export const PRINCIPAL_AVATAR_SRC = '/personas/philip.jpg';
+
 export type TasteProfile = {
   userId: string;
   username: string;
+  /** Profile photo URL; defaults to PRINCIPAL_AVATAR_SRC for the prototype principal. */
+  avatarSrc?: string;
   homeArea: string;
   homeCoordinates?: {lat: number; lon: number};
   preferences: {
@@ -105,6 +110,7 @@ export function createEmptyTasteProfile(): TasteProfile {
   return {
     userId: crypto.randomUUID(),
     username: '',
+    avatarSrc: PRINCIPAL_AVATAR_SRC,
     homeArea: 'Amsterdam',
     preferences: {},
     anchorVenueIds: [],
@@ -277,7 +283,11 @@ export function loadTasteProfile(): TasteProfile | null {
   try {
     const raw = window.localStorage.getItem(TASTE_PROFILE_STORAGE_KEY);
     if (raw == null) return null;
-    return JSON.parse(raw) as TasteProfile;
+    const profile = JSON.parse(raw) as TasteProfile;
+    if (profile.avatarSrc == null || profile.avatarSrc.length === 0) {
+      return {...profile, avatarSrc: PRINCIPAL_AVATAR_SRC};
+    }
+    return profile;
   } catch {
     return null;
   }

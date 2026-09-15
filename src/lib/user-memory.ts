@@ -12,6 +12,7 @@ export type VenueVisit = {
 
 export type UserMemory = {
   firstName: string;
+  avatarSrc?: string;
   homeArea: string;
   recentVisits: VenueVisit[];
   savedVenueIds: string[];
@@ -37,6 +38,7 @@ export const EMPTY_USER_MEMORY: UserMemory = {
 export function profileToUserMemory(profile: TasteProfile): UserMemory {
   return {
     firstName: profile.username,
+    avatarSrc: profile.avatarSrc,
     homeArea: profile.homeArea || 'Amsterdam',
     recentVisits: profile.recentVisits.map((visit) => ({
       venueId: visit.venueId,

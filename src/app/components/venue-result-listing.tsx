@@ -16,6 +16,7 @@ import {
   type VenueOptionCard,
 } from '@/lib/venue-options';
 import {formatPersonalizationBadge, getUserMemory, type UserMemory} from '@/lib/user-memory';
+import {PersonaAvatar, PrincipalAvatar} from '@/app/components/persona-avatar';
 import styles from './venue-result-listing.module.css';
 
 function stopCardSelect(event: MouseEvent) {
@@ -86,10 +87,20 @@ function IconUser({className}: {className?: string}) {
   );
 }
 
-function MetaRow({icon, children}: {icon: ReactNode; children: ReactNode}) {
+function MetaRow({
+  icon,
+  avatar,
+  children,
+}: {
+  icon?: ReactNode;
+  avatar?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className={styles.metaRow}>
-      <span className={styles.metaRowIcon}>{icon}</span>
+      <span className={avatar != null ? styles.metaRowAvatar : styles.metaRowIcon}>
+        {avatar ?? icon}
+      </span>
       <p className={styles.metaRowText}>{children}</p>
     </div>
   );
@@ -201,18 +212,31 @@ export function VenueResultListingContent({
     }
   };
 
-  const metaRows: {key: string; icon: ReactNode; text: string}[] = [];
-  if (social != null) {
+  const metaRows: {key: string; icon?: ReactNode; avatar?: ReactNode; text: string}[] = [];
+  if (social != null && enriched.social_proof != null) {
+    const proof = enriched.social_proof;
     metaRows.push({
       key: 'social',
-      icon: <IconThumb />,
+      avatar:
+        proof.source === 'contact' ? (
+          <PersonaAvatar name={proof.name} friendId={proof.friendId} size={24} />
+        ) : (
+          <IconThumb />
+        ),
+      icon: proof.source === 'contact' ? undefined : <IconThumb />,
       text: social,
     });
   }
   if (personalizationBadge != null) {
     metaRows.push({
       key: 'personalization',
-      icon: <IconUser />,
+      avatar: (
+        <PrincipalAvatar
+          username={memory.firstName}
+          avatarSrc={memory.avatarSrc}
+          size={24}
+        />
+      ),
       text: personalizationBadge,
     });
   }
@@ -266,7 +290,7 @@ export function VenueResultListingContent({
       {metaRows.length > 0 && (
         <div className={styles.metaRows}>
           {metaRows.map((row) => (
-            <MetaRow key={row.key} icon={row.icon}>
+            <MetaRow key={row.key} icon={row.icon} avatar={row.avatar}>
               {row.text}
             </MetaRow>
           ))}

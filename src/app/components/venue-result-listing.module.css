@@ -1,4 +1,4 @@
-/* Inner layout only — SelectableCard keeps Astryx padding/radius. */
+/* Inner layout only — outer Card supplies Astryx padding/radius. */
 
 .root {
   display: flex;
@@ -138,6 +138,13 @@
   height: 14px;
   margin-top: 2px;
   color: #a3a3a3;
+}
+
+.metaRowAvatar {
+  flex: 0 0 auto;
+  display: flex;
+  margin-top: 0;
+  line-height: 0;
 }
 
 .metaRowIcon svg {

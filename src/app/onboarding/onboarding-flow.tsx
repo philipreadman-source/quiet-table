@@ -9,8 +9,8 @@ import {Button} from '@astryxdesign/core/Button';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {SelectableCard} from '@astryxdesign/core/SelectableCard';
 import {Avatar} from '@astryxdesign/core/Avatar';
-import tasteQuizVenues from '@/data/taste-quiz-venues.json';
 import {findVenueOption} from '@/lib/venue-options';
+import type {TasteQuizVenue} from '@/lib/taste-quiz';
 import {
   applyVenueReaction,
   createEmptyTasteProfile,
@@ -66,6 +66,9 @@ export function OnboardingFlow() {
   const [homeAreaInput, setHomeAreaInput] = useState(profile.homeArea);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [quizIndex, setQuizIndex] = useState(0);
+  const [quizVenues, setQuizVenues] = useState<TasteQuizVenue[]>([]);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizError, setQuizError] = useState<string | null>(null);
   const [copyNote, setCopyNote] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,6 +84,8 @@ export function OnboardingFlow() {
       setHomeAreaInput('Amsterdam');
       setStep('basics');
       setQuizIndex(0);
+      setQuizVenues([]);
+      setQuizError(null);
       window.history.replaceState(null, '', '/onboarding');
       return;
     }
@@ -105,6 +110,47 @@ export function OnboardingFlow() {
       });
     }
   }, [referrerId]);
+
+  useEffect(() => {
+    if (step !== 'venue_quiz') return;
+
+    let cancelled = false;
+    const cuisines = profile.preferences.cuisineAffinities ?? [];
+    const area = profile.homeArea.trim() || 'Amsterdam';
+
+    setQuizLoading(true);
+    setQuizError(null);
+    setQuizIndex(0);
+
+    const params = new URLSearchParams({area});
+    if (cuisines.length > 0) params.set('cuisines', cuisines.join(','));
+
+    void fetch(`/api/onboarding/quiz-venues?${params.toString()}`)
+      .then(async (res) => {
+        const payload = (await res.json()) as {venues?: TasteQuizVenue[]; error?: string};
+        if (!res.ok) throw new Error(payload.error ?? 'Could not load quiz venues');
+        return payload.venues ?? [];
+      })
+      .then((venues) => {
+        if (cancelled) return;
+        setQuizVenues(venues);
+        if (venues.length === 0) {
+          setQuizError(`No restaurants found near ${area}. You can skip this step.`);
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setQuizVenues([]);
+        setQuizError(error instanceof Error ? error.message : 'Could not load quiz venues');
+      })
+      .finally(() => {
+        if (!cancelled) setQuizLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [step, profile.homeArea, profile.preferences.cuisineAffinities]);
 
   const persist = useCallback((next: TasteProfile) => {
     const refreshed = refreshTasteConfidence(next);
@@ -156,11 +202,11 @@ export function OnboardingFlow() {
   };
 
   const handleQuizReaction = (reaction: VenueReaction) => {
-    const venue = tasteQuizVenues[quizIndex];
+    const venue = quizVenues[quizIndex];
     if (venue == null) return;
     const next = applyVenueReaction(profile, venue.id, reaction);
     persist(next);
-    if (quizIndex >= tasteQuizVenues.length - 1) {
+    if (quizIndex >= quizVenues.length - 1) {
       advanceFrom('venue_quiz', next);
       setQuizIndex(0);
       return;
@@ -205,8 +251,9 @@ export function OnboardingFlow() {
     }
   };
 
-  const quizVenue = tasteQuizVenues[quizIndex];
+  const quizVenue = quizVenues[quizIndex];
   const quizKnown = quizVenue != null ? findVenueOption(quizVenue.id) : undefined;
+  const quizAreaLabel = profile.homeArea.trim() || 'Amsterdam';
 
   return (
     <Layout
@@ -278,13 +325,35 @@ export function OnboardingFlow() {
               </VStack>
             )}
 
-            {step === 'venue_quiz' && quizVenue != null && (
+            {step === 'venue_quiz' && quizLoading && (
+              <VStack gap={3}>
+                <Text type="label" weight="semibold">
+                  Have you eaten here?
+                </Text>
+                <Text color="secondary">Finding places near {quizAreaLabel}…</Text>
+              </VStack>
+            )}
+
+            {step === 'venue_quiz' && !quizLoading && quizError != null && (
+              <VStack gap={3}>
+                <Text type="label" weight="semibold">
+                  Have you eaten here?
+                </Text>
+                <Text color="secondary">{quizError}</Text>
+                <Button label="Skip quiz" variant="ghost" onClick={skipStep} />
+              </VStack>
+            )}
+
+            {step === 'venue_quiz' && !quizLoading && quizVenue != null && (
               <VStack gap={3}>
                 <Text type="label" weight="semibold">
                   Have you eaten here?
                 </Text>
                 <Text color="secondary">
-                  {quizIndex + 1} of {tasteQuizVenues.length}
+                  {quizIndex + 1} of {quizVenues.length}
+                  {(profile.preferences.cuisineAffinities?.length ?? 0) > 0
+                    ? ` · picked for your cravings`
+                    : ` · popular in ${quizAreaLabel}`}
                 </Text>
                 <SelectableCard
                   label={quizVenue.title}
@@ -295,9 +364,9 @@ export function OnboardingFlow() {
                     <Text type="label" weight="semibold">
                       {quizKnown?.title ?? quizVenue.title}
                     </Text>
-                    {quizKnown?.subtitle != null && (
+                    {(quizKnown?.subtitle ?? quizVenue.subtitle) != null && (
                       <Text type="supporting" color="secondary">
-                        {quizKnown.subtitle}
+                        {quizKnown?.subtitle ?? quizVenue.subtitle}
                       </Text>
                     )}
                   </VStack>

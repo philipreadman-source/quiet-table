@@ -1,45 +1,21 @@
 import Anthropic from '@anthropic-ai/sdk';
 import {NextResponse} from 'next/server';
 import {checkVenueAvailability, createBooking, getContactPreferences, searchTables} from '@/lib/booking-data';
-import {
-  buildVenueOptionsTitle,
-  assignOfferedAvailabilityForResults,
-  filterVenuesByAimedTime,
-  findVenueOption,
-  formatOfferedAvailabilityLine,
-  getVenueOptionsForIntent,
-  nearestAvailableTimesAcrossVenues,
-  paginateVenueOptions,
-  rankVenueOptions,
-  type DietaryNeeds,
-} from '@/lib/venue-options';
+import type {DietaryNeeds} from '@/lib/venue-options';
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
+import {getUserMemory, summarizeUserMemoryForAgent} from '@/lib/user-memory';
 import {
-  buildVenueListPersonalizationNote,
-  dietaryQuestionForMemory,
-  excludedVenueTitles,
-  filterExcludedVenues,
-  getUserMemory,
-  memoryRankScore,
-  summarizeUserMemoryForAgent,
-} from '@/lib/user-memory';
-import {
-  friendRankScore,
   getFriendFoodProfile,
-  getMentionedFriend,
   summarizeFriendForAgent,
   summarizeFriendGraphForAgent,
 } from '@/lib/friend-graph-mock';
 import type {TasteProfile} from '@/lib/taste-profile';
+import {buildFallbackResponse} from '@/lib/fallback-response';
 
 const client = new Anthropic();
 // UI/UX build sessions: mock catalog only — no Anthropic credits.
 // Set false for live agent demos when Anthropic billing is topped up.
 const USE_LOCAL_FALLBACK = false;
-
-/** Shown when the composer gets free text the mock catalog cannot handle. */
-const FALLBACK_ASLEEP_MESSAGE =
-  'The agent is currently asleep, you can browse the UX in fallback mode.';
 
 function agentErrorResponse(error: unknown) {
   console.error('[agent] Anthropic request failed:', error);
@@ -63,7 +39,7 @@ Social graph & trust (Friend Foodie layer):
 - When recommending, prioritize restaurants friends have visited and rated highly. Note which friend(s) went and what they said when that data exists in get_user_dining_history or context — surface it on cards via subtitle or meta (e.g. "Maya booked last month").
 - If you have no logged friend-visit data for this user/city, say so plainly in spoken text — do not invent friend reviews or fake social proof. Offer general (non-friend-sourced) suggestions ranked by vibe, taste memory, and availability instead.
 - Passive signals beat reviews: a friend's booking or save is enough; don't ask users to write reviews in chat.
-- Use get_friend_food_profile when the user names a friend or asks for picks in a friend's taste. Synthetic demo friend until real users join: Maya Chen (quiet date nights, wine).
+- Use get_friend_food_profile when the user names a friend or asks for picks in a friend's taste. Synthetic demo friends until real users join: Savas Ozay (ramen, Korean BBQ, Asian fusion), Maya Chen (quiet date nights, wine), Emma van Dijk (group Italian, shareable tables).
 - Use get_contact_preferences when a named guest is mentioned for dietary needs. Help build the graph over time by acknowledging saves, likes, and bookings the user makes in-session.
 - As the social graph grows, warm friend signals should progressively outweigh generic picks; when the graph is empty, lean on taste memory and honest fit copy.
 
@@ -101,10 +77,10 @@ const domainTools: Anthropic.Tool[] = [
   {
     name: 'get_friend_food_profile',
     description:
-      'Look up a close friend\'s food taste, cuisine affinities, and Amsterdam venue picks (visits + notes). Use when the user asks for recs in a friend\'s taste or names Maya.',
+      'Look up a close friend\'s food taste, cuisine affinities, and Amsterdam venue picks (visits + notes). Use when the user asks for recs in a friend\'s taste or names Savas, Maya, or Emma.',
     input_schema: {
       type: 'object',
-      properties: {name: {type: 'string', description: 'Friend first name or id, e.g. Maya'}},
+      properties: {name: {type: 'string', description: 'Friend first name or id, e.g. Savas, Maya, Emma'}},
       required: ['name'],
     },
   },
@@ -450,150 +426,6 @@ function dedupeExecutedCalls(calls: {name: string; target: string; status: 'comp
     seen.add(key);
     return true;
   });
-}
-
-function buildFallbackResponse(
-  message: string,
-  draft?: BookingDraft,
-  tasteProfile?: TasteProfile | null,
-) {
-  const userMemory = getUserMemory(tasteProfile);
-  const venue = draft?.venue;
-  const time = draft?.time ?? 'the selected time';
-  const partySize = Number.parseInt(draft?.partySize ?? '2', 10);
-  const wantsBooking = /\b(book|confirm|reserve|yes)\b/i.test(message);
-
-  if (venue != null && wantsBooking) {
-    const booking = createBooking({venue_id: venue, time, party_size: Number.isFinite(partySize) ? partySize : 2});
-    return {
-      text: '',
-      ui: {
-        tool_status: [{name: 'create_booking', target: `${venue} · ${time}`, status: 'complete'}],
-        interactive: {
-          type: 'success',
-          title: 'Table booked.',
-          description: `${booking.venue_name} · ${booking.time} · party of ${booking.party_size}.`,
-        },
-      },
-    };
-  }
-
-  if (venue != null) {
-    const known = findVenueOption(venue);
-    return {
-      text: `${venue} fits the brief. Ready when you are.`,
-      ui: {
-        interactive: {
-          type: 'detail',
-          title: venue,
-          detail: {
-            subtitle: `${draft?.location ?? 'Amsterdam'} · ${time}`,
-            description:
-              known?.description ??
-              `A good match for ${draft?.intent ?? 'this dinner'}${draft?.partySize != null ? `, party of ${draft.partySize}` : ''}.`,
-            image_url: known?.image_url,
-            cta_label: `Book ${venue}`,
-            menu_url: known?.menu_url,
-            google_reviews_url: known?.google_reviews_url,
-            tripadvisor_url: known?.tripadvisor_url,
-          },
-        },
-      },
-    };
-  }
-
-  if (isDraftReadyForVenues(draft) && draft!.dietaryNeeds == null) {
-    return {
-      text: '',
-      ui: {
-        interactive: {
-          type: 'dietary',
-          question: dietaryQuestionForMemory(userMemory),
-        },
-      },
-    };
-  }
-
-  if (isDraftReadyForVenues(draft) && draft!.dietaryNeeds != null) {
-    const dateIso = draft!.date;
-    const time = draft!.time!;
-    const showMore = /\bshow more\b/i.test(message);
-    const page = showMore ? (draft!.venueResultsPage ?? 1) : 0;
-    const catalog = getVenueOptionsForIntent(draft!.intent!);
-    const excluded = excludedVenueTitles(catalog, userMemory);
-    const eligible = filterVenuesByAimedTime(
-      filterExcludedVenues(catalog, userMemory),
-      dateIso,
-      time,
-    );
-    const ranked = rankVenueOptions(
-      eligible,
-      dateIso,
-      time,
-      draft!.dietaryNeeds,
-      (venueId) =>
-        memoryRankScore(venueId, userMemory) +
-        friendRankScore(venueId, message, draft!.intent),
-    );
-    const {options: pageOptions, hasMore, total} = paginateVenueOptions(ranked, page);
-    const offeredById =
-      dateIso != null ? assignOfferedAvailabilityForResults(ranked, dateIso, time) : new Map();
-    const options = pageOptions.map((option) => {
-      const offered = offeredById.get(option.id);
-      return offered != null
-        ? {...option, meta: formatOfferedAvailabilityLine(offered)}
-        : option;
-    });
-    let title = buildVenueOptionsTitle(total, time, dateIso, ranked);
-    if (total === 0 && dateIso != null) {
-      const nearestTimes = nearestAvailableTimesAcrossVenues(
-        catalog.map((option) => option.id),
-        dateIso,
-        time,
-      );
-      title =
-        nearestTimes.length > 0
-          ? `No tables around ${time} — try ${nearestTimes.join(' or ')}`
-          : `No tables around ${time}`;
-    }
-    const exclusionNote =
-      page === 0 && draft!.personalizationNoteShown !== true
-        ? buildVenueListPersonalizationNote(userMemory, excluded)
-        : null;
-    const mentionedFriend = getMentionedFriend(message);
-    const factsLine =
-      mentionedFriend != null
-        ? `I found ${total} ${fallbackIntentLabel(draft!.intent!)} options around ${draft!.location} — factoring in ${mentionedFriend.name}'s taste where it fits. Pick one to book.`
-        : `I found ${total} ${fallbackIntentLabel(draft!.intent!)} options around ${draft!.location}. Pick one to book.`;
-
-    const response = {
-      text: page === 0 ? [exclusionNote, factsLine].filter(Boolean).join(' ') : '',
-      ui: {
-        interactive: {
-          type: 'options',
-          title,
-          options,
-          pagination: {page, has_more: hasMore, total},
-        },
-      },
-    };
-    const michelinApplied = applyMichelinModeToUi(response.text, response.ui, draft!.intent);
-    return {text: michelinApplied.text, ui: michelinApplied.ui};
-  }
-
-  return {
-    text: FALLBACK_ASLEEP_MESSAGE,
-    ui: {interactive: {type: 'none'}},
-  };
-}
-
-function fallbackIntentLabel(intent: string) {
-  const lower = intent.toLowerCase();
-  if (lower.includes('date')) return 'date-night';
-  if (lower.includes('michelin')) return 'Michelin-style';
-  if (lower.includes('business')) return 'business dinner';
-  if (lower.includes('group')) return 'group-friendly';
-  return 'casual';
 }
 
 function describeCallTarget(

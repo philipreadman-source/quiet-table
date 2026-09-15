@@ -25,7 +25,6 @@ import {
   enrichVenueOption,
   findVenueOption,
   formatRatingsLine,
-  isDateAvailable,
   resolveMenuAction,
   TIME_SLOTS,
   venueAiWriteUps,
@@ -49,6 +48,7 @@ import {
 } from '@/lib/date-night-spend';
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
 import {reverseGeocode} from '@/lib/reverse-geocode';
+import {parseLocationFromMessage} from '@/lib/parse-location';
 
 const QUIET_TABLE_AVATAR = (
   <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="xsmall" />
@@ -270,6 +270,7 @@ type Interactive =
   | {type: 'none'}
   | {type: 'confirm'; question?: string; confirm_label?: string}
   | {type: 'dietary'; question?: string}
+  | {type: 'clarify'; question?: string; options: {id: string; label: string}[]}
   | {
       type: 'options';
       title?: string;
@@ -604,6 +605,33 @@ function AgentUiBlock({
         </VStack>
       )}
 
+      {interactive?.type === 'clarify' && (
+        <VStack gap={2}>
+          {interactive.question != null && (
+            <Text type="label" weight="semibold">
+              {interactive.question}
+            </Text>
+          )}
+          <HStack gap={2} wrap="wrap">
+            {interactive.options.map((option) => (
+              <SelectableCard
+                key={option.id}
+                label={option.label}
+                style={{padding: 'var(--spacing-3)'}}
+                isSelected={false}
+                onChange={(isSelected) => {
+                  if (!isSelected) return;
+                  onSend(option.label, bookingDraft);
+                }}>
+                <Text type="label" weight="semibold">
+                  {option.label}
+                </Text>
+              </SelectableCard>
+            ))}
+          </HStack>
+        </VStack>
+      )}
+
       {interactive?.type === 'options' && (
         <VStack gap={2}>
           {interactive.title != null && (
@@ -614,15 +642,7 @@ function AgentUiBlock({
           {(venueOptions ?? interactive.options).map((option) => {
             const enriched = enrichVenueOption(option);
             return (
-              <SelectableCard
-                key={option.id}
-                label={enriched.title}
-                style={{padding: 'var(--spacing-4)'}}
-                isSelected={bookingDraft.venue === enriched.title}
-                onChange={(isSelected) => {
-                  if (!isSelected) return;
-                  onSelectVenue(enriched.title);
-                }}>
+              <Card key={option.id} padding={4}>
                 <VenueResultListingContent
                   option={enriched}
                   date={bookingDraft.date}
@@ -631,7 +651,7 @@ function AgentUiBlock({
                   onBookTable={() => onSelectVenue(enriched.title)}
                   userMemory={userMemory}
                 />
-              </SelectableCard>
+              </Card>
             );
           })}
           {showMoreEnabled && interactive.pagination?.has_more === true && (
@@ -753,9 +773,12 @@ function mergeDraftFromText(
   const partyMatch = lower.match(/\b(?:party of|for)\s+(\d+)\b/);
   if (partyMatch != null) next.partySize = partyMatch[1];
 
+  const parsedLocation = parseLocationFromMessage(text);
+  if (parsedLocation != null) next.location = parsedLocation;
+
   const placeMatch = text.match(/\b(?:in|near|around)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
-  if (placeMatch != null) next.location = placeMatch[1];
-  if (lower.includes('amsterdam')) next.location = 'Amsterdam';
+  if (placeMatch != null && parsedLocation == null) next.location = placeMatch[1];
+  if (lower.includes('amsterdam') && parsedLocation == null) next.location = 'Amsterdam';
 
   const maySetLocation =
     stage === 'location' || (wizardComplete && draft.intent != null && draft.time != null);
@@ -1265,7 +1288,6 @@ export default function Home() {
                               <Calendar
                                 mode="single"
                                 min={TODAY_ISO}
-                                dateConstraints={[isDateAvailable]}
                                 onChange={(value: string | undefined) => {
                                   if (value == null) return;
                                   setBookingDraft((prev) => {

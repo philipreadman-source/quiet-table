@@ -17,14 +17,54 @@ export type FriendFoodProfile = {
   homeArea: string;
   tasteSummary: string;
   cuisineAffinities: string[];
+  /** Public URL under /personas — deployed with the app on Vercel. */
+  avatarSrc?: string;
   topPicks: FriendPick[];
 };
 
-/** Synthetic close friend until real users join the graph — quiet date nights, wine. */
+/** Synthetic close friends until real users join the graph. */
+export const SAVAS_OZAY: FriendFoodProfile = {
+  id: 'savas',
+  name: 'Savas',
+  fullName: 'Savas Ozay',
+  avatarSrc: '/personas/savas.png',
+  relationship: 'close_friend',
+  homeArea: 'Amsterdam',
+  tasteSummary: 'Ramen, Korean BBQ, Asian fusion',
+  cuisineAffinities: ['japanese', 'other'],
+  topPicks: [
+    {
+      venueId: 'genki',
+      title: 'Genki',
+      vibe: 'casual ramen, quick bite',
+      note: 'Go-to tonkotsu — quick, fun.',
+      visitedAt: '2026-05-12',
+      rating: 'loved',
+    },
+    {
+      venueId: 'kimchi-premium',
+      title: 'Kimchi Premium',
+      vibe: 'group Korean BBQ, lively',
+      note: 'Table grills — banchan is the star.',
+      visitedAt: '2026-06-22',
+      rating: 'loved',
+    },
+    {
+      venueId: 'taiko',
+      title: 'Taiko',
+      vibe: 'date-night Asian fusion, intimate',
+      note: 'Sharing plates, dim room, cocktails.',
+      visitedAt: '2026-07-03',
+      rating: 'liked',
+    },
+  ],
+};
+
 export const MAYA_CHEN: FriendFoodProfile = {
   id: 'maya',
   name: 'Maya',
   fullName: 'Maya Chen',
+  avatarSrc: '/personas/maya.jpg',
   relationship: 'close_friend',
   homeArea: 'Amsterdam',
   tasteSummary: 'Quiet date nights, natural wine, greenhouse dining',
@@ -57,7 +97,44 @@ export const MAYA_CHEN: FriendFoodProfile = {
   ],
 };
 
-const DEMO_FRIENDS: FriendFoodProfile[] = [MAYA_CHEN];
+export const EMMA_VAN_DIJK: FriendFoodProfile = {
+  id: 'emma',
+  name: 'Emma',
+  fullName: 'Emma van Dijk',
+  avatarSrc: '/personas/emma.jpg',
+  relationship: 'close_friend',
+  homeArea: 'Amsterdam',
+  tasteSummary: 'Group dinners, Italian, shareable tables',
+  cuisineAffinities: ['italian', 'japanese'],
+  topPicks: [
+    {
+      venueId: 'cecconis',
+      title: "Cecconi's Amsterdam",
+      vibe: 'group Italian, lively',
+      note: 'Default for six-plus — long tables.',
+      visitedAt: '2026-06-15',
+      rating: 'loved',
+    },
+    {
+      venueId: 'momo',
+      title: 'MOMO Restaurant',
+      vibe: 'group Pan-Asian, large tables',
+      note: 'Seats bigger parties properly.',
+      visitedAt: '2026-04-28',
+      rating: 'loved',
+    },
+    {
+      venueId: 'gruppo-di-amici',
+      title: 'Gruppo di Amici',
+      vibe: 'casual Italian, group-friendly',
+      note: 'Low-key pasta night, no reservation stress.',
+      visitedAt: '2026-03-10',
+      rating: 'liked',
+    },
+  ],
+};
+
+const DEMO_FRIENDS: FriendFoodProfile[] = [SAVAS_OZAY, MAYA_CHEN, EMMA_VAN_DIJK];
 
 function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -125,6 +202,7 @@ export function friendSocialProofForVenue(venueId: string): SocialProof | undefi
     const when = daysAgoLabel(pick.visitedAt);
     return {
       name: friend.name,
+      friendId: friend.id,
       action: pick.rating === 'loved' ? 'booked' : 'liked',
       source: 'contact',
       when,

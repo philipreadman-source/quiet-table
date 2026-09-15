@@ -15,6 +15,8 @@ export function seededRandom(seed: string): number {
   return Math.abs(hash % 1000) / 1000;
 }
 
+/** Legacy demo helper — do not use on the wizard date step (no venue yet).
+ * Real scarcity belongs in `isVenueAvailableAt` after a venue is chosen. */
 export function isDateAvailable(date: Date): boolean {
   return seededRandom(date.toISOString().slice(0, 10)) > 0.25;
 }
@@ -257,6 +259,8 @@ export type SocialProofSource = 'contact' | 'instagram' | 'tripadvisor';
 
 export type SocialProof = {
   name: string;
+  /** Demo graph friend id when proof comes from close-friend picks. */
+  friendId?: string;
   action: 'liked' | 'booked' | 'recommended' | 'saved';
   source: SocialProofSource;
   when?: string;
@@ -984,7 +988,7 @@ const ONBOARDING_POPULAR_VENUE_IDS = new Set([
   'sla-amsterdam',
 ]);
 
-function popularCatalogVenues(limit: number): VenueOptionCard[] {
+export function popularCatalogVenues(limit: number): VenueOptionCard[] {
   return [...listUniqueCatalogVenues()]
     .sort((a, b) => {
       const boostA = ONBOARDING_POPULAR_VENUE_IDS.has(a.id) ? 1 : 0;

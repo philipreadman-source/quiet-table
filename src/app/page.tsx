@@ -47,6 +47,12 @@ import {
   type DateNightSpend,
 } from '@/lib/date-night-spend';
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
+import {HomeFriendsTabPanel} from '@/app/components/home-friends-tab';
+import {
+  HomeProfileTabPanel,
+  HomeSectionTabBar,
+  type HomeMainSection,
+} from '@/app/components/home-section-tabs';
 import {WizardGoingWithStep} from '@/app/components/wizard-going-with-step';
 import {
   derivePartyDietaryFromCompanions,
@@ -66,6 +72,7 @@ const chatShell: CSSProperties = {
   flex: 1,
   width: '100%',
   minWidth: 0,
+  minHeight: 0,
   height: '100%',
 };
 const chatLayout: CSSProperties = {flex: 1, minHeight: 0, width: '100%', maxWidth: 800};
@@ -883,6 +890,7 @@ export default function Home() {
   const [wizardComposerThread, setWizardComposerThread] = useState<PostSummaryItem[]>([]);
   const [locationFromComposer, setLocationFromComposer] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [mainSection, setMainSection] = useState<HomeMainSection>('find');
   // Fixed pre-agent wizard: intent -> party size -> location -> date -> time.
   const [stage, setStage] = useState<WizardStage>('intent');
   const [bookingDraft, setBookingDraft] = useState<BookingDraft>(INITIAL_BOOKING_DRAFT);
@@ -1108,7 +1116,9 @@ export default function Home() {
         content={
           <LayoutContent>
             <HStack height="100%">
-              <VStack style={chatShell} hAlign="center">
+              <VStack style={chatShell} hAlign="center" gap={2}>
+                <HomeSectionTabBar value={mainSection} onChange={setMainSection} />
+                {mainSection === 'find' ? (
                 <ChatLayout
                   style={chatLayout}
                   density="spacious"
@@ -1491,6 +1501,11 @@ export default function Home() {
                     )}
                   </ChatMessageList>
                 </ChatLayout>
+                ) : mainSection === 'friends' ? (
+                  <HomeFriendsTabPanel />
+                ) : (
+                  <HomeProfileTabPanel />
+                )}
               </VStack>
             </HStack>
           </LayoutContent>

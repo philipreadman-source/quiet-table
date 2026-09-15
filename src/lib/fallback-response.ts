@@ -157,8 +157,8 @@ function buildVenueOptionsFallbackResponse(
 
   const lead =
     options?.locationChanged === true
-      ? `${total} ${fallbackIntentLabel(draft.intent!)} options in ${location}.`
-      : `${total} ${fallbackIntentLabel(draft.intent!)} options at ${time}.`;
+      ? `Top ${fallbackIntentLabel(draft.intent!)} picks in ${location}.`
+      : `Top ${fallbackIntentLabel(draft.intent!)} picks at ${time}.`;
 
   const bullets: string[] = [lead.trim()];
   if (friendHint != null) bullets.push(friendHint);

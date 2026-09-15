@@ -913,13 +913,13 @@ export function paginateVenueOptions(
 }
 
 export function buildVenueOptionsTitle(
-  total: number,
+  _total: number,
   time: string,
   dateIso: string | undefined,
   ranked: VenueOptionCard[],
 ): string {
-  if (dateIso == null) return `${total} restaurant${total === 1 ? '' : 's'} at ${time}`;
-  if (total === 0) {
+  if (dateIso == null) return `Top restaurants at ${time}`;
+  if (_total === 0) {
     const nearestTimes = nearestAvailableTimesAcrossVenues(
       ranked.map((option) => option.id),
       dateIso,
@@ -930,10 +930,10 @@ export function buildVenueOptionsTitle(
       : `No tables around ${time}`;
   }
   const exactCount = ranked.filter((option) => isVenueAvailableAt(option.id, dateIso, time)).length;
-  if (exactCount === total) {
-    return `${total} restaurant${total === 1 ? '' : 's'} at ${time}`;
+  if (exactCount === _total) {
+    return `Top restaurants at ${time}`;
   }
-  return `${total} restaurant${total === 1 ? '' : 's'} around ${time}`;
+  return `Top restaurants around ${time}`;
 }
 
 export function formatDietaryBadge(

@@ -175,6 +175,22 @@ export function listWizardCompanionFriends(): readonly FriendFoodProfile[] {
   return DEMO_FRIENDS.slice(0, 5);
 }
 
+/** Friends tab — avatars with at least one logged visit (demo). */
+export function listFriendsForFriendsTab(): readonly FriendFoodProfile[] {
+  return DEMO_FRIENDS.filter((friend) => friend.topPicks.length > 0).slice(0, 3);
+}
+
+export function recentFriendVisits(friend: FriendFoodProfile, limit = 2): FriendPick[] {
+  return [...friend.topPicks]
+    .sort((a, b) => b.visitedAt.localeCompare(a.visitedAt))
+    .slice(0, limit);
+}
+
+/** Demo presence — Savas online for Friends v1. */
+export function friendShowsOnlineInDemo(friendId: string): boolean {
+  return friendId === 'savas';
+}
+
 function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }

@@ -43,8 +43,16 @@ Every push to `main` → production deploy. Pull requests → preview URLs (opti
 
 | Variable | Required | Notes |
 |----------|----------|--------|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes | From [Clerk Dashboard](https://dashboard.clerk.com) or `npx clerk init` |
+| `CLERK_SECRET_KEY` | Yes | Server-side only — never expose to the client |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | Yes | `/sign-in` |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | Yes | `/sign-up` |
 | `ANTHROPIC_API_KEY` | No | Only if live agent is on; fallback works without it |
 | `BETA_ACCESS_TOKEN` | Soon | Random string for private beta URL gate |
+| `UPSTASH_REDIS_REST_URL` | For server profile sync | From [Vercel Marketplace → Upstash Redis](https://vercel.com/marketplace/upstash) (free tier OK) |
+| `UPSTASH_REDIS_REST_TOKEN` | For server profile sync | Paired with URL above |
+
+Without Redis env vars, the app still works — profiles stay in **localStorage** only; `PUT /api/profile` returns 503.
 
 Copy names from `.env.example`. Apply to **Production** and **Preview**.
 

@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect, useMemo, useState, type CSSProperties, type MouseEvent} from 'react';
+import {useAuth} from '@clerk/nextjs';
 import {useRouter} from 'next/navigation';
 import {Sparkles} from 'lucide-react';
 import {HStack, VStack, Layout, LayoutContent} from '@astryxdesign/core/Layout';
@@ -34,10 +35,11 @@ import {
 } from '@/lib/venue-options';
 import {getUserMemory, type UserMemory} from '@/lib/user-memory';
 import {
-  hasOnboardingUsername,
+  isOnboardingComplete,
   loadTasteProfile,
   type TasteProfile,
 } from '@/lib/taste-profile';
+import {bindTasteProfileToUserId} from '@/lib/taste-profile-session';
 import {
   DATE_NIGHT_OCCASION_CARDS,
   type DateNightOccasion,
@@ -880,6 +882,7 @@ async function callAgent(
 
 export default function Home() {
   const router = useRouter();
+  const {userId: clerkUserId, isLoaded: isAuthLoaded} = useAuth();
   const [tasteProfile, setTasteProfile] = useState<TasteProfile | null>(null);
   const [ready, setReady] = useState(false);
   const [messages, setMessages] = useState<ChatTurn[]>([]);
@@ -947,27 +950,50 @@ export default function Home() {
   const userMemory = useMemo(() => getUserMemory(tasteProfile), [tasteProfile]);
 
   useEffect(() => {
-    const profile = loadTasteProfile();
-    if (!hasOnboardingUsername(profile)) {
-      router.replace('/onboarding');
-      return;
-    }
-    setTasteProfile(profile);
-    const name = profile!.username.trim();
-    setMessages([
-      {
-        role: 'assistant',
-        text: name.length > 0 ? `Welcome, ${name}. Let's find your table.` : `Welcome. Let's find your table.`,
-      },
-    ]);
-    setReady(true);
-  }, [router]);
+    if (!isAuthLoaded || clerkUserId == null) return;
+    let cancelled = false;
+    const local = bindTasteProfileToUserId(loadTasteProfile(), clerkUserId);
+    void import('@/lib/profile-sync').then(({hydrateTasteProfileWithServer}) =>
+      hydrateTasteProfileWithServer(local),
+    ).then((profile) => {
+      if (cancelled) return;
+      if (!isOnboardingComplete(profile)) {
+        router.replace('/onboarding');
+        return;
+      }
+      setTasteProfile(profile);
+      const name = profile.username.trim();
+      setMessages([
+        {
+          role: 'assistant',
+          text: name.length > 0 ? `Welcome, ${name}. Let's find your table.` : `Welcome. Let's find your table.`,
+        },
+      ]);
+      setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [router, isAuthLoaded, clerkUserId]);
 
   useEffect(() => {
     requestLocation();
   }, []);
 
-  if (!ready) return null;
+  if (!isAuthLoaded || clerkUserId == null || !ready) {
+    return (
+      <Layout
+        height="fill"
+        content={
+          <LayoutContent>
+            <VStack hAlign="center" vAlign="center" style={{minHeight: '60dvh'}}>
+              <Text color="secondary">Loading your table…</Text>
+            </VStack>
+          </LayoutContent>
+        }
+      />
+    );
+  }
 
   const demoResetAvatar = (
     <button

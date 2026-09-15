@@ -2,7 +2,7 @@
 
 import {Suspense, useEffect} from 'react';
 import {useRouter, useSearchParams} from 'next/navigation';
-import {createEmptyTasteProfile, loadTasteProfile, saveTasteProfile} from '@/lib/taste-profile';
+import {stashPendingInviteRef} from '@/lib/taste-profile-session';
 
 function JoinRedirect() {
   const router = useRouter();
@@ -10,17 +10,10 @@ function JoinRedirect() {
   const ref = searchParams.get('ref');
 
   useEffect(() => {
-    const profile = loadTasteProfile() ?? createEmptyTasteProfile();
-    if (ref != null && ref.length > 0 && !profile.social.friendUserIds.includes(ref)) {
-      saveTasteProfile({
-        ...profile,
-        social: {
-          ...profile.social,
-          friendUserIds: [...profile.social.friendUserIds, ref],
-        },
-      });
+    if (ref != null && ref.length > 0) {
+      stashPendingInviteRef(ref);
     }
-    router.replace(ref != null ? `/onboarding?ref=${encodeURIComponent(ref)}` : '/onboarding');
+    router.replace('/sign-up');
   }, [ref, router]);
 
   return null;

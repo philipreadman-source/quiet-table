@@ -105,10 +105,12 @@ export const ONBOARDING_STEP_ORDER: OnboardingStepId[] = [
 
 const USERNAME_PATTERN = /^[a-z0-9_]{2,20}$/;
 
-export function createEmptyTasteProfile(): TasteProfile {
+export function createEmptyTasteProfile(userId?: string): TasteProfile {
   const now = new Date().toISOString();
+  const resolvedUserId =
+    userId != null && userId.trim().length > 0 ? userId.trim() : crypto.randomUUID();
   return {
-    userId: crypto.randomUUID(),
+    userId: resolvedUserId,
     username: '',
     avatarSrc: PRINCIPAL_AVATAR_SRC,
     homeArea: 'Amsterdam',
@@ -278,6 +280,20 @@ export function hasOnboardingUsername(profile: TasteProfile | null | undefined):
   return profile != null && profile.username.trim().length >= 2;
 }
 
+export function isOnboardingComplete(profile: TasteProfile | null | undefined): boolean {
+  return (
+    profile != null &&
+    hasOnboardingUsername(profile) &&
+    profile.onboarding.completedAt != null &&
+    profile.onboarding.completedAt.length > 0
+  );
+}
+
+export function saveTasteProfileToLocalStorage(profile: TasteProfile): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(TASTE_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+}
+
 export function loadTasteProfile(): TasteProfile | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -293,9 +309,13 @@ export function loadTasteProfile(): TasteProfile | null {
   }
 }
 
-export function saveTasteProfile(profile: TasteProfile): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(TASTE_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+/** Persists locally; syncs to Upstash when username is set (see profile-sync). */
+export function saveTasteProfile(profile: TasteProfile, options?: {remote?: boolean}): void {
+  saveTasteProfileToLocalStorage(profile);
+  if (options?.remote === false || typeof window === 'undefined') return;
+  void import('@/lib/profile-sync').then(({pushTasteProfileToServer}) =>
+    pushTasteProfileToServer(profile),
+  );
 }
 
 export function inviteShareUrl(userId: string, origin?: string): string {

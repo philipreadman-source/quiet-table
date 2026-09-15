@@ -1,5 +1,7 @@
 'use client';
 
+import {useUser} from '@clerk/nextjs';
+import {ProfileAccountMenu} from '@/app/components/profile-account-menu';
 import {useEffect, useMemo, useState, type CSSProperties} from 'react';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Button} from '@astryxdesign/core/Button';
@@ -32,7 +34,12 @@ export function HomeProfileTabPanel({
   profile: TasteProfile;
   onProfileSaved: (next: TasteProfile) => void;
 }) {
+  const {user} = useUser();
   const summaryRows = useMemo(() => buildOnboardingSummaryRows(profile), [profile]);
+  const emailLabel =
+    user?.primaryEmailAddress?.emailAddress ??
+    user?.emailAddresses[0]?.emailAddress ??
+    null;
   const [usernameInput, setUsernameInput] = useState(profile.username);
   const [homeAreaInput, setHomeAreaInput] = useState(profile.homeArea);
   const [usernameError, setUsernameError] = useState<string | null>(null);
@@ -69,44 +76,48 @@ export function HomeProfileTabPanel({
 
   return (
     <VStack style={panel} gap={4} align="stretch">
-      <HStack gap={3} vAlign="center">
-        <PrincipalAvatar username={profile.username} avatarSrc={profile.avatarSrc} size={48} />
-        <VStack gap={0}>
-          <Text type="label" weight="semibold">
-            Your profile
-          </Text>
-          <Text type="supporting" color="secondary">
-            From onboarding — edit anytime.
-          </Text>
-        </VStack>
+      <HStack gap={3} vAlign="center" hAlign="between" style={{width: '100%'}}>
+        <HStack gap={3} vAlign="center">
+          <PrincipalAvatar username={profile.username} avatarSrc={profile.avatarSrc} size={48} />
+          <VStack gap={0}>
+            <Text type="label" weight="semibold">
+              Your profile
+            </Text>
+            <Text type="supporting" color="secondary">
+              {emailLabel != null ? emailLabel : 'From onboarding — edit anytime.'}
+            </Text>
+          </VStack>
+        </HStack>
+        <ProfileAccountMenu />
       </HStack>
 
-      <VStack gap={3} align="stretch">
-        <TextInput
-          label="Username"
-          value={usernameInput}
-          onChange={setUsernameInput}
-          placeholder="philip"
-          status={usernameError != null ? {type: 'error', message: usernameError} : undefined}
-        />
-        <TextInput
-          label="Location"
-          value={homeAreaInput}
-          onChange={setHomeAreaInput}
-          placeholder="Amsterdam"
-        />
-        <HStack hAlign="start">
-          <Button label="Save" onClick={handleSave} isDisabled={!dirty} />
-        </HStack>
-        {saveNote != null && (
-          <Banner status="success" title={saveNote} />
-        )}
-      </VStack>
+      <VStack gap={0} align="stretch">
+        <VStack gap={3} align="stretch">
+          <TextInput
+            label="Username"
+            value={usernameInput}
+            onChange={setUsernameInput}
+            placeholder="philip"
+            status={usernameError != null ? {type: 'error', message: usernameError} : undefined}
+          />
+          <TextInput
+            label="Location"
+            value={homeAreaInput}
+            onChange={setHomeAreaInput}
+            placeholder="Amsterdam"
+          />
+          <HStack hAlign="start">
+            <Button label="Save" onClick={handleSave} isDisabled={!dirty} />
+          </HStack>
+          {saveNote != null && (
+            <Banner status="success" title={saveNote} />
+          )}
+        </VStack>
 
-      <VStack gap={2} align="stretch">
-        <Text type="label" weight="semibold">
-          Onboarding summary
-        </Text>
+        <VStack gap={2} align="stretch" style={{marginTop: 'var(--spacing-8)'}}>
+          <Text type="label" weight="semibold">
+            Onboarding summary
+          </Text>
         <Card padding={4}>
           <VStack gap={2} align="stretch">
             {summaryRows.map((row) => (
@@ -119,6 +130,7 @@ export function HomeProfileTabPanel({
             ))}
           </VStack>
         </Card>
+        </VStack>
       </VStack>
 
       <ProfileTasteQuizSection profile={profile} onProfileSaved={onProfileSaved} />

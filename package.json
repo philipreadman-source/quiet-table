@@ -14,6 +14,8 @@
     "@astryxdesign/cli": "^0.1.2",
     "@astryxdesign/core": "^0.1.2",
     "@astryxdesign/theme-neutral": "^0.1.2",
+    "@clerk/nextjs": "^7.9.2",
+    "@upstash/redis": "^1.38.4",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4"

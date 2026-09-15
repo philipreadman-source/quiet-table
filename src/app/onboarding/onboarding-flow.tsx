@@ -1,5 +1,6 @@
 'use client';
 
+import {useAuth} from '@clerk/nextjs';
 import {useCallback, useEffect, useMemo, useState, type CSSProperties} from 'react';
 import {useRouter, useSearchParams} from 'next/navigation';
 import {Share2} from 'lucide-react';
@@ -17,6 +18,7 @@ import {
   CUISINE_OPTIONS,
   finishOnboarding,
   hasOnboardingUsername,
+  isOnboardingComplete,
   inviteShareMessage,
   inviteShareUrl,
   loadTasteProfile,
@@ -30,6 +32,10 @@ import {
   type TasteProfile,
   type VenueReaction,
 } from '@/lib/taste-profile';
+import {
+  bindTasteProfileToUserId,
+  consumePendingInviteRef,
+} from '@/lib/taste-profile-session';
 
 const shell: CSSProperties = {
   minHeight: '100dvh',
@@ -59,11 +65,13 @@ export function OnboardingFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const referrerId = searchParams.get('ref');
+  const {userId: clerkUserId, isLoaded: isAuthLoaded} = useAuth();
 
+  const [profileReady, setProfileReady] = useState(false);
   const [step, setStep] = useState<OnboardingStepId>('basics');
-  const [profile, setProfile] = useState<TasteProfile>(() => loadTasteProfile() ?? createEmptyTasteProfile());
-  const [usernameInput, setUsernameInput] = useState(profile.username);
-  const [homeAreaInput, setHomeAreaInput] = useState(profile.homeArea);
+  const [profile, setProfile] = useState<TasteProfile | null>(null);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [homeAreaInput, setHomeAreaInput] = useState('Amsterdam');
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizVenues, setQuizVenues] = useState<TasteQuizVenue[]>([]);
@@ -76,8 +84,10 @@ export function OnboardingFlow() {
   }, [step]);
 
   useEffect(() => {
+    if (!isAuthLoaded || clerkUserId == null) return;
+
     if (searchParams.get('reset') === '1') {
-      const fresh = createEmptyTasteProfile();
+      const fresh = createEmptyTasteProfile(clerkUserId);
       saveTasteProfile(fresh);
       setProfile(fresh);
       setUsernameInput('');
@@ -86,33 +96,50 @@ export function OnboardingFlow() {
       setQuizIndex(0);
       setQuizVenues([]);
       setQuizError(null);
+      setProfileReady(true);
       window.history.replaceState(null, '', '/onboarding');
       return;
     }
 
-    const existing = loadTasteProfile();
-    if (existing != null && hasOnboardingUsername(existing) && existing.onboarding.completedAt != null) {
-      router.replace('/');
+    let bound = bindTasteProfileToUserId(loadTasteProfile(), clerkUserId);
+    const inviteRef = referrerId?.trim() || consumePendingInviteRef();
+    if (
+      inviteRef != null &&
+      inviteRef.length > 0 &&
+      !bound.social.friendUserIds.includes(inviteRef)
+    ) {
+      bound = {
+        ...bound,
+        social: {
+          ...bound.social,
+          friendUserIds: [...bound.social.friendUserIds, inviteRef],
+        },
+      };
+      saveTasteProfile(bound);
     }
-  }, [router, searchParams]);
+
+    let cancelled = false;
+    void import('@/lib/profile-sync').then(({hydrateTasteProfileWithServer}) =>
+      hydrateTasteProfileWithServer(bound),
+    ).then((hydrated) => {
+      if (cancelled) return;
+      if (isOnboardingComplete(hydrated)) {
+        router.replace('/');
+        return;
+      }
+      setProfile(hydrated);
+      setUsernameInput(hydrated.username);
+      setHomeAreaInput(hydrated.homeArea);
+      setProfileReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, searchParams, isAuthLoaded, clerkUserId, referrerId]);
 
   useEffect(() => {
-    if (referrerId != null && referrerId.length > 0) {
-      setProfile((prev) => {
-        if (prev.social.friendUserIds.includes(referrerId)) return prev;
-        return {
-          ...prev,
-          social: {
-            ...prev.social,
-            friendUserIds: [...prev.social.friendUserIds, referrerId],
-          },
-        };
-      });
-    }
-  }, [referrerId]);
-
-  useEffect(() => {
-    if (step !== 'venue_quiz') return;
+    if (step !== 'venue_quiz' || profile == null) return;
 
     let cancelled = false;
     const cuisines = profile.preferences.cuisineAffinities ?? [];
@@ -150,7 +177,7 @@ export function OnboardingFlow() {
     return () => {
       cancelled = true;
     };
-  }, [step, profile.homeArea, profile.preferences.cuisineAffinities]);
+  }, [step, profile]);
 
   const persist = useCallback((next: TasteProfile) => {
     const refreshed = refreshTasteConfidence(next);
@@ -160,8 +187,11 @@ export function OnboardingFlow() {
   }, []);
 
   const stepNumber = stepIndex(step) + 1;
-  const inviteUrl = useMemo(() => inviteShareUrl(profile.userId), [profile.userId]);
-  const invitesSent = profile.social.invites.sent.length;
+  const inviteUrl = useMemo(
+    () => (profile != null ? inviteShareUrl(profile.userId) : ''),
+    [profile],
+  );
+  const invitesSent = profile?.social.invites.sent.length ?? 0;
 
   const advanceFrom = (currentStep: OnboardingStepId, nextProfile: TasteProfile) => {
     const saved = persist(nextProfile);
@@ -174,7 +204,10 @@ export function OnboardingFlow() {
     setStep(ONBOARDING_STEP_ORDER[idx + 1]!);
   };
 
-  const skipStep = () => advanceFrom(step, markStepSkipped(profile, step));
+  const skipStep = () => {
+    if (profile == null) return;
+    advanceFrom(step, markStepSkipped(profile, step));
+  };
 
   const finish = (next: TasteProfile) => {
     persist(finishOnboarding(next));
@@ -182,6 +215,7 @@ export function OnboardingFlow() {
   };
 
   const handleBasicsContinue = () => {
+    if (profile == null) return;
     const validated = validateUsername(usernameInput);
     if (!validated.ok) {
       setUsernameError(validated.error);
@@ -196,12 +230,14 @@ export function OnboardingFlow() {
   };
 
   const toggleCuisine = (id: CuisineId) => {
+    if (profile == null) return;
     const current = profile.preferences.cuisineAffinities ?? [];
     const next = current.includes(id) ? current.filter((c) => c !== id) : [...current, id];
     persist({...profile, preferences: {...profile.preferences, cuisineAffinities: next}});
   };
 
   const handleQuizReaction = (reaction: VenueReaction) => {
+    if (profile == null) return;
     const venue = quizVenues[quizIndex];
     if (venue == null) return;
     const next = applyVenueReaction(profile, venue.id, reaction);
@@ -215,6 +251,7 @@ export function OnboardingFlow() {
   };
 
   const recordInviteSent = (channel: 'share_sheet' | 'copy_link') => {
+    if (profile == null) return;
     persist({
       ...profile,
       social: {
@@ -231,6 +268,7 @@ export function OnboardingFlow() {
   };
 
   const shareInvite = async () => {
+    if (profile == null) return;
     const message = inviteShareMessage(profile.username || 'Someone', inviteUrl);
     if (typeof navigator !== 'undefined' && navigator.share != null) {
       try {
@@ -253,6 +291,22 @@ export function OnboardingFlow() {
 
   const quizVenue = quizVenues[quizIndex];
   const quizKnown = quizVenue != null ? findVenueOption(quizVenue.id) : undefined;
+
+  if (!isAuthLoaded || clerkUserId == null || !profileReady || profile == null) {
+    return (
+      <Layout
+        height="fill"
+        content={
+          <LayoutContent>
+            <VStack gap={2} style={shell}>
+              <Text color="secondary">Setting up your taste profile…</Text>
+            </VStack>
+          </LayoutContent>
+        }
+      />
+    );
+  }
+
   const quizAreaLabel = profile.homeArea.trim() || 'Amsterdam';
 
   return (

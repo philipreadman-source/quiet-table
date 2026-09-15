@@ -44,7 +44,13 @@ export function WizardGoingWithStep({
               isSelected={selected}
               onChange={(isSelected) => onToggleFriend(friend.id, isSelected)}>
               <VStack gap={1} hAlign="center">
-                <PersonaAvatar name={friend.name} friendId={friend.id} size={40} />
+                <PersonaAvatar
+                  name={friend.name}
+                  friendId={friend.id}
+                  avatarSrc={friend.avatarSrc}
+                  displayName={friend.fullName}
+                  size={40}
+                />
                 <Text type="label" weight="semibold" justify="center">
                   {friend.name}
                 </Text>

@@ -6,20 +6,32 @@ import {getFriendFoodProfile} from '@/lib/friend-graph-mock';
 type PersonaAvatarProps = {
   name: string;
   friendId?: string;
+  /** When set, skips demo friend graph (real Clerk members). */
+  avatarSrc?: string;
+  displayName?: string;
   size?: AvatarSize;
   alt?: string;
 };
 
-export function PersonaAvatar({name, friendId, size = 20, alt}: PersonaAvatarProps) {
+export function PersonaAvatar({
+  name,
+  friendId,
+  avatarSrc,
+  displayName,
+  size = 20,
+  alt,
+}: PersonaAvatarProps) {
   const friend =
-    (friendId != null ? getFriendFoodProfile(friendId) : undefined) ??
-    getFriendFoodProfile(name);
-  const label = friend?.fullName ?? name.trim();
+    avatarSrc == null && displayName == null
+      ? ((friendId != null ? getFriendFoodProfile(friendId) : undefined) ??
+        getFriendFoodProfile(name))
+      : undefined;
+  const label = displayName ?? friend?.fullName ?? name.trim();
   if (label.length === 0) return null;
 
   return (
     <Avatar
-      src={friend?.avatarSrc}
+      src={avatarSrc ?? friend?.avatarSrc}
       name={label}
       alt={alt ?? label}
       size={size}

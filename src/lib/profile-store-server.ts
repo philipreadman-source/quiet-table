@@ -1,6 +1,8 @@
 import {Redis} from '@upstash/redis';
 import type {TasteProfile} from '@/lib/taste-profile';
+import {hasOnboardingUsername} from '@/lib/taste-profile';
 import {normalizeTasteProfileRecord} from '@/lib/taste-profile-payload';
+import {registerMemberUserId} from '@/lib/member-registry-server';
 
 const PROFILE_KEY_PREFIX = 'quiet-table:profile:';
 
@@ -37,5 +39,8 @@ export async function putStoredProfile(
     return {ok: false, error: 'Profile storage is not configured (Upstash Redis env vars missing).'};
   }
   await redis.set(profileKey(profile.userId), profile);
+  if (hasOnboardingUsername(profile)) {
+    await registerMemberUserId(profile.userId);
+  }
   return {ok: true};
 }

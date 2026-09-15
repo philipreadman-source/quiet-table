@@ -303,15 +303,20 @@ export function friendDietaryLean(friend: FriendFoodProfile): FriendDietaryLean 
   return 'none';
 }
 
+type FriendLookup = (id: string) => FriendFoodProfile | undefined;
+
 /** Map wizard companion picks → table dietary needs + copy for the agent/UI. */
-export function derivePartyDietaryFromCompanions(friendIds: string[]): {
+export function derivePartyDietaryFromCompanions(
+  friendIds: string[],
+  lookup: FriendLookup = getFriendFoodProfile,
+): {
   dietaryNeeds: DietaryNeeds;
   summary: string;
 } | null {
   if (friendIds.length === 0) return null;
 
   const friends = friendIds
-    .map((id) => getFriendFoodProfile(id))
+    .map((id) => lookup(id))
     .filter((friend): friend is FriendFoodProfile => friend != null);
   if (friends.length === 0) return null;
 

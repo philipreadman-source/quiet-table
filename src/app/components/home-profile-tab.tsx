@@ -11,6 +11,7 @@ import {Text} from '@astryxdesign/core/Text';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {PrincipalAvatar} from '@/app/components/persona-avatar';
 import {ProfileTasteQuizSection} from '@/app/components/profile-taste-quiz';
+import {clerkDisplayName, mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {
   buildOnboardingSummaryRows,
   refreshTasteConfidence,
@@ -59,12 +60,17 @@ export function HomeProfileTabPanel({
     }
     setUsernameError(null);
     const homeArea = homeAreaInput.trim() || 'Amsterdam';
-    const next = refreshTasteConfidence({
-      ...profile,
-      username: validated.value,
-      homeArea,
-      updatedAt: new Date().toISOString(),
-    });
+    const next = refreshTasteConfidence(
+      mergeClerkUserIntoProfile(
+        {
+          ...profile,
+          username: validated.value,
+          homeArea,
+          updatedAt: new Date().toISOString(),
+        },
+        user,
+      ),
+    );
     saveTasteProfile(next);
     onProfileSaved(next);
     setSaveNote('Profile saved.');
@@ -78,7 +84,11 @@ export function HomeProfileTabPanel({
     <VStack style={panel} gap={4} align="stretch">
       <HStack gap={3} vAlign="center" hAlign="between" style={{width: '100%'}}>
         <HStack gap={3} vAlign="center">
-          <PrincipalAvatar username={profile.username} avatarSrc={profile.avatarSrc} size={48} />
+          <PrincipalAvatar
+            username={clerkDisplayName(profile) || profile.username}
+            avatarSrc={profile.clerk?.imageUrl ?? profile.avatarSrc}
+            size={48}
+          />
           <VStack gap={0}>
             <Text type="label" weight="semibold">
               Your profile

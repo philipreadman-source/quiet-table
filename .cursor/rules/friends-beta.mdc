@@ -1,0 +1,20 @@
+---
+description: Closed beta — every registered member appears as a friend; avatars from Clerk
+globs:
+  - src/lib/member-*.ts
+  - src/lib/friend-graph-mock.ts
+  - src/app/api/members/**
+  - src/app/components/home-friends-tab.tsx
+  - src/app/components/wizard-going-with-step.tsx
+---
+
+# Friends graph (beta)
+
+Until a real social graph ships:
+
+- **All members are friends**: any Clerk user who saved a taste profile with a username is added to the Redis set `quiet-table:member-ids` and returned by `GET /api/members` (excluding the signed-in user).
+- **Identity from Clerk**: store `profile.clerk` (`firstName`, `lastName`, `imageUrl`) and `avatarSrc` via `mergeClerkUserIntoProfile` on save/hydrate.
+- **Avatar fallback**: use `@astryxdesign/core/Avatar` with `src` from Clerk when present; pass `name` as full display name (Clerk name or `@username`) so initials render when there is no photo.
+- **Demo personas**: `friend-graph-mock.ts` remains for venue social proof and local dev; Friends tab and wizard prefer live `/api/members` when non-empty.
+
+Do not gate the member list on `social.friendUserIds` in beta.

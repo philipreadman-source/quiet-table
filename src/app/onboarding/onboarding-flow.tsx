@@ -1,6 +1,7 @@
 'use client';
 
-import {useAuth} from '@clerk/nextjs';
+import {useAuth, useUser} from '@clerk/nextjs';
+import {mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {useCallback, useEffect, useMemo, useState, type CSSProperties} from 'react';
 import {useRouter, useSearchParams} from 'next/navigation';
 import {Share2} from 'lucide-react';
@@ -63,6 +64,7 @@ export function OnboardingFlow() {
   const searchParams = useSearchParams();
   const referrerId = searchParams.get('ref');
   const {userId: clerkUserId, isLoaded: isAuthLoaded} = useAuth();
+  const {user: clerkUser} = useUser();
 
   const [profileReady, setProfileReady] = useState(false);
   const [step, setStep] = useState<OnboardingStepId>('basics');
@@ -183,12 +185,24 @@ export function OnboardingFlow() {
     };
   }, [step, profile]);
 
-  const persist = useCallback((next: TasteProfile) => {
-    const refreshed = refreshTasteConfidence(next);
-    setProfile(refreshed);
-    saveTasteProfile(refreshed);
-    return refreshed;
-  }, []);
+  const persist = useCallback(
+    (next: TasteProfile) => {
+      const withClerk = mergeClerkUserIntoProfile(next, clerkUser);
+      const refreshed = refreshTasteConfidence(withClerk);
+      setProfile(refreshed);
+      saveTasteProfile(refreshed);
+      return refreshed;
+    },
+    [clerkUser],
+  );
+
+  useEffect(() => {
+    if (profile == null || clerkUser == null) return;
+    const merged = mergeClerkUserIntoProfile(profile, clerkUser);
+    if (merged === profile) return;
+    setProfile(merged);
+    saveTasteProfile(merged);
+  }, [clerkUser, profile]);
 
   const stepNumber = stepIndex(step) + 1;
   const inviteUrl = useMemo(

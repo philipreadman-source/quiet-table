@@ -12,6 +12,7 @@ import {
   type FriendFoodProfile,
   type FriendPick,
 } from '@/lib/friend-graph-mock';
+import {useMemberFriends} from '@/lib/use-member-friends';
 import {enrichVenueOption, findVenueOption} from '@/lib/venue-options';
 
 const panel: CSSProperties = {
@@ -119,7 +120,11 @@ function FriendVisitCard({pick}: {pick: FriendPick}) {
 }
 
 export function HomeFriendsTabPanel() {
-  const friends = useMemo(() => listFriendsForFriendsTab(), []);
+  const {members} = useMemberFriends();
+  const friends = useMemo(
+    () => (members.length > 0 ? members : listFriendsForFriendsTab()),
+    [members],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected =
     selectedId != null ? friends.find((friend) => friend.id === selectedId) : undefined;

@@ -47,6 +47,12 @@ export type TasteProfile = {
   username: string;
   /** Profile photo URL; defaults to PRINCIPAL_AVATAR_SRC for the prototype principal. */
   avatarSrc?: string;
+  /** Clerk identity snapshot for avatars and display names (initials when no image). */
+  clerk?: {
+    firstName?: string;
+    lastName?: string;
+    imageUrl?: string;
+  };
   homeArea: string;
   homeCoordinates?: {lat: number; lon: number};
   preferences: {

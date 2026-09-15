@@ -25,8 +25,9 @@ export async function registerMemberUserId(userId: string): Promise<void> {
 export async function listRegisteredMemberUserIds(): Promise<string[]> {
   const redis = getRedisClient();
   if (redis == null) return [];
-  const ids = await redis.smembers(MEMBER_IDS_KEY);
-  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string' && id.length > 0) : [];
+  const raw: unknown = await redis.smembers(MEMBER_IDS_KEY);
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((id): id is string => typeof id === 'string' && id.length > 0);
 }
 
 export async function listMemberProfilesForSession(

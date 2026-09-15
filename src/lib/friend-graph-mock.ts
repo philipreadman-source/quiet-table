@@ -17,6 +17,8 @@ export type FriendFoodProfile = {
   homeArea: string;
   tasteSummary: string;
   cuisineAffinities: string[];
+  /** How they eat — surfaced to the agent and when filtering for a friend. */
+  dietaryNotes?: string;
   /** Public URL under /personas — deployed with the app on Vercel. */
   avatarSrc?: string;
   topPicks: FriendPick[];
@@ -106,6 +108,7 @@ export const EMMA_VAN_DIJK: FriendFoodProfile = {
   homeArea: 'Amsterdam',
   tasteSummary: 'Group dinners, Italian, shareable tables',
   cuisineAffinities: ['italian', 'japanese'],
+  dietaryNotes: 'Mostly vegetarian (pescatarian) — no meat, but she eats fish and seafood.',
   topPicks: [
     {
       venueId: 'cecconis',
@@ -163,6 +166,7 @@ export function summarizeFriendForAgent(friend: FriendFoodProfile) {
     relationship: friend.relationship,
     tasteSummary: friend.tasteSummary,
     cuisineAffinities: friend.cuisineAffinities,
+    dietaryNotes: friend.dietaryNotes,
     topPicks: friend.topPicks.map((pick) => ({
       venueId: pick.venueId,
       title: pick.title,

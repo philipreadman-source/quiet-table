@@ -820,19 +820,37 @@ const GROUP_OPTIONS: VenueOptionCard[] = [
   },
 ];
 
+import {
+  AMSTERDAM_ABSOLUTE_YES_POPULAR_IDS,
+  AMSTERDAM_ABSOLUTE_YES_VENUES,
+} from '@/lib/amsterdam-absolute-yes';
+import {AMSTERDAM_NEW_OPENINGS_VENUES} from '@/lib/amsterdam-new-openings';
+
+const EDITORIAL_AMSTERDAM_VENUES: VenueOptionCard[] = [
+  ...AMSTERDAM_ABSOLUTE_YES_VENUES,
+  ...AMSTERDAM_NEW_OPENINGS_VENUES,
+];
+
+function mergeEditorialAmsterdamVenues(base: VenueOptionCard[]): VenueOptionCard[] {
+  const seen = new Set(base.map((venue) => venue.id));
+  const extra = EDITORIAL_AMSTERDAM_VENUES.filter((venue) => !seen.has(venue.id));
+  return [...extra, ...base];
+}
+
 const ALL_VENUE_OPTIONS: VenueOptionCard[] = [
   ...CASUAL_OPTIONS,
   ...DATE_NIGHT_OPTIONS,
   ...MICHELIN_OPTIONS,
   ...GROUP_OPTIONS,
+  ...EDITORIAL_AMSTERDAM_VENUES,
 ];
 
 export function getVenueOptionsForIntent(intent: string): VenueOptionCard[] {
   const lower = intent.toLowerCase();
-  if (lower.includes('date')) return DATE_NIGHT_OPTIONS;
-  if (lower.includes('michelin')) return MICHELIN_OPTIONS;
-  if (lower.includes('group')) return GROUP_OPTIONS;
-  return CASUAL_OPTIONS;
+  if (lower.includes('date')) return mergeEditorialAmsterdamVenues(DATE_NIGHT_OPTIONS);
+  if (lower.includes('michelin')) return mergeEditorialAmsterdamVenues(MICHELIN_OPTIONS);
+  if (lower.includes('group')) return mergeEditorialAmsterdamVenues(GROUP_OPTIONS);
+  return mergeEditorialAmsterdamVenues(CASUAL_OPTIONS);
 }
 
 function dietaryRankScore(tags: DietaryTag[] | undefined, needs: DietaryNeeds | undefined): number {
@@ -986,6 +1004,7 @@ const ONBOARDING_POPULAR_VENUE_IDS = new Set([
   'momo',
   'graphite',
   'sla-amsterdam',
+  ...AMSTERDAM_ABSOLUTE_YES_POPULAR_IDS,
 ]);
 
 export function popularCatalogVenues(limit: number): VenueOptionCard[] {
@@ -1095,4 +1114,71 @@ export function formatRatingsLine(option: VenueOptionCard): string | null {
   if (parts.length === 0) return null;
   if (option.review_count != null) parts.push(`${option.review_count.toLocaleString()} reviews`);
   return parts.join(' · ');
+}
+
+export function catalogAgentContextLine(): string {
+  const count = listUniqueCatalogVenues().length;
+  return (
+    `Quiet Table curated Amsterdam catalog: ${count} venues (core mock list, editorial "absolute yes", new openings, friend-visit links). ` +
+    'This is vetted product data — call search_quiet_table_catalog whenever you show Amsterdam options, and mix results with web_search (menus, verification, spots not in catalog). ' +
+    'Use exact catalog id + title in render_ui.options so the UI enriches cards.'
+  );
+}
+
+export function summarizeVenueForAgentCatalog(venue: VenueOptionCard) {
+  const enriched = enrichVenueOption(venue);
+  const proof = enriched.social_proof;
+  return {
+    id: enriched.id,
+    title: enriched.title,
+    subtitle: enriched.subtitle,
+    meta: enriched.meta,
+    description:
+      enriched.description != null && enriched.description.length > 220
+        ? `${enriched.description.slice(0, 217)}…`
+        : enriched.description,
+    dietary_tags: enriched.dietary_tags,
+    friend_social:
+      proof?.source === 'contact'
+        ? {name: proof.name, action: proof.action, when: proof.when}
+        : undefined,
+    menu_url: enriched.menu_url,
+  };
+}
+
+/** Agent + search_tables tool — same pool as local fallback mode. */
+export function searchCatalogForAgent(args: {
+  vibe?: string;
+  near?: string;
+  query?: string;
+  limit?: number;
+}): ReturnType<typeof summarizeVenueForAgentCatalog>[] {
+  const limit = Math.min(Math.max(args.limit ?? 12, 1), 24);
+  let pool: VenueOptionCard[];
+
+  if (args.query != null && args.query.trim().length >= 2) {
+    pool = searchCatalogVenues(args.query.trim(), limit);
+  } else if (args.vibe != null && args.vibe.trim().length > 0) {
+    pool = getVenueOptionsForIntent(args.vibe.trim());
+  } else {
+    pool = listUniqueCatalogVenues();
+  }
+
+  if (args.near != null && args.near.trim().length > 0) {
+    const areaNeedle = args.near.trim().toLowerCase();
+    const areaPool = suggestVenuesForArea(args.near.trim(), limit * 3);
+    const areaIds = new Set(areaPool.map((venue) => venue.id));
+    const inArea = pool.filter((venue) => areaIds.has(venue.id));
+    const subtitleMatch = pool.filter((venue) => {
+      const subtitle = venue.subtitle?.toLowerCase() ?? '';
+      const neighbourhood = venueNeighbourhood(venue)?.toLowerCase() ?? '';
+      return subtitle.includes(areaNeedle) || neighbourhood.includes(areaNeedle);
+    });
+    const merged = [...inArea, ...subtitleMatch];
+    const byId = new Map<string, VenueOptionCard>();
+    for (const venue of merged) byId.set(venue.id, venue);
+    if (byId.size > 0) pool = [...byId.values()];
+  }
+
+  return pool.slice(0, limit).map(summarizeVenueForAgentCatalog);
 }

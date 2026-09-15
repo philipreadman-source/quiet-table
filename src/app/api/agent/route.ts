@@ -11,6 +11,7 @@ import {
 } from '@/lib/friend-graph-mock';
 import type {TasteProfile} from '@/lib/taste-profile';
 import {buildFallbackResponse} from '@/lib/fallback-response';
+import {catalogAgentContextLine} from '@/lib/venue-options';
 
 const client = new Anthropic();
 // UI/UX build sessions: mock catalog only — no Anthropic credits.
@@ -39,7 +40,7 @@ Social graph & trust (Friend Foodie layer):
 - When recommending, prioritize restaurants friends have visited and rated highly. Note which friend(s) went and what they said when that data exists in get_user_dining_history or context — surface it on cards via subtitle or meta (e.g. "Maya booked last month").
 - If you have no logged friend-visit data for this user/city, say so plainly in spoken text — do not invent friend reviews or fake social proof. Offer general (non-friend-sourced) suggestions ranked by vibe, taste memory, and availability instead.
 - Passive signals beat reviews: a friend's booking or save is enough; don't ask users to write reviews in chat.
-- Use get_friend_food_profile when the user names a friend or asks for picks in a friend's taste. Synthetic demo friends until real users join: Savas Ozay (ramen, Korean BBQ, Asian fusion), Maya Chen (quiet date nights, wine), Emma van Dijk (group Italian, shareable tables).
+- Use get_friend_food_profile when the user names a friend or asks for picks in a friend's taste. Synthetic demo friends until real users join: Savas Ozay (ramen, Korean BBQ, Asian fusion), Maya Chen (quiet date nights, wine), Emma van Dijk (group Italian, shareable tables; pescatarian — vegetarian plus fish/seafood, no meat).
 - Use get_contact_preferences when a named guest is mentioned for dietary needs. Help build the graph over time by acknowledging saves, likes, and bookings the user makes in-session.
 - As the social graph grows, warm friend signals should progressively outweigh generic picks; when the graph is empty, lean on taste memory and honest fit copy.
 
@@ -48,10 +49,12 @@ Vibe, price & Michelin:
 - Respect price/spend signals from the draft (e.g. date-night spend tier). Let users narrow by budget in spoken text if unclear.
 - MICHELIN MODE: When the booking draft intent is Michelin star, search guide.michelin.com for the location (e.g. "site:guide.michelin.com Michelin star restaurants Amsterdam"). Only propose restaurants you found on guide.michelin.com in this turn's web_search. Every venue in render_ui.options MUST include michelin_guide_url (full https://guide.michelin.com/... link from search) and michelin_distinction when known (e.g. "1 Star", "2 Stars", "3 Stars", "Bib Gourmand", "Selected"). Never claim Michelin status without a Guide URL. Do not attach google_rating or tripadvisor_rating — the UI shows Guide verification instead.
 
-Discovery & menus:
-- Use web_search first for real, current restaurants matching vibe and location. Ground every venue in an actual named result (real name, real neighborhood) — never invent venues.
-- Call check_venue_availability with the exact real venue name you found. Only fall back to search_tables if web_search returns nothing usable.
-- Use web_search to scan public signals (restaurant sites, reviews, social posts) for menu highlights. Put summaries in description and/or menu_overview on the card — present as general overviews grounded in search, not verbatim or guaranteed-current menus. View menu CTA only when menu_url is known.
+Discovery & menus (catalog + web — both):
+- Quiet Table ships a curated Amsterdam catalog (search_quiet_table_catalog). Treat it as solid product data: editorial lists, friend visits, dietary tags, stable ids. It is not a last-resort fallback.
+- For Amsterdam (or when the draft location is Amsterdam): call search_quiet_table_catalog for every venue-results turn — filter by vibe and near from the draft. Include catalog picks in render_ui.options (use exact id + title). Mix with web_search: e.g. mostly catalog for friend/editorial fit, plus web for menu URLs, hours, or 0–2 fresh names not in catalog. Do not run web_search-only when the catalog matches the brief.
+- web_search: verify and enrich — menus, Michelin guide URLs, openings, venues outside Amsterdam. Ground web-only venues in actual search results (real name, real neighborhood).
+- Call check_venue_availability with venue_id (catalog id or normalized web venue name). search_tables is an alias of search_quiet_table_catalog.
+- Put menu summaries in description / menu_overview. View menu only when menu_url is known (catalog or web).
 
 UI & booking (Quiet Table layer — non-negotiable):
 - The UI is the primary path. Prefer structured render_ui controls (venue cards, detail, confirm, success) over prose-only next steps. Spoken text explains why the UI choices are shown; it doesn't replace them.
@@ -94,15 +97,31 @@ const domainTools: Anthropic.Tool[] = [
     },
   },
   {
-    name: 'search_tables',
-    description: 'Fallback mock catalog — only use if web_search returns nothing usable for the location. Search for tables matching a vibe/occasion, filtered by location, party size, time window, and dietary restrictions.',
+    name: 'search_quiet_table_catalog',
+    description:
+      'Curated Amsterdam venue catalog (same data as fallback mode): editorial picks, new openings, friend social proof, dietary tags. Call alongside web_search for Amsterdam results — filter by vibe, neighborhood, or text query. Returns stable ids for render_ui.options.',
     input_schema: {
       type: 'object',
       properties: {
-        vibe: {type: 'string', description: 'e.g. "date night", "group", "michelin star", "casual", "celebration", "quiet"'},
-        near: {type: 'string', description: 'Address or neighborhood to search near'},
+        vibe: {type: 'string', description: 'e.g. "date night", "group", "michelin star", "casual"'},
+        near: {type: 'string', description: 'Neighborhood or area, e.g. "De Pijp", "Oud-Zuid", "NDSM"'},
+        query: {type: 'string', description: 'Optional name or keyword search within the catalog'},
+        limit: {type: 'integer', description: 'Max venues to return (default 12)'},
+      },
+    },
+  },
+  {
+    name: 'search_tables',
+    description: 'Alias for search_quiet_table_catalog — prefer search_quiet_table_catalog.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        vibe: {type: 'string'},
+        near: {type: 'string'},
+        query: {type: 'string'},
+        limit: {type: 'integer'},
         party_size: {type: 'integer'},
-        time_window: {type: 'string', description: 'e.g. "8-8:30pm"'},
+        time_window: {type: 'string'},
         dietary_restrictions: {type: 'array', items: {type: 'string'}},
       },
     },
@@ -263,6 +282,7 @@ function executeDomainTool(
     }
     case 'get_contact_preferences':
       return getContactPreferences(String(input.name ?? ''));
+    case 'search_quiet_table_catalog':
     case 'search_tables':
       return searchTables(input);
     case 'check_venue_availability':
@@ -295,6 +315,7 @@ export async function POST(request: Request) {
     draft != null ? `Current booking draft JSON: ${JSON.stringify(draft)}.` : null,
     `User dining memory JSON: ${JSON.stringify(summarizeUserMemoryForAgent(memory))}.`,
     `Close friends food graph JSON: ${JSON.stringify(summarizeFriendGraphForAgent())}.`,
+    catalogAgentContextLine(),
   ].filter(Boolean);
 
   const system = contextLines.length > 0 ? `${SYSTEM_PROMPT}\n\n${contextLines.join('\n')}` : SYSTEM_PROMPT;
@@ -440,8 +461,9 @@ function describeCallTarget(
       return String(input.name ?? '');
     case 'get_contact_preferences':
       return String(input.name ?? '');
+    case 'search_quiet_table_catalog':
     case 'search_tables':
-      return [input.vibe, input.near].filter(Boolean).join(' · ') || 'all vibes';
+      return [input.vibe, input.near, input.query].filter(Boolean).join(' · ') || 'Amsterdam catalog';
     case 'check_venue_availability':
       return `${input.venue_id ?? ''} · ${input.time ?? ''}`;
     case 'create_booking':

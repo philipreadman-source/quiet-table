@@ -1,8 +1,14 @@
 // Mock domain data + tool implementations for the booking agent prototype.
 // No real calendar/venue/car APIs — these stand in for them.
 
+import {findVenueOption, searchCatalogForAgent} from '@/lib/venue-options';
+
 export const CONTACTS: Record<string, {name: string; dietary_restrictions: string[]}> = {
   suzie: {name: 'Suzie', dietary_restrictions: ['shellfish']},
+  emma: {
+    name: 'Emma van Dijk',
+    dietary_restrictions: ['pescatarian', 'no meat', 'fish and seafood ok'],
+  },
 };
 
 export type Venue = {
@@ -70,7 +76,9 @@ export const VENUES: Venue[] = [
 
 export function getContactPreferences(name: string) {
   const key = name.trim().toLowerCase();
-  return CONTACTS[key] ?? {name, dietary_restrictions: []};
+  if (CONTACTS[key] != null) return CONTACTS[key];
+  if (key.includes('emma')) return CONTACTS.emma!;
+  return {name, dietary_restrictions: []};
 }
 
 // Tool-call ids/names/vibes drift in shape (hyphens, underscores, spaces,
@@ -79,6 +87,17 @@ export function getContactPreferences(name: string) {
 const slug = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, '-');
 
 function findVenue(idOrName: string): Venue | undefined {
+  const catalog = findVenueOption(idOrName);
+  if (catalog != null) {
+    return {
+      id: catalog.id,
+      name: catalog.title,
+      travel: catalog.subtitle ?? 'Amsterdam',
+      available: '7:30pm',
+      description: catalog.description ?? catalog.subtitle ?? '',
+      tags: ['catalog'],
+    };
+  }
   const needle = slug(idOrName).replace(/-/g, ' ');
   return VENUES.find((v) => {
     const idSlug = slug(v.id).replace(/-/g, ' ');
@@ -93,7 +112,17 @@ export function searchTables(args: {
   party_size?: number;
   time_window?: string;
   dietary_restrictions?: string[];
+  query?: string;
+  limit?: number;
 }) {
+  const catalog = searchCatalogForAgent({
+    vibe: args.vibe,
+    near: args.near,
+    query: args.query,
+    limit: args.limit ?? 12,
+  });
+  if (catalog.length > 0) return catalog;
+
   let results = VENUES;
 
   if (args.vibe != null && args.vibe.trim().length > 0) {

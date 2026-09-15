@@ -44,6 +44,15 @@ const VENUE_CUISINE_OVERRIDES: Record<string, CuisineId[]> = {
   'piket': ['modern-european'],
   'restaurant-rouge': ['french'],
   'restaurant-meatless': ['vegetarian-forward'],
+  'cafe-restaurant-de-baanderij': ['modern-european'],
+  'rotate-leidseplein': ['modern-european'],
+  'broth-petit-zuid': ['japanese'],
+  'la-brutal-taqueria': ['mexican'],
+  'omoka-nsdm': ['other'],
+  'pure-wines-bar': ['modern-european', 'other'],
+  'how-is-your': ['modern-european', 'other'],
+  'chun-bijenkorf': ['japanese'],
+  'arte-vanilla': ['other'],
 };
 
 const CUISINE_KEYWORDS: {id: CuisineId; pattern: RegExp}[] = [

@@ -2,8 +2,6 @@
 
 import type {CSSProperties} from 'react';
 import {Tab, TabList} from '@astryxdesign/core/TabList';
-import {Text} from '@astryxdesign/core/Text';
-import {VStack} from '@astryxdesign/core/Layout';
 
 export type HomeMainSection = 'find' | 'friends' | 'profile';
 
@@ -12,13 +10,6 @@ const tabBarWrap: CSSProperties = {
   maxWidth: 800,
   flexShrink: 0,
   paddingBlock: 32,
-};
-
-const placeholderPanel: CSSProperties = {
-  flex: 1,
-  width: '100%',
-  maxWidth: 800,
-  minHeight: 0,
 };
 
 export function HomeSectionTabBar({
@@ -40,15 +31,5 @@ export function HomeSectionTabBar({
         <Tab value="profile" label="Profile" />
       </TabList>
     </div>
-  );
-}
-
-export function HomeProfileTabPanel() {
-  return (
-    <VStack style={placeholderPanel} hAlign="center" vAlign="center">
-      <Text type="supporting" color="secondary">
-        Profile view — design incoming.
-      </Text>
-    </VStack>
   );
 }

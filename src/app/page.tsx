@@ -48,11 +48,8 @@ import {
 } from '@/lib/date-night-spend';
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
 import {HomeFriendsTabPanel} from '@/app/components/home-friends-tab';
-import {
-  HomeProfileTabPanel,
-  HomeSectionTabBar,
-  type HomeMainSection,
-} from '@/app/components/home-section-tabs';
+import {HomeProfileTabPanel} from '@/app/components/home-profile-tab';
+import {HomeSectionTabBar, type HomeMainSection} from '@/app/components/home-section-tabs';
 import {WizardGoingWithStep} from '@/app/components/wizard-going-with-step';
 import {
   derivePartyDietaryFromCompanions,
@@ -1504,7 +1501,22 @@ export default function Home() {
                 ) : mainSection === 'friends' ? (
                   <HomeFriendsTabPanel />
                 ) : (
-                  <HomeProfileTabPanel />
+                  <HomeProfileTabPanel
+                    profile={tasteProfile!}
+                    onProfileSaved={(next) => {
+                      setTasteProfile(next);
+                      setBookingDraft((prev) => ({...prev, location: next.homeArea}));
+                      setMessages((prev) => {
+                        if (prev.length === 0 || prev[0]?.role !== 'assistant') return prev;
+                        const name = next.username.trim();
+                        const welcome =
+                          name.length > 0
+                            ? `Welcome, ${name}. Let's find your table.`
+                            : `Welcome. Let's find your table.`;
+                        return [{...prev[0]!, text: welcome}, ...prev.slice(1)];
+                      });
+                    }}
+                  />
                 )}
               </VStack>
             </HStack>

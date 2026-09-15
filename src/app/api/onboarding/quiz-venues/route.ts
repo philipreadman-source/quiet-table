@@ -27,9 +27,17 @@ export async function GET(request: Request) {
   const {searchParams} = new URL(request.url);
   const area = searchParams.get('area')?.trim() || 'Amsterdam';
   const cuisines = parseCuisines(searchParams.get('cuisines'));
+  const limitRaw = Number.parseInt(searchParams.get('limit') ?? '5', 10);
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 20) : 5;
+  const exclude =
+    searchParams
+      .get('exclude')
+      ?.split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0) ?? [];
 
   try {
-    const venues = await buildTasteQuizVenues(area, cuisines);
+    const venues = await buildTasteQuizVenues(area, cuisines, limit, exclude);
     return NextResponse.json({venues, area, cuisines});
   } catch (error) {
     console.error('[onboarding/quiz-venues]', error);

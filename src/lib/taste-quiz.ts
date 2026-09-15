@@ -124,7 +124,9 @@ function dedupeQuizVenues(venues: TasteQuizVenue[]): TasteQuizVenue[] {
 export function buildCatalogTasteQuizVenues(
   cuisines: CuisineId[],
   limit = TASTE_QUIZ_VENUE_COUNT,
+  excludeIds: readonly string[] = [],
 ): TasteQuizVenue[] {
+  const exclude = new Set(excludeIds);
   const catalog = listUniqueCatalogVenues();
   const ranked = [...catalog].sort(
     (a, b) => scoreVenueForQuiz(b, cuisines) - scoreVenueForQuiz(a, cuisines),
@@ -134,7 +136,7 @@ export function buildCatalogTasteQuizVenues(
   const seenIds = new Set<string>();
 
   const addVenue = (venue: VenueOptionCard) => {
-    if (picked.length >= limit || seenIds.has(venue.id)) return;
+    if (picked.length >= limit || seenIds.has(venue.id) || exclude.has(venue.id)) return;
     seenIds.add(venue.id);
     picked.push(toQuizVenue(venue));
   };
@@ -172,7 +174,9 @@ export async function buildExternalTasteQuizVenues(
   area: string,
   cuisines: CuisineId[],
   limit = TASTE_QUIZ_VENUE_COUNT,
+  excludeIds: string[] = [],
 ): Promise<TasteQuizVenue[]> {
+  const exclude = new Set(excludeIds.map((id) => id.trim().toLowerCase()));
   const areaPart = area.trim();
   const collected: VenueOptionCard[] = [];
   const seen = new Set<string>();
@@ -180,7 +184,7 @@ export async function buildExternalTasteQuizVenues(
   const addResults = (results: VenueOptionCard[]) => {
     for (const venue of results) {
       const key = venue.title.trim().toLowerCase();
-      if (seen.has(key)) continue;
+      if (seen.has(key) || exclude.has(venue.id.toLowerCase()) || exclude.has(key)) continue;
       seen.add(key);
       collected.push(venue);
     }
@@ -205,9 +209,13 @@ export async function buildExternalTasteQuizVenues(
 export async function buildTasteQuizVenues(
   area: string,
   cuisines: CuisineId[] = [],
+  limit = TASTE_QUIZ_VENUE_COUNT,
+  excludeIds: string[] = [],
 ): Promise<TasteQuizVenue[]> {
   if (isAmsterdamCatalogArea(area)) {
-    return buildCatalogTasteQuizVenues(cuisines);
+    return buildCatalogTasteQuizVenues(cuisines, limit, excludeIds);
   }
-  return buildExternalTasteQuizVenues(area, cuisines);
+  return buildExternalTasteQuizVenues(area, cuisines, limit, excludeIds);
 }
+
+export const PROFILE_TASTE_QUIZ_BATCH = 5;

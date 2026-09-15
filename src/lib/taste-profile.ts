@@ -309,6 +309,100 @@ export function inviteShareMessage(username: string, url: string): string {
   return `${username} invited you to Quiet Table — see where friends actually eat and book a table. ${url}`;
 }
 
+const ONBOARDING_STEP_LABELS: Record<OnboardingStepId, string> = {
+  basics: 'Basics',
+  last_meal: 'Last meal',
+  vibe: 'Vibe',
+  cuisine: 'Cuisine',
+  venue_quiz: 'Venue quiz',
+  invite_friends: 'Invite friends',
+};
+
+export type OnboardingSummaryRow = {label: string; value: string};
+
+export const LOVED_QUIZ_SUMMARY_VISIBLE = 5;
+
+/** Profile summary only — titles, capped with "(+N more)". */
+export function formatLovedQuizVenueSummary(
+  profile: TasteProfile,
+  maxVisible = LOVED_QUIZ_SUMMARY_VISIBLE,
+): string | null {
+  const lovedTitles = Object.entries(profile.venueReactions)
+    .filter(([, reaction]) => reaction === 'love')
+    .map(([venueId]) => findVenueOption(venueId)?.title ?? venueId);
+  if (lovedTitles.length === 0) return null;
+  const visible = lovedTitles.slice(0, maxVisible);
+  const rest = lovedTitles.length - visible.length;
+  let text = visible.join(', ');
+  if (rest > 0) text += ` (+${rest} more)`;
+  return text;
+}
+
+function formatProfileDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {dateStyle: 'medium'}).format(new Date(iso));
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
+/** Read-only lines for Profile — mirrors what onboarding captured. */
+export function buildOnboardingSummaryRows(profile: TasteProfile): OnboardingSummaryRow[] {
+  const rows: OnboardingSummaryRow[] = [];
+
+  const confidence =
+    profile.onboarding.tasteConfidence.charAt(0).toUpperCase() +
+    profile.onboarding.tasteConfidence.slice(1);
+  rows.push({label: 'Taste confidence', value: confidence});
+
+  const cuisineIds = profile.preferences.cuisineAffinities ?? [];
+  if (cuisineIds.length > 0) {
+    const labels = cuisineIds
+      .map((id) => CUISINE_OPTIONS.find((option) => option.id === id)?.label ?? id)
+      .join(', ');
+    rows.push({label: 'Cuisines you picked', value: labels});
+  } else if (!profile.onboarding.skippedSteps.includes('cuisine')) {
+    rows.push({label: 'Cuisines you picked', value: 'None — skipped or open to anything'});
+  }
+
+  const lovedSummary = formatLovedQuizVenueSummary(profile);
+  if (lovedSummary != null) {
+    rows.push({label: 'Loved in the quiz', value: lovedSummary});
+  }
+
+  const fineCount = Object.values(profile.venueReactions).filter((r) => r === 'fine').length;
+  const skipCount = Object.values(profile.venueReactions).filter((r) => r === 'never_been').length;
+  if (fineCount > 0 || skipCount > 0) {
+    const parts: string[] = [];
+    if (fineCount > 0) parts.push(`${fineCount} fine`);
+    if (skipCount > 0) parts.push(`${skipCount} never been`);
+    rows.push({label: 'Other quiz answers', value: parts.join(' · ')});
+  }
+
+  rows.push({
+    label: 'Friend invites',
+    value: `${profile.social.invites.sent.length} of ${profile.social.invites.targetCount} sent`,
+  });
+
+  if (profile.onboarding.completedAt != null) {
+    rows.push({
+      label: 'Member since',
+      value: formatProfileDate(profile.onboarding.completedAt),
+    });
+  }
+
+  if (profile.onboarding.skippedSteps.length > 0) {
+    rows.push({
+      label: 'Skipped steps',
+      value: profile.onboarding.skippedSteps
+        .map((step) => ONBOARDING_STEP_LABELS[step] ?? step)
+        .join(', '),
+    });
+  }
+
+  return rows;
+}
+
 export function summarizeTasteProfileForAgent(profile: TasteProfile) {
   return {
     userId: profile.userId,

@@ -10,14 +10,17 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  const {userId} = await auth();
+  const {userId, sessionStatus} = await auth();
 
   if (userId != null && isAuthPage(req)) {
     return NextResponse.redirect(new URL('/', req.url));
   }
 
   if (!isPublicRoute(req)) {
-    await auth.protect({unauthenticatedUrl: '/sign-in'});
+    const needsSignIn = userId == null || sessionStatus === 'pending';
+    if (needsSignIn) {
+      return NextResponse.redirect(new URL('/sign-in', req.url));
+    }
   }
 });
 

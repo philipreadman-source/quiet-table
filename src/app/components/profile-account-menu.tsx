@@ -31,7 +31,13 @@ export function ProfileAccountMenu() {
           <Button
             label="Sign out"
             variant="ghost"
-            onClick={() => void signOut({redirectUrl: '/sign-in'})}
+            onClick={() => {
+              const signIn =
+                typeof window !== 'undefined'
+                  ? new URL('/sign-in', window.location.origin).href
+                  : '/sign-in';
+              void signOut({redirectUrl: signIn});
+            }}
           />
         </VStack>
       }>

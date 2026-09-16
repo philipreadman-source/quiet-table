@@ -1,0 +1,21 @@
+.pin {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  margin: -6px -6px 0 0;
+  color: #a3a3a3;
+  border-radius: 8px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.pin:hover {
+  color: #e5e5e5;
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.pin:focus-visible {
+  outline: 2px solid #a8c29f;
+  outline-offset: 2px;
+}

@@ -13,6 +13,7 @@ import {tasteProfileToFriendFoodProfile} from '@/lib/member-friends';
 import {fetchTasteProfileFromServer} from '@/lib/profile-sync';
 import {hasOnboardingUsername} from '@/lib/taste-profile';
 import {useMemberFriends} from '@/lib/use-member-friends';
+import {VenueGoogleMapsPin} from '@/app/components/venue-google-maps-pin';
 import {enrichVenueOption, findVenueOption} from '@/lib/venue-options';
 
 const panel: CSSProperties = {
@@ -27,15 +28,6 @@ const visitCardShell: CSSProperties = {
   width: '50%',
   maxWidth: 400,
   alignSelf: 'flex-start',
-};
-
-const visitImage: CSSProperties = {
-  width: '100%',
-  aspectRatio: '16 / 9',
-  objectFit: 'cover',
-  borderRadius: 'var(--radius-md)',
-  display: 'block',
-  backgroundColor: 'var(--color-bg-secondary)',
 };
 
 type RosterEntry = {
@@ -89,18 +81,14 @@ function FriendVisitCard({pick}: {pick: FriendPick}) {
   );
 
   return (
-    <Card padding={0} style={visitCardShell}>
-      <VStack gap={2}>
-        {venue.image_url != null ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={venue.image_url} alt="" style={visitImage} />
-        ) : (
-          <div style={visitImage} aria-hidden />
-        )}
-        <VStack gap={0} style={{padding: 'var(--spacing-3)'}}>
-          <Text type="label" weight="semibold">
-            {venue.title}
-          </Text>
+    <Card padding={3} style={visitCardShell}>
+      <VStack gap={0}>
+          <HStack gap={1} vAlign="start" style={{width: '100%'}}>
+            <Text type="label" weight="semibold" style={{flex: 1, minWidth: 0}}>
+              {venue.title}
+            </Text>
+            <VenueGoogleMapsPin venue={venue} size={18} />
+          </HStack>
           {venue.subtitle != null && (
             <Text type="supporting" color="secondary">
               {venue.subtitle}
@@ -109,7 +97,6 @@ function FriendVisitCard({pick}: {pick: FriendPick}) {
           <Text type="supporting" color="secondary">
             {pick.note}
           </Text>
-        </VStack>
       </VStack>
     </Card>
   );

@@ -72,6 +72,7 @@ Discovery & menus (catalog + web):
 - Quiet Table ships a curated Amsterdam catalog (search_quiet_table_catalog). Treat it as solid product data: editorial lists, friend visits, dietary tags, stable ids.
 - For Amsterdam: one catalog search filtered by vibe and near from the draft. Include catalog picks in render_ui.options (exact id + title). Add web_search only when Michelin mode or the user asked for menus/openings not in catalog.
 - Put menu summaries in description / menu_overview. View menu only when menu_url is known (catalog or web).
+- Never set image_url on options or detail — the UI is text-first (no venue photos).
 
 UI & booking (Quiet Table layer — non-negotiable):
 - The UI is the primary path. Prefer structured render_ui controls (venue cards, detail, confirm, success) over prose-only next steps. Spoken text explains why the UI choices are shown; it doesn't replace them.
@@ -217,7 +218,6 @@ const renderUiTool: Anthropic.Tool = {
                 subtitle: {type: 'string'},
                 meta: {type: 'string'},
                 description: {type: 'string'},
-                image_url: {type: 'string'},
                 cta_label: {type: 'string'},
                 menu_url: {
                   type: 'string',
@@ -249,7 +249,6 @@ const renderUiTool: Anthropic.Tool = {
               description: {type: 'string'},
               cta_label: {type: 'string'},
                 meta: {type: 'string'},
-                image_url: {type: 'string'},
                 menu_url: {type: 'string'},
                 menu_overview: {type: 'string'},
             },

@@ -1,6 +1,6 @@
 'use client';
 
-import {useEffect, useMemo, useState, type CSSProperties, type MouseEvent} from 'react';
+import {useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent} from 'react';
 import {useAuth, useUser} from '@clerk/nextjs';
 import {useRouter} from 'next/navigation';
 import {Sparkles} from 'lucide-react';
@@ -70,6 +70,7 @@ const chatShell: CSSProperties = {
   minWidth: 0,
   minHeight: 0,
   height: '100%',
+  position: 'relative',
 };
 const chatLayout: CSSProperties = {flex: 1, minHeight: 0, width: '100%', maxWidth: 800};
 const chatBubblePadding: CSSProperties = {
@@ -552,7 +553,6 @@ function DetailVenueCard({
   subtitle,
   description,
   menuOverview,
-  imageUrl,
   ratings,
   menuAction,
   onBookTable,
@@ -561,7 +561,6 @@ function DetailVenueCard({
   subtitle?: string;
   description?: string;
   menuOverview?: string;
-  imageUrl?: string;
   ratings: string | null;
   menuAction: MenuAction | null;
   onBookTable: () => void;
@@ -577,19 +576,6 @@ function DetailVenueCard({
   return (
     <Card variant="muted" padding={3}>
       <VStack gap={2}>
-        {imageUrl != null && (
-          <div
-            aria-hidden
-            style={{
-              width: '100%',
-              height: 140,
-              borderRadius: 'var(--radius-container)',
-              backgroundImage: `url(${imageUrl})`,
-              backgroundPosition: 'center',
-              backgroundSize: 'cover',
-            }}
-          />
-        )}
         <VStack gap={0}>
           <Text type="label" weight="semibold">
             {title}
@@ -769,7 +755,6 @@ function AgentUiBlock({
                 description: interactive.detail?.description,
                 menu_url: interactive.detail?.menu_url,
                 menu_overview: interactive.detail?.menu_overview,
-                image_url: interactive.detail?.image_url,
               }
             : undefined;
         const detailOption =
@@ -787,7 +772,6 @@ function AgentUiBlock({
             subtitle={interactive.detail?.subtitle}
             description={interactive.detail?.description}
             menuOverview={interactive.detail?.menu_overview}
-            imageUrl={interactive.detail?.image_url}
             ratings={ratings}
             menuAction={menuAction}
             onBookTable={() => {
@@ -932,6 +916,7 @@ export default function Home() {
   const [sizeStepSkipped, setSizeStepSkipped] = useState(false);
   const [dateNightStepsIncluded, setDateNightStepsIncluded] = useState(false);
   const [intentAcknowledgement, setIntentAcknowledgement] = useState<string | null>(null);
+  const chatLayoutScrollRef = useRef<HTMLDivElement>(null);
   // Real geolocation doesn't resolve in this sandboxed preview environment
   // (no permission prompt reaches it), so the prototype assumes it was
   // already shared at the start of the session and defaults to Amsterdam.
@@ -1043,6 +1028,26 @@ export default function Home() {
       />
     );
   }
+
+  const restartFindFlow = () => {
+    setMessages((prev) => (prev.length > 0 && prev[0]?.role === 'assistant' ? [prev[0]!] : prev));
+    setPostSummaryThread([]);
+    setWizardComposerThread([]);
+    setLocationFromComposer(false);
+    setDateNightStepsIncluded(false);
+    setIntentAcknowledgement(null);
+    setSizeStepSkipped(false);
+    setActivePartySizes(DEFAULT_PARTY_SIZES);
+    setStage('intent');
+    setBookingDraft((prev) => ({
+      ...INITIAL_BOOKING_DRAFT,
+      location: prev.location ?? 'Amsterdam',
+    }));
+    setIsLoading(false);
+    requestAnimationFrame(() => {
+      chatLayoutScrollRef.current?.scrollTo({top: 0, behavior: 'smooth'});
+    });
+  };
 
   const demoResetAvatar = (
     <button
@@ -1189,9 +1194,15 @@ export default function Home() {
           <LayoutContent>
             <HStack height="100%">
               <VStack style={chatShell} hAlign="center" gap={2}>
-                <HomeSectionTabBar value={mainSection} onChange={setMainSection} />
+                <HomeSectionTabBar
+                  value={mainSection}
+                  onChange={setMainSection}
+                  findRestartVisible={hasVenueResults && !isLoading}
+                  onFindRestart={restartFindFlow}
+                />
                 {mainSection === 'find' ? (
                 <ChatLayout
+                  ref={chatLayoutScrollRef}
                   style={chatLayout}
                   density="spacious"
                   composer={

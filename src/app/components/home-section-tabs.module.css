@@ -1,0 +1,51 @@
+/* Full-tab overlay mount — no flex width, label stays centered. */
+.findRestartSlot {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.findRestartSlot .findRestart {
+  pointer-events: auto;
+}
+
+/* Icon anchored to the tab’s right edge. */
+.findRestart {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #a8c29f;
+  cursor: pointer;
+  transform: translateY(-50%);
+  animation: findRestartIn 0.35s ease;
+}
+
+@keyframes findRestartIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+.findRestart:hover {
+  color: #bdd4b6;
+  background-color: rgba(168, 194, 159, 0.12);
+}
+
+.findRestart:focus-visible {
+  outline: 2px solid #a8c29f;
+  outline-offset: 1px;
+}

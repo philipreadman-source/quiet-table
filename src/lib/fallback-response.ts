@@ -388,7 +388,6 @@ export function buildFallbackResponse(
             description:
               known?.description ??
               `A good match for ${effectiveDraft?.intent ?? 'this dinner'}${effectiveDraft?.partySize != null ? `, party of ${effectiveDraft.partySize}` : ''}.`,
-            image_url: known?.image_url,
             cta_label: `Book ${venue}`,
             menu_url: known?.menu_url,
             google_reviews_url: known?.google_reviews_url,

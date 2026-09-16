@@ -1078,21 +1078,59 @@ export function suggestVenuesForArea(area: string, limit = 6): VenueOptionCard[]
   return ranked.slice(0, limit);
 }
 
+function isGoogleMapsUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return (
+    lower.includes('google.com/maps') ||
+    lower.includes('maps.google.') ||
+    lower.includes('maps.app.goo.gl') ||
+    lower.includes('goo.gl/maps')
+  );
+}
+
+/** Open venue in Google Maps — prefers catalog maps URL when present. */
+export function resolveGoogleMapsUrl(
+  option: Pick<VenueOptionCard, 'title' | 'subtitle' | 'google_reviews_url'>,
+  city = 'Amsterdam',
+): string {
+  const direct = option.google_reviews_url?.trim();
+  if (direct != null && direct.length > 0 && isGoogleMapsUrl(direct)) {
+    return direct;
+  }
+  const parts = [option.title.trim()];
+  const sub = option.subtitle?.trim();
+  if (sub != null && sub.length > 0) {
+    const locality = sub.split('·')[0]?.trim();
+    if (locality != null && locality.length > 0) parts.push(locality);
+  }
+  parts.push(city);
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(parts.filter(Boolean).join(', '))}`;
+}
+
+/** Product is text-first — no venue hero photos in UI (avoids broken URLs and AI filler). */
+function stripVenueHeroImage(option: VenueOptionCard): VenueOptionCard {
+  if (option.image_url == null) return option;
+  const {image_url: _removed, ...rest} = option;
+  return rest;
+}
+
 /** Merge sparse agent/fallback payloads with the local mock catalog. */
 export function enrichVenueOption(option: VenueOptionCard): VenueOptionCard {
   if (option.michelin_guide_url != null) {
-    return withMockSocialProof(option);
+    return stripVenueHeroImage(withMockSocialProof(option));
   }
   const known = findVenueOption(option.id) ?? findVenueOption(option.title);
-  if (known == null) return withMockSocialProof(option);
+  if (known == null) return stripVenueHeroImage(withMockSocialProof(option));
   const exactCatalogMatch = known.id === option.id;
-  return withMockSocialProof({
-    ...known,
-    ...option,
-    menu_url: option.menu_url ?? (exactCatalogMatch ? known.menu_url : undefined),
-    menu_overview: option.menu_overview ?? (exactCatalogMatch ? known.menu_overview : undefined),
-    social_proof: option.social_proof ?? known.social_proof,
-  });
+  return stripVenueHeroImage(
+    withMockSocialProof({
+      ...known,
+      ...option,
+      menu_url: option.menu_url ?? (exactCatalogMatch ? known.menu_url : undefined),
+      menu_overview: option.menu_overview ?? (exactCatalogMatch ? known.menu_overview : undefined),
+      social_proof: option.social_proof ?? known.social_proof,
+    }),
+  );
 }
 
 function withMockSocialProof(option: VenueOptionCard): VenueOptionCard {

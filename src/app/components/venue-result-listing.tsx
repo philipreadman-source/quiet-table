@@ -17,6 +17,7 @@ import {
 } from '@/lib/venue-options';
 import {formatPersonalizationBadge, getUserMemory, type UserMemory} from '@/lib/user-memory';
 import {PersonaAvatar, PrincipalAvatar} from '@/app/components/persona-avatar';
+import {VenueGoogleMapsPin} from '@/app/components/venue-google-maps-pin';
 import styles from './venue-result-listing.module.css';
 
 function stopCardSelect(event: MouseEvent) {
@@ -244,17 +245,11 @@ export function VenueResultListingContent({
   return (
     <div className={styles.root}>
       <div className={styles.header}>
-        {enriched.image_url != null ? (
-          <div
-            className={styles.image}
-            aria-hidden
-            style={{backgroundImage: `url(${enriched.image_url})`}}
-          />
-        ) : (
-          <div className={styles.image} aria-hidden />
-        )}
         <div className={styles.info}>
-          <p className={styles.title}>{enriched.title}</p>
+          <div className={styles.titleRow}>
+            <p className={styles.title}>{enriched.title}</p>
+            <VenueGoogleMapsPin venue={enriched} />
+          </div>
           {availabilityLine != null && <p className={styles.metaLine}>{availabilityLine}</p>}
           {enriched.subtitle != null && <p className={styles.metaLine}>{enriched.subtitle}</p>}
           {michelinLine != null && enriched.michelin_guide_url != null && (

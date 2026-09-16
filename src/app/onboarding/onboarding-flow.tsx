@@ -138,12 +138,14 @@ export function OnboardingFlow() {
     };
   }, [router, searchParams, isAuthLoaded, clerkUserId, referrerId]);
 
+  const quizHomeArea = profile?.homeArea.trim() ?? '';
+  const quizCuisinesKey = (profile?.preferences.cuisineAffinities ?? []).join(',');
+
   useEffect(() => {
-    if (step !== 'venue_quiz' || profile == null) return;
+    if (step !== 'venue_quiz') return;
 
     let cancelled = false;
-    const cuisines = profile.preferences.cuisineAffinities ?? [];
-    const area = profile.homeArea.trim();
+    const area = quizHomeArea;
     if (area.length < 2) {
       setQuizVenues([]);
       setQuizError('Add your location on the first step, then come back to the quiz.');
@@ -156,7 +158,7 @@ export function OnboardingFlow() {
     setQuizIndex(0);
 
     const params = new URLSearchParams({area});
-    if (cuisines.length > 0) params.set('cuisines', cuisines.join(','));
+    if (quizCuisinesKey.length > 0) params.set('cuisines', quizCuisinesKey);
 
     void fetch(`/api/onboarding/quiz-venues?${params.toString()}`)
       .then(async (res) => {
@@ -183,7 +185,7 @@ export function OnboardingFlow() {
     return () => {
       cancelled = true;
     };
-  }, [step, profile]);
+  }, [step, quizHomeArea, quizCuisinesKey]);
 
   const persist = useCallback(
     (next: TasteProfile) => {

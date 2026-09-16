@@ -17,7 +17,7 @@ import {
 } from '@/lib/venue-options';
 import {formatPersonalizationBadge, getUserMemory, type UserMemory} from '@/lib/user-memory';
 import {PersonaAvatar, PrincipalAvatar} from '@/app/components/persona-avatar';
-import {VenueGoogleMapsPin} from '@/app/components/venue-google-maps-pin';
+import {BookOnMapsIcon} from '@/app/components/book-on-maps-icon';
 import styles from './venue-result-listing.module.css';
 
 function stopCardSelect(event: MouseEvent) {
@@ -154,7 +154,13 @@ function VenueListActions({
   return (
     <div className={styles.actions} onClick={stopCardSelect}>
       <div className={styles.actionGrow}>
-        <Button label="Book a table" variant="primary" style={grow} onClick={onBookTable} />
+        <Button
+          label="Book on Maps"
+          variant="primary"
+          style={grow}
+          icon={<BookOnMapsIcon />}
+          onClick={onBookTable}
+        />
       </div>
       {hasMenuLink && (
         <div className={styles.actionGrow}>
@@ -246,10 +252,7 @@ export function VenueResultListingContent({
     <div className={styles.root}>
       <div className={styles.header}>
         <div className={styles.info}>
-          <div className={styles.titleRow}>
-            <p className={styles.title}>{enriched.title}</p>
-            <VenueGoogleMapsPin venue={enriched} />
-          </div>
+          <p className={styles.title}>{enriched.title}</p>
           {availabilityLine != null && <p className={styles.metaLine}>{availabilityLine}</p>}
           {enriched.subtitle != null && <p className={styles.metaLine}>{enriched.subtitle}</p>}
           {michelinLine != null && enriched.michelin_guide_url != null && (

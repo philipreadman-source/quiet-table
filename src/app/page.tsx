@@ -46,6 +46,7 @@ import {
   DATE_NIGHT_SPEND_CARDS,
   type DateNightSpend,
 } from '@/lib/date-night-spend';
+import {BookOnMapsIcon} from '@/app/components/book-on-maps-icon';
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
 import {HomeFriendsTabPanel} from '@/app/components/home-friends-tab';
 import {HomeProfileTabPanel} from '@/app/components/home-profile-tab';
@@ -57,6 +58,7 @@ import {
 } from '@/lib/friend-graph-mock';
 import {reverseGeocode} from '@/lib/reverse-geocode';
 import {parseLocationFromMessage} from '@/lib/parse-location';
+import {handoffVenueBooking} from '@/lib/venue-booking-handoff';
 
 const QUIET_TABLE_AVATAR = (
   <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="xsmall" />
@@ -505,7 +507,13 @@ function VenueCardActions({
 
   return (
     <HStack gap={2} onClick={stopCardSelect} style={{width: '100%'}}>
-      <Button label="Book a table" variant="primary" style={halfWidth} onClick={onBookTable} />
+      <Button
+        label="Book on Maps"
+        variant="primary"
+        style={halfWidth}
+        icon={<BookOnMapsIcon />}
+        onClick={onBookTable}
+      />
       {hasMenuLink && (
         <Button label="View menu" variant="secondary" style={halfWidth} onClick={onViewMenu} />
       )}
@@ -633,6 +641,17 @@ function AgentUiBlock({
       ? filterExcludedVenues(venueOptions ?? interactive.options, userMemory)
       : [];
 
+  const bookVenueOnMaps = (venue: VenueOptionCard) => {
+    const enriched = enrichVenueOption(venue);
+    onSelectVenue(enriched.title);
+    handoffVenueBooking(enriched, {
+      date: bookingDraft.date,
+      time: bookingDraft.time,
+      partySize: bookingDraft.partySize,
+      location: bookingDraft.location,
+    });
+  };
+
   return (
     <VStack gap={3}>
       {ui.tool_status != null && ui.tool_status.length > 0 && (
@@ -721,7 +740,7 @@ function AgentUiBlock({
                   date={bookingDraft.date}
                   time={bookingDraft.time}
                   dietaryNeeds={bookingDraft.dietaryNeeds}
-                  onBookTable={() => onSelectVenue(enriched.title)}
+                  onBookTable={() => bookVenueOnMaps(enriched)}
                   userMemory={userMemory}
                 />
               </Card>
@@ -775,7 +794,7 @@ function AgentUiBlock({
             ratings={ratings}
             menuAction={menuAction}
             onBookTable={() => {
-              if (interactive.title != null) onSelectVenue(interactive.title);
+              if (detailOption != null) bookVenueOnMaps(detailOption);
             }}
           />
         );

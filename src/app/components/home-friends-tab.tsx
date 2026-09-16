@@ -13,7 +13,6 @@ import {tasteProfileToFriendFoodProfile} from '@/lib/member-friends';
 import {fetchTasteProfileFromServer} from '@/lib/profile-sync';
 import {hasOnboardingUsername} from '@/lib/taste-profile';
 import {useMemberFriends} from '@/lib/use-member-friends';
-import {VenueGoogleMapsPin} from '@/app/components/venue-google-maps-pin';
 import {enrichVenueOption, findVenueOption} from '@/lib/venue-options';
 
 const panel: CSSProperties = {
@@ -83,12 +82,9 @@ function FriendVisitCard({pick}: {pick: FriendPick}) {
   return (
     <Card padding={3} style={visitCardShell}>
       <VStack gap={0}>
-          <HStack gap={1} vAlign="start" style={{width: '100%'}}>
-            <Text type="label" weight="semibold" style={{flex: 1, minWidth: 0}}>
-              {venue.title}
-            </Text>
-            <VenueGoogleMapsPin venue={venue} size={18} />
-          </HStack>
+          <Text type="label" weight="semibold">
+            {venue.title}
+          </Text>
           {venue.subtitle != null && (
             <Text type="supporting" color="secondary">
               {venue.subtitle}

@@ -1,37 +1,32 @@
 'use client';
 
-import type {CSSProperties, MouseEvent} from 'react';
+import type {KeyboardEvent, MouseEvent} from 'react';
 import {RotateCcw} from 'lucide-react';
 import {Tab, TabList} from '@astryxdesign/core/TabList';
 import styles from './home-section-tabs.module.css';
 
 export type HomeMainSection = 'find' | 'friends' | 'profile';
 
-const tabBarWrap: CSSProperties = {
-  width: '100%',
-  maxWidth: 800,
-  flexShrink: 0,
-  paddingBlock: 32,
-};
-
 function FindTabRestart({onRestart}: {onRestart: () => void}) {
-  const stopTabSelect = (event: MouseEvent) => {
-    event.stopPropagation();
-  };
-
   return (
-    <button
-      type="button"
+    <span
+      role="button"
+      tabIndex={0}
       className={styles.findRestart}
       aria-label="Start over"
       title="Start over"
-      onMouseDown={stopTabSelect}
       onClick={(event) => {
-        stopTabSelect(event);
+        event.stopPropagation();
+        onRestart();
+      }}
+      onKeyDown={(event: KeyboardEvent) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        event.stopPropagation();
         onRestart();
       }}>
       <RotateCcw size={14} strokeWidth={1.75} aria-hidden />
-    </button>
+    </span>
   );
 }
 
@@ -47,26 +42,19 @@ export function HomeSectionTabBar({
   onFindRestart?: () => void;
 }) {
   return (
-    <div style={tabBarWrap}>
+    <div className={styles.tabBarWrap}>
       <TabList
         value={value}
         onChange={(next) => onChange(next as HomeMainSection)}
         layout="fill"
         hasDivider>
-        <Tab
-          value="find"
-          label="Find"
-          endContent={
-            onFindRestart != null && findRestartVisible ? (
-              <span className={styles.findRestartSlot}>
-                <FindTabRestart onRestart={onFindRestart} />
-              </span>
-            ) : undefined
-          }
-        />
+        <Tab value="find" label="Find" />
         <Tab value="friends" label="Friends" />
         <Tab value="profile" label="Profile" />
       </TabList>
+      {onFindRestart != null && findRestartVisible ? (
+        <FindTabRestart onRestart={onFindRestart} />
+      ) : null}
     </div>
   );
 }

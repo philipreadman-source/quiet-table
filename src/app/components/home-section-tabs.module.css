@@ -1,25 +1,21 @@
-/* Full-tab overlay mount — no flex width, label stays centered. */
-.findRestartSlot {
-  position: absolute;
-  inset: 0;
-  overflow: visible;
-  pointer-events: none;
+.tabBarWrap {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  flex-shrink: 0;
+  padding-block: 32px;
 }
 
-.findRestartSlot .findRestart {
-  pointer-events: auto;
-}
-
-/* Icon anchored to the tab’s right edge. */
+/* Overlay on the Find tab (first column of fill layout) — not inside Tab’s <button>. */
 .findRestart {
   position: absolute;
-  right: 10px;
+  left: calc(100% / 3 - 34px);
   top: 50%;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 2px;
-  border: none;
   border-radius: 6px;
   background: transparent;
   color: #a8c29f;

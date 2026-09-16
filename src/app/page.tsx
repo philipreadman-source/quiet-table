@@ -903,11 +903,12 @@ export default function Home() {
   const router = useRouter();
   const {userId: clerkUserId, isLoaded: isAuthLoaded} = useAuth();
   const {user: clerkUser} = useUser();
-  const {members: memberFriends} = useMemberFriends();
-  const wizardCompanionFriends = useMemo(
-    () => (memberFriends.length > 0 ? memberFriends.slice(0, 8) : listWizardCompanionFriends()),
-    [memberFriends],
-  );
+  const {members: memberFriends} = useMemberFriends(clerkUserId);
+  const wizardCompanionFriends = useMemo(() => {
+    if (memberFriends.length > 0) return memberFriends.slice(0, 8);
+    if (process.env.NODE_ENV === 'development') return [...listWizardCompanionFriends()];
+    return [];
+  }, [memberFriends]);
   const [tasteProfile, setTasteProfile] = useState<TasteProfile | null>(null);
   const [ready, setReady] = useState(false);
   const [messages, setMessages] = useState<ChatTurn[]>([]);

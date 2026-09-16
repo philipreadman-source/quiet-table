@@ -1,5 +1,6 @@
 'use client';
 
+import {useUser} from '@clerk/nextjs';
 import {useMemo, useState, type CSSProperties} from 'react';
 import {Avatar, AvatarStatusDot} from '@astryxdesign/core/Avatar';
 import {Card} from '@astryxdesign/core/Card';
@@ -11,7 +12,7 @@ import {
   type FriendFoodProfile,
   type FriendPick,
 } from '@/lib/friend-graph-mock';
-import {useMemberFriends} from '@/lib/use-member-friends';
+import {shouldUseDemoFriendFallback, useMemberFriends} from '@/lib/use-member-friends';
 import {enrichVenueOption, findVenueOption} from '@/lib/venue-options';
 
 const panel: CSSProperties = {
@@ -119,11 +120,13 @@ function FriendVisitCard({pick}: {pick: FriendPick}) {
 }
 
 export function HomeFriendsTabPanel() {
-  const {members} = useMemberFriends();
-  const friends = useMemo(
-    () => (members.length > 0 ? members : listFriendsForFriendsTab()),
-    [members],
-  );
+  const {user} = useUser();
+  const {members, loading, error} = useMemberFriends(user?.id);
+  const friends = useMemo(() => {
+    if (members.length > 0) return members;
+    if (shouldUseDemoFriendFallback(members.length)) return [...listFriendsForFriendsTab()];
+    return [];
+  }, [members]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected =
     selectedId != null ? friends.find((friend) => friend.id === selectedId) : undefined;
@@ -140,16 +143,37 @@ export function HomeFriendsTabPanel() {
         you select.
       </Text>
 
-      <HStack gap={3} vAlign="center">
-        {friends.map((friend) => (
-          <FriendAvatarChip
-            key={friend.id}
-            friend={friend}
-            selected={selectedId === friend.id}
-            onSelect={() => setSelectedId(friend.id)}
-          />
-        ))}
-      </HStack>
+      {loading && (
+        <Text type="supporting" color="secondary">
+          Loading members…
+        </Text>
+      )}
+
+      {!loading && error != null && (
+        <Text type="supporting" color="secondary">
+          {error} Check Upstash env vars on Vercel if this persists.
+        </Text>
+      )}
+
+      {!loading && error == null && friends.length === 0 && (
+        <Text type="supporting" color="secondary">
+          No one else on the member list yet. Ask friends to sign up on this app, finish onboarding
+          with a username, and save their profile — then pull to refresh here.
+        </Text>
+      )}
+
+      {friends.length > 0 && (
+        <HStack gap={3} vAlign="center">
+          {friends.map((friend) => (
+            <FriendAvatarChip
+              key={friend.id}
+              friend={friend}
+              selected={selectedId === friend.id}
+              onSelect={() => setSelectedId(friend.id)}
+            />
+          ))}
+        </HStack>
+      )}
 
       {selectedId != null && selected != null && (
         <VStack

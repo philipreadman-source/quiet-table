@@ -8,6 +8,7 @@ import {
   getUserMemory,
   summarizeUserMemoryForAgent,
 } from '@/lib/user-memory';
+import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
 import {getFriendFoodProfile, summarizeFriendForAgent} from '@/lib/friend-graph-mock';
 import {tasteProfileToFriendFoodProfile} from '@/lib/member-friends';
 import {listMemberProfilesForSession} from '@/lib/member-registry-server';
@@ -58,13 +59,18 @@ Social graph & trust (Friend Foodie layer):
 Vibe, price & Michelin:
 - Understand and filter by vibe (casual, date night, celebratory, quick bite, group-friendly, quiet, business, etc.) — infer from review text, restaurant type, and draft context when not explicit.
 - Respect price/spend signals from the draft (e.g. date-night spend tier). Let users narrow by budget in spoken text if unclear.
-- MICHELIN MODE: When the booking draft intent is Michelin star, search guide.michelin.com for the location (e.g. "site:guide.michelin.com Michelin star restaurants Amsterdam"). Only propose restaurants you found on guide.michelin.com in this turn's web_search. Every venue in render_ui.options MUST include michelin_guide_url (full https://guide.michelin.com/... link from search) and michelin_distinction when known (e.g. "1 Star", "2 Stars", "3 Stars", "Bib Gourmand", "Selected"). Never claim Michelin status without a Guide URL. Do not attach google_rating or tripadvisor_rating — the UI shows Guide verification instead.
+- MICHELIN MODE: When the booking draft intent is Michelin star, run exactly ONE web_search (e.g. site:guide.michelin.com Michelin star restaurants Amsterdam Noord). Do not repeat web_search with rephrased queries. Only propose restaurants you found on guide.michelin.com. Every venue in render_ui.options MUST include michelin_guide_url and michelin_distinction when known. Never claim Michelin status without a Guide URL.
 
-Discovery & menus (catalog + web — both):
-- Quiet Table ships a curated Amsterdam catalog (search_quiet_table_catalog). Treat it as solid product data: editorial lists, friend visits, dietary tags, stable ids. It is not a last-resort fallback.
-- For Amsterdam (or when the draft location is Amsterdam): call search_quiet_table_catalog for every venue-results turn — filter by vibe and near from the draft. Include catalog picks in render_ui.options (use exact id + title). Mix with web_search: e.g. mostly catalog for friend/editorial fit, plus web for menu URLs, hours, or 0–2 fresh names not in catalog. Do not run web_search-only when the catalog matches the brief.
-- web_search: verify and enrich — menus, Michelin guide URLs, openings, venues outside Amsterdam. Ground web-only venues in actual search results (real name, real neighborhood).
-- Call check_venue_availability with venue_id (catalog id or normalized web venue name). search_tables is an alias of search_quiet_table_catalog.
+Tool budget (speed — follow strictly):
+- Venue-results turn (first options list after draft complete): at most ONE search_quiet_table_catalog, at most ONE web_search (Michelin intent only, or catalog clearly insufficient), ZERO check_venue_availability calls. Card times are illustrative; the product does not have live reservation APIs in beta.
+- Do NOT call get_friend_food_profile when Member taste graph JSON is already in context — use that data for Savas and other members.
+- Do NOT call get_user_dining_history if User dining memory JSON is already in context unless the user just changed preferences in chat.
+- check_venue_availability: only when the user has picked one specific venue and is confirming a booking — never to "pre-check" every option on the list.
+- search_tables is an alias of search_quiet_table_catalog — pick one catalog call per turn.
+
+Discovery & menus (catalog + web):
+- Quiet Table ships a curated Amsterdam catalog (search_quiet_table_catalog). Treat it as solid product data: editorial lists, friend visits, dietary tags, stable ids.
+- For Amsterdam: one catalog search filtered by vibe and near from the draft. Include catalog picks in render_ui.options (exact id + title). Add web_search only when Michelin mode or the user asked for menus/openings not in catalog.
 - Put menu summaries in description / menu_overview. View menu only when menu_url is known (catalog or web).
 
 UI & booking (Quiet Table layer — non-negotiable):
@@ -76,7 +82,7 @@ UI & booking (Quiet Table layer — non-negotiable):
 - Never call create_booking without explicit prior confirmation in this conversation.
 - Ground every claim in actual tool results this turn. Never narrate checks or obstacles that didn't happen.
 - At the end of every turn, call render_ui exactly once. interactive.type "options" works for venues, neighborhoods, or any short list. Include tool_status when you called other tools.
-- After search + availability, render venue choices as interactive.type "options". After venue selection → "detail" or "confirm". Use interactive.type "success" the moment create_booking has run.
+- After catalog search (and optional single web_search), render venue choices as interactive.type "options". After venue selection → "detail" or "confirm". Use interactive.type "success" the moment create_booking has run.
 - Put AI menu summaries on the card (description / menu_overview), not behind View menu. View menu only for real menu_url.
 - Keep occasion options consistent with draft context — e.g. never offer "date night" when party size ≥ 3.
 - You have Astryx design system access via MCP — consult it when choosing render_ui patterns.
@@ -92,7 +98,7 @@ const domainTools: Anthropic.Tool[] = [
   {
     name: 'get_friend_food_profile',
     description:
-      'Look up a close friend\'s food taste, cuisine affinities, and Amsterdam venue picks (visits + notes). Use when the user asks for recs in a friend\'s taste or names Savas, Maya, or Emma.',
+      'Rarely needed — member taste graph is already in context. Only if the user names a friend who is NOT in that JSON.',
     input_schema: {
       type: 'object',
       properties: {name: {type: 'string', description: 'Friend first name or id, e.g. Savas, Maya, Emma'}},
@@ -140,7 +146,8 @@ const domainTools: Anthropic.Tool[] = [
   },
   {
     name: 'check_venue_availability',
-    description: 'Confirm a specific venue has a table at a given time.',
+    description:
+      'Beta stub only — not a live reservation system. Call ONLY once, when the user is confirming a booking for one chosen venue. Never call for every card on an options list.',
     input_schema: {
       type: 'object',
       properties: {
@@ -167,7 +174,7 @@ const domainTools: Anthropic.Tool[] = [
 
 // Server-side tool — Anthropic runs the search and returns results inline in
 // the same turn, no client round-trip. GA, no beta header needed.
-const webSearchTool = {type: 'web_search_20260209', name: 'web_search', max_uses: 3};
+const webSearchTool = {type: 'web_search_20260209', name: 'web_search', max_uses: 1};
 
 const renderUiTool: Anthropic.Tool = {
   name: 'render_ui',
@@ -281,16 +288,35 @@ function isDraftReadyForVenues(draft?: BookingDraft): boolean {
   return draft?.intent != null && draft.partySize != null && draft.location != null && draft.time != null;
 }
 
+function resolveCommunityFriendByName(
+  name: string,
+  communityMembers: FriendFoodProfile[],
+): FriendFoodProfile | undefined {
+  const needle = name.trim().toLowerCase();
+  if (needle.length === 0) return undefined;
+  return communityMembers.find(
+    (member) =>
+      member.id.toLowerCase() === needle ||
+      member.name.toLowerCase() === needle ||
+      member.fullName.toLowerCase().includes(needle) ||
+      needle.includes(member.name.toLowerCase()),
+  );
+}
+
 function executeDomainTool(
   name: string,
   input: Record<string, unknown>,
   tasteProfile?: TasteProfile | null,
+  communityMembers: FriendFoodProfile[] = [],
 ): unknown {
   switch (name) {
     case 'get_user_dining_history':
       return summarizeUserMemoryForAgent(getUserMemory(tasteProfile));
     case 'get_friend_food_profile': {
-      const friend = getFriendFoodProfile(String(input.name ?? ''));
+      const rawName = String(input.name ?? '');
+      const friend =
+        resolveCommunityFriendByName(rawName, communityMembers) ??
+        getFriendFoodProfile(rawName);
       return friend != null
         ? summarizeFriendForAgent(friend)
         : {error: 'No friend profile on file — do not invent visits or reviews.'};
@@ -444,7 +470,7 @@ export async function POST(request: Request) {
         return {type: 'tool_result', tool_use_id: block.id, content: 'displayed to user'};
       }
       const input = block.input as Record<string, unknown>;
-      const result = executeDomainTool(block.name, input, tasteProfile);
+      const result = executeDomainTool(block.name, input, tasteProfile, communityMembers);
       if (block.name === 'create_booking') tableBookingResult = result as ReturnType<typeof createBooking>;
       executedCalls.push({
         name: block.name,

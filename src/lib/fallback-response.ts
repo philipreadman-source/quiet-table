@@ -27,6 +27,12 @@ import {
   memoryRankScore,
   type UserMemory,
 } from '@/lib/user-memory';
+import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
+import {
+  createCommunityFriendLookup,
+  effectiveCommunityCompanionIds,
+  memberSocialProofForVenue,
+} from '@/lib/member-taste-discovery';
 import type {TasteProfile} from '@/lib/taste-profile';
 import {createBooking} from '@/lib/booking-data';
 import {parseLocationFromMessage} from '@/lib/parse-location';
@@ -90,8 +96,11 @@ function buildVenueOptionsFallbackResponse(
   draft: BookingDraft,
   message: string,
   userMemory: UserMemory,
+  communityMembers: FriendFoodProfile[] = [],
   options?: {locationChanged?: boolean},
 ): {text: string; ui: FallbackUi} {
+  const companionIds = effectiveCommunityCompanionIds(draft.goingWithFriendIds, communityMembers);
+  const communityLookup = createCommunityFriendLookup(communityMembers);
   const dateIso = draft.date;
   const time = draft.time!;
   const showMore = /\bshow more\b/i.test(message);
@@ -110,7 +119,13 @@ function buildVenueOptionsFallbackResponse(
     draft.dietaryNeeds ?? 'none',
     (venueId) =>
       memoryRankScore(venueId, userMemory) +
-      friendRankScoreForCompanions(venueId, draft.goingWithFriendIds, message, draft.intent),
+      friendRankScoreForCompanions(
+        venueId,
+        companionIds,
+        message,
+        draft.intent,
+        communityLookup,
+      ),
   );
   const {options: pageOptions, hasMore, total} = paginateVenueOptions(ranked, page);
   const offeredById =
@@ -118,7 +133,9 @@ function buildVenueOptionsFallbackResponse(
   const optionsOut = pageOptions.map((option) => {
     const offered = offeredById.get(option.id);
     let row = offered != null ? {...option, meta: formatOfferedAvailabilityLine(offered)} : option;
-    const companionProof = friendSocialProofForVenue(row.id, draft.goingWithFriendIds);
+    const companionProof =
+      memberSocialProofForVenue(row.id, row.title, communityMembers, companionIds) ??
+      friendSocialProofForVenue(row.id, companionIds);
     if (companionProof != null) row = {...row, social_proof: companionProof};
     return row;
   });
@@ -263,7 +280,10 @@ function tryBroadCatalogOptions(
   draft: BookingDraft | undefined,
   message: string,
   userMemory: UserMemory,
+  communityMembers: FriendFoodProfile[] = [],
 ): {text: string; ui: FallbackUi} | null {
+  const companionIds = effectiveCommunityCompanionIds(draft?.goingWithFriendIds, communityMembers);
+  const communityLookup = createCommunityFriendLookup(communityMembers);
   const intent = draft?.intent ?? 'Something casual, nothing fussy.';
   const catalog = getVenueOptionsForIntent(intent);
   const eligible = filterExcludedVenues(catalog, userMemory);
@@ -278,14 +298,19 @@ function tryBroadCatalogOptions(
     draft?.dietaryNeeds ?? 'none',
     (venueId) =>
       memoryRankScore(venueId, userMemory) +
-      friendRankScoreForCompanions(venueId, draft?.goingWithFriendIds, message, intent),
+      friendRankScoreForCompanions(venueId, companionIds, message, intent, communityLookup),
   );
   const {options: pageOptions, hasMore, total} = paginateVenueOptions(ranked, 0);
   const offeredById =
     dateIso != null ? assignOfferedAvailabilityForResults(ranked, dateIso, time) : new Map();
   const optionsOut = pageOptions.map((option: VenueOptionCard) => {
     const offered = offeredById.get(option.id);
-    return offered != null ? {...option, meta: formatOfferedAvailabilityLine(offered)} : option;
+    let row = offered != null ? {...option, meta: formatOfferedAvailabilityLine(offered)} : option;
+    const companionProof =
+      memberSocialProofForVenue(row.id, row.title, communityMembers, companionIds) ??
+      friendSocialProofForVenue(row.id, companionIds);
+    if (companionProof != null) row = {...row, social_proof: companionProof};
+    return row;
   });
 
   return {
@@ -305,6 +330,7 @@ export function buildFallbackResponse(
   message: string,
   draft?: BookingDraft,
   tasteProfile?: TasteProfile | null,
+  communityMembers: FriendFoodProfile[] = [],
 ) {
   const userMemory = getUserMemory(tasteProfile);
   const venue = draft?.venue;
@@ -378,15 +404,19 @@ export function buildFallbackResponse(
   }
 
   if (isDraftReadyForVenues(effectiveDraft) && effectiveDraft!.dietaryNeeds != null) {
-    return buildVenueOptionsFallbackResponse(effectiveDraft!, message, userMemory, {
-      locationChanged: isLocationChangeMessage(message),
-    });
+    return buildVenueOptionsFallbackResponse(
+      effectiveDraft!,
+      message,
+      userMemory,
+      communityMembers,
+      {locationChanged: isLocationChangeMessage(message)},
+    );
   }
 
   const clarify = buildClarifyResponse(effectiveDraft, message);
   if (clarify != null) return clarify;
 
-  const broad = tryBroadCatalogOptions(effectiveDraft, message, userMemory);
+  const broad = tryBroadCatalogOptions(effectiveDraft, message, userMemory, communityMembers);
   if (broad != null) return broad;
 
   return {

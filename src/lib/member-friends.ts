@@ -1,6 +1,10 @@
-import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
+import type {FriendFoodProfile, FriendPick} from '@/lib/friend-graph-mock';
 import {getFriendFoodProfile} from '@/lib/friend-graph-mock';
 import {clerkDisplayName, clerkShortName} from '@/lib/clerk-profile';
+import {
+  positivePicksFromTasteProfile,
+  suggestedPicksFromTasteProfile,
+} from '@/lib/member-friend-picks';
 import {CUISINE_OPTIONS, type TasteProfile} from '@/lib/taste-profile';
 
 function dietaryNotesFromProfile(profile: TasteProfile): string | undefined {
@@ -38,7 +42,17 @@ export function tasteProfileToFriendFoodProfile(profile: TasteProfile): FriendFo
     cuisineAffinities: profile.preferences.cuisineAffinities ?? [],
     dietaryNotes: dietaryNotesFromProfile(profile),
     avatarSrc: profile.clerk?.imageUrl ?? profile.avatarSrc,
-    topPicks: [],
+    topPicks: positivePicksFromTasteProfile(profile),
+    suggestedPicks: suggestedPicksFromTasteProfile(profile).map(
+      (pick): FriendPick => ({
+        venueId: pick.venueId,
+        title: pick.title,
+        vibe: pick.vibe,
+        note: pick.note,
+        visitedAt: '',
+        rating: 'liked',
+      }),
+    ),
   };
 }
 

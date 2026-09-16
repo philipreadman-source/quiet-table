@@ -6,7 +6,7 @@ export type FriendPick = {
   vibe: string;
   note: string;
   visitedAt: string;
-  rating: 'loved' | 'liked';
+  rating: 'loved' | 'liked' | 'fine';
   /** 2+ → card shows repeat-guest social line (still requires liked/loved). */
   visitCount?: number;
 };
@@ -24,6 +24,8 @@ export type FriendFoodProfile = {
   /** Public URL under /personas — deployed with the app on Vercel. */
   avatarSrc?: string;
   topPicks: FriendPick[];
+  /** Cuisine-tailored suggestions — not visits yet. */
+  suggestedPicks?: FriendPick[];
 };
 
 /** Synthetic close friends until real users join the graph. */
@@ -398,6 +400,7 @@ export function friendRankScoreForCompanions(
   companionIds: string[] | undefined,
   contextText: string,
   intent?: string,
+  lookup: FriendLookup = getFriendFoodProfile,
 ): number {
   let total = 0;
   const seen = new Set<string>();
@@ -405,7 +408,7 @@ export function friendRankScoreForCompanions(
   for (const id of companionIds ?? []) {
     if (seen.has(id)) continue;
     seen.add(id);
-    const friend = getFriendFoodProfile(id);
+    const friend = lookup(id);
     if (friend != null) total += scoreFriendVenuePick(friend, venueId, intent, contextText);
   }
 

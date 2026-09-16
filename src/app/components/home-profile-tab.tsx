@@ -2,7 +2,7 @@
 
 import {useUser} from '@clerk/nextjs';
 import {ProfileAccountMenu} from '@/app/components/profile-account-menu';
-import {useEffect, useMemo, useState, type CSSProperties} from 'react';
+import {useEffect, useMemo, useRef, useState, type CSSProperties} from 'react';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
@@ -10,7 +10,11 @@ import {HStack, VStack} from '@astryxdesign/core/Layout';
 import {Text} from '@astryxdesign/core/Text';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {PrincipalAvatar} from '@/app/components/persona-avatar';
-import {ProfileTasteQuizSection} from '@/app/components/profile-taste-quiz';
+import {ProfileMyPlacesSection} from '@/app/components/profile-my-places';
+import {
+  ProfileTasteQuizSection,
+  type ProfileTasteQuizHandle,
+} from '@/app/components/profile-taste-quiz';
 import {clerkDisplayName, mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {
   buildOnboardingSummaryRows,
@@ -26,6 +30,7 @@ const panel: CSSProperties = {
   maxWidth: 800,
   minHeight: 0,
   overflow: 'auto',
+  paddingBottom: 64,
 };
 
 export function HomeProfileTabPanel({
@@ -45,6 +50,10 @@ export function HomeProfileTabPanel({
   const [homeAreaInput, setHomeAreaInput] = useState(profile.homeArea);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null);
+  const [quizActive, setQuizActive] = useState(false);
+  const quizRef = useRef<ProfileTasteQuizHandle>(null);
+
+  const lovedQuizRowLabel = 'Loved in the quiz';
 
   useEffect(() => {
     setUsernameInput(profile.username);
@@ -130,20 +139,63 @@ export function HomeProfileTabPanel({
           </Text>
         <Card padding={4}>
           <VStack gap={2} align="stretch">
-            {summaryRows.map((row) => (
-              <VStack key={row.label} gap={0}>
-                <Text type="supporting" color="secondary">
-                  {row.label}
-                </Text>
-                <Text type="label">{row.value}</Text>
-              </VStack>
-            ))}
+            {summaryRows.map((row) => {
+              const isLovedQuiz = row.label === lovedQuizRowLabel;
+              return (
+                <VStack key={row.label} gap={0}>
+                  <Text type="supporting" color="secondary">
+                    {row.label}
+                  </Text>
+                  <HStack
+                    hAlign="between"
+                    vAlign="start"
+                    gap={3}
+                    style={{width: '100%'}}>
+                    <Text type="label" style={{flex: 1, minWidth: 0}}>
+                      {row.value}
+                    </Text>
+                    {isLovedQuiz && !quizActive && (
+                      <Button
+                        label="Start another round"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => quizRef.current?.startQuiz()}
+                      />
+                    )}
+                  </HStack>
+                </VStack>
+              );
+            })}
+            {!summaryRows.some((row) => row.label === lovedQuizRowLabel) && !quizActive && (
+              <HStack hAlign="between" vAlign="center" style={{width: '100%'}}>
+                <VStack gap={0}>
+                  <Text type="supporting" color="secondary">
+                    Venue quiz
+                  </Text>
+                  <Text type="label">Train your taste with new places</Text>
+                </VStack>
+                <Button
+                  label="Start another round"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => quizRef.current?.startQuiz()}
+                />
+              </HStack>
+            )}
           </VStack>
         </Card>
+        <ProfileTasteQuizSection
+          ref={quizRef}
+          profile={profile}
+          onProfileSaved={onProfileSaved}
+          onActiveChange={setQuizActive}
+        />
         </VStack>
       </VStack>
 
-      <ProfileTasteQuizSection profile={profile} onProfileSaved={onProfileSaved} />
+      <VStack gap={0} align="stretch">
+        <ProfileMyPlacesSection profile={profile} onProfileSaved={onProfileSaved} />
+      </VStack>
     </VStack>
   );
 }

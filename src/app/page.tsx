@@ -33,7 +33,7 @@ import {
   type MenuAction,
   type VenueOptionCard,
 } from '@/lib/venue-options';
-import {getUserMemory, type UserMemory} from '@/lib/user-memory';
+import {filterExcludedVenues, getUserMemory, type UserMemory} from '@/lib/user-memory';
 import {isOnboardingComplete, saveTasteProfile, type TasteProfile} from '@/lib/taste-profile';
 import {mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {resolveFriendFoodProfile} from '@/lib/member-friends';
@@ -637,6 +637,10 @@ function AgentUiBlock({
   userMemory: UserMemory;
 }) {
   const interactive = ui.interactive;
+  const listingOptions =
+    interactive?.type === 'options'
+      ? filterExcludedVenues(venueOptions ?? interactive.options, userMemory)
+      : [];
 
   return (
     <VStack gap={3}>
@@ -717,7 +721,7 @@ function AgentUiBlock({
               {interactive.title}
             </Text>
           )}
-          {(venueOptions ?? interactive.options).map((option) => {
+          {listingOptions.map((option) => {
             const enriched = enrichVenueOption(option);
             return (
               <Card key={option.id} padding={4}>

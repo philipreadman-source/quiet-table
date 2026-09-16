@@ -8,7 +8,6 @@ import {Text} from '@astryxdesign/core/Text';
 import {
   friendShowsOnlineInDemo,
   listFriendsForFriendsTab,
-  recentFriendVisits,
   type FriendFoodProfile,
   type FriendPick,
 } from '@/lib/friend-graph-mock';
@@ -128,12 +127,17 @@ export function HomeFriendsTabPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected =
     selectedId != null ? friends.find((friend) => friend.id === selectedId) : undefined;
-  const visits = selected != null ? recentFriendVisits(selected, 2) : [];
+  const lovedOrLiked = selected?.topPicks ?? [];
+  const mayLike = selected?.suggestedPicks ?? [];
 
   return (
     <VStack style={panel} gap={4} align="stretch">
       <Text type="label" weight="semibold">
-        See where your friends ate
+        See where everyone ate
+      </Text>
+      <Text type="supporting" color="secondary">
+        In beta, every member shares taste — Find surfaces picks from the whole table, not just people
+        you select.
       </Text>
 
       <HStack gap={3} vAlign="center">
@@ -156,14 +160,25 @@ export function HomeFriendsTabPanel() {
             marginTop: 'var(--spacing-8)',
           }}>
           <Text type="label" weight="semibold">
-            {selected.name} recently enjoyed
+            Restaurants they loved or liked
           </Text>
-          {visits.length === 0 ? (
+          {lovedOrLiked.length === 0 ? (
             <Text type="supporting" color="secondary">
-              No visits logged yet.
+              Nothing from onboarding yet — they can add places from Profile after a visit.
             </Text>
           ) : (
-            visits.map((pick) => <FriendVisitCard key={pick.venueId} pick={pick} />)
+            lovedOrLiked.map((pick) => <FriendVisitCard key={pick.venueId} pick={pick} />)
+          )}
+
+          {mayLike.length > 0 && (
+            <>
+              <Text type="label" weight="semibold" style={{marginTop: 'var(--spacing-6)'}}>
+                Restaurants they may like
+              </Text>
+              {mayLike.map((pick) => (
+                <FriendVisitCard key={`suggest-${pick.venueId}`} pick={pick} />
+              ))}
+            </>
           )}
         </VStack>
       )}

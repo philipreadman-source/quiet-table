@@ -18,6 +18,8 @@ export type UserMemory = {
   savedVenueIds: string[];
   excludedVenueIds: string[];
   anchorVenueIds: string[];
+  /** Loved / fine / liked — already on the member's taste profile; omit from discovery. */
+  positiveVenueIds: string[];
   preferences: {
     noise?: 'quiet' | 'lively' | 'any';
     dietaryLean?: DietaryNeeds;
@@ -32,13 +34,27 @@ export const EMPTY_USER_MEMORY: UserMemory = {
   savedVenueIds: [],
   excludedVenueIds: [],
   anchorVenueIds: [],
+  positiveVenueIds: [],
   preferences: {},
 };
+
+function collectPositiveVenueIds(profile: TasteProfile): string[] {
+  const ids = new Set<string>();
+  for (const [venueId, reaction] of Object.entries(profile.venueReactions)) {
+    if (reaction === 'love' || reaction === 'fine') ids.add(venueId);
+  }
+  for (const visit of profile.recentVisits) {
+    if (visit.rating !== 'disliked') ids.add(visit.venueId);
+  }
+  for (const venueId of profile.savedVenueIds) ids.add(venueId);
+  for (const venueId of profile.anchorVenueIds) ids.add(venueId);
+  return [...ids];
+}
 
 export function profileToUserMemory(profile: TasteProfile): UserMemory {
   return {
     firstName: profile.username,
-    avatarSrc: profile.avatarSrc,
+    avatarSrc: profile.avatarSrc ?? profile.clerk?.imageUrl,
     homeArea: profile.homeArea || 'Amsterdam',
     recentVisits: profile.recentVisits.map((visit) => ({
       venueId: visit.venueId,
@@ -49,6 +65,7 @@ export function profileToUserMemory(profile: TasteProfile): UserMemory {
     savedVenueIds: profile.savedVenueIds,
     excludedVenueIds: profile.excludedVenueIds,
     anchorVenueIds: profile.anchorVenueIds,
+    positiveVenueIds: collectPositiveVenueIds(profile),
     preferences: profile.preferences,
   };
 }
@@ -79,8 +96,15 @@ export function isVenueExcluded(venueId: string, memory: UserMemory, withinDays 
   return daysSince(visit.visitedAt) <= withinDays;
 }
 
+/** Already loved, liked, or fine — skip in Find / wizard results. */
+export function isVenueAlreadyEnjoyed(venueId: string, memory: UserMemory): boolean {
+  return memory.positiveVenueIds.includes(venueId);
+}
+
 export function filterExcludedVenues<T extends {id: string}>(options: T[], memory: UserMemory): T[] {
-  return options.filter((option) => !isVenueExcluded(option.id, memory));
+  return options.filter(
+    (option) => !isVenueExcluded(option.id, memory) && !isVenueAlreadyEnjoyed(option.id, memory),
+  );
 }
 
 export function excludedVenueTitles(options: {id: string; title: string}[], memory: UserMemory): string[] {
@@ -99,6 +123,7 @@ export function memoryRankScore(venueId: string, memory: UserMemory): number {
 
 export function formatPersonalizationBadge(venueId: string, memory: UserMemory): string | null {
   if (memory.firstName.length === 0) return null;
+  if (isVenueAlreadyEnjoyed(venueId, memory)) return null;
   const visit = visitForVenue(memory, venueId);
   if (visit?.rating === 'liked') {
     const weeks = Math.max(1, Math.round(daysSince(visit.visitedAt) / 7));
@@ -136,6 +161,7 @@ export function summarizeUserMemoryForAgent(memory: UserMemory) {
     savedVenueIds: memory.savedVenueIds,
     anchorVenueIds: memory.anchorVenueIds,
     excludedVenueIds: memory.excludedVenueIds,
+    positiveVenueIds: memory.positiveVenueIds,
     preferences: memory.preferences,
   };
 }

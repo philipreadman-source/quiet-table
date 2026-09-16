@@ -3,12 +3,19 @@ import {NextResponse} from 'next/server';
 import {checkVenueAvailability, createBooking, getContactPreferences, searchTables} from '@/lib/booking-data';
 import type {DietaryNeeds} from '@/lib/venue-options';
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
-import {getUserMemory, summarizeUserMemoryForAgent} from '@/lib/user-memory';
+import {
+  filterExcludedVenues,
+  getUserMemory,
+  summarizeUserMemoryForAgent,
+} from '@/lib/user-memory';
 import {
   getFriendFoodProfile,
   summarizeFriendForAgent,
   summarizeFriendGraphForAgent,
 } from '@/lib/friend-graph-mock';
+import {tasteProfileToFriendFoodProfile} from '@/lib/member-friends';
+import {listMemberProfilesForSession} from '@/lib/member-registry-server';
+import {summarizeCommunityTasteForAgent} from '@/lib/member-taste-discovery';
 import type {TasteProfile} from '@/lib/taste-profile';
 import {buildFallbackResponse} from '@/lib/fallback-response';
 import {catalogAgentContextLine} from '@/lib/venue-options';
@@ -295,8 +302,17 @@ function executeDomainTool(
     case 'get_contact_preferences':
       return getContactPreferences(String(input.name ?? ''));
     case 'search_quiet_table_catalog':
-    case 'search_tables':
-      return searchTables(input);
+    case 'search_tables': {
+      const catalog = searchTables(input);
+      const memory = getUserMemory(tasteProfile);
+      const allowedIds = new Set(
+        filterExcludedVenues(
+          catalog.map((row) => ({id: row.id})),
+          memory,
+        ).map((row) => row.id),
+      );
+      return catalog.filter((row) => allowedIds.has(row.id));
+    }
     case 'check_venue_availability':
       return checkVenueAvailability(input as {venue_id: string; time: string});
     case 'create_booking':
@@ -304,6 +320,16 @@ function executeDomainTool(
     default:
       return {error: `unknown tool: ${name}`};
   }
+}
+
+async function loadCommunityMembers(sessionUserId: string | undefined): Promise<
+  ReturnType<typeof tasteProfileToFriendFoodProfile>[]
+> {
+  const id = sessionUserId?.trim();
+  if (id == null || id.length === 0) return [];
+  const listed = await listMemberProfilesForSession(id);
+  if (!listed.ok) return [];
+  return listed.profiles.map(tasteProfileToFriendFoodProfile);
 }
 
 export async function POST(request: Request) {
@@ -315,8 +341,13 @@ export async function POST(request: Request) {
     tasteProfile?: TasteProfile | null;
   };
 
+  const communityMembers = await loadCommunityMembers(tasteProfile?.userId);
+
   if (USE_LOCAL_FALLBACK) {
-    return NextResponse.json({...buildFallbackResponse(message, draft, tasteProfile), fallback: true});
+    return NextResponse.json({
+      ...buildFallbackResponse(message, draft, tasteProfile, communityMembers),
+      fallback: true,
+    });
   }
 
   const memory = getUserMemory(tasteProfile);
@@ -327,6 +358,9 @@ export async function POST(request: Request) {
     draft != null ? `Current booking draft JSON: ${JSON.stringify(draft)}.` : null,
     `User dining memory JSON: ${JSON.stringify(summarizeUserMemoryForAgent(memory))}.`,
     `Close friends food graph JSON: ${JSON.stringify(summarizeFriendGraphForAgent())}.`,
+    communityMembers.length > 0
+      ? `Community taste (beta — treat every member as followed; boost their loved/liked venues in results): ${JSON.stringify(summarizeCommunityTasteForAgent(communityMembers))}.`
+      : null,
     catalogAgentContextLine(),
   ].filter(Boolean);
 
@@ -372,7 +406,10 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       if (USE_LOCAL_FALLBACK) {
-        return NextResponse.json({...buildFallbackResponse(message, draft, tasteProfile), fallback: true});
+        return NextResponse.json({
+          ...buildFallbackResponse(message, draft, tasteProfile, communityMembers),
+          fallback: true,
+        });
       }
       return agentErrorResponse(error);
     }

@@ -279,6 +279,74 @@ export function applyVenueReaction(
   });
 }
 
+/** Add a place the member enjoyed — positive-only taste graph (no dislike list on QT). */
+export function addPositiveRestaurantToProfile(
+  profile: TasteProfile,
+  venueId: string,
+  strength: 'loved' | 'liked' | 'fine',
+): TasteProfile {
+  const now = new Date().toISOString().slice(0, 10);
+
+  if (strength === 'loved') {
+    let next = applyVenueReaction(profile, venueId, 'love');
+    if (!next.savedVenueIds.includes(venueId)) {
+      next = {...next, savedVenueIds: [...next.savedVenueIds, venueId]};
+    }
+    next = {
+      ...next,
+      excludedVenueIds: next.excludedVenueIds.filter((id) => id !== venueId),
+    };
+    return refreshTasteConfidence({...next, updatedAt: new Date().toISOString()});
+  }
+
+  if (strength === 'fine') {
+    let next = applyVenueReaction(profile, venueId, 'fine');
+    if (!next.savedVenueIds.includes(venueId)) {
+      next = {...next, savedVenueIds: [...next.savedVenueIds, venueId]};
+    }
+    next = {
+      ...next,
+      excludedVenueIds: next.excludedVenueIds.filter((id) => id !== venueId),
+    };
+    return refreshTasteConfidence({...next, updatedAt: new Date().toISOString()});
+  }
+
+  const venueReactions = {...profile.venueReactions};
+  delete venueReactions[venueId];
+  let recentVisits = profile.recentVisits.filter((visit) => visit.venueId !== venueId);
+  recentVisits.push({venueId, visitedAt: now, rating: 'liked', source: 'manual'});
+  const savedVenueIds = profile.savedVenueIds.includes(venueId)
+    ? profile.savedVenueIds
+    : [...profile.savedVenueIds, venueId];
+
+  return refreshTasteConfidence({
+    ...profile,
+    venueReactions,
+    anchorVenueIds: profile.anchorVenueIds.filter((id) => id !== venueId),
+    excludedVenueIds: profile.excludedVenueIds.filter((id) => id !== venueId),
+    recentVisits,
+    savedVenueIds,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/** Drop from positive taste list — removes reactions, visits, and saves for this venue. */
+export function removePositiveRestaurantFromProfile(
+  profile: TasteProfile,
+  venueId: string,
+): TasteProfile {
+  const venueReactions = {...profile.venueReactions};
+  delete venueReactions[venueId];
+  return refreshTasteConfidence({
+    ...profile,
+    venueReactions,
+    anchorVenueIds: profile.anchorVenueIds.filter((id) => id !== venueId),
+    savedVenueIds: profile.savedVenueIds.filter((id) => id !== venueId),
+    recentVisits: profile.recentVisits.filter((visit) => visit.venueId !== venueId),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 export function finishOnboarding(profile: TasteProfile): TasteProfile {
   return refreshTasteConfidence({
     ...profile,
@@ -398,15 +466,6 @@ export function buildOnboardingSummaryRows(profile: TasteProfile): OnboardingSum
   const lovedSummary = formatLovedQuizVenueSummary(profile);
   if (lovedSummary != null) {
     rows.push({label: 'Loved in the quiz', value: lovedSummary});
-  }
-
-  const fineCount = Object.values(profile.venueReactions).filter((r) => r === 'fine').length;
-  const skipCount = Object.values(profile.venueReactions).filter((r) => r === 'never_been').length;
-  if (fineCount > 0 || skipCount > 0) {
-    const parts: string[] = [];
-    if (fineCount > 0) parts.push(`${fineCount} fine`);
-    if (skipCount > 0) parts.push(`${skipCount} never been`);
-    rows.push({label: 'Other quiz answers', value: parts.join(' · ')});
   }
 
   rows.push({

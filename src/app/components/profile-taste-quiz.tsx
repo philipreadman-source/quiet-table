@@ -1,6 +1,6 @@
 'use client';
 
-import {useCallback, useState} from 'react';
+import {forwardRef, useCallback, useImperativeHandle, useState} from 'react';
 import {Button} from '@astryxdesign/core/Button';
 import {HStack, VStack} from '@astryxdesign/core/Layout';
 import {SelectableCard} from '@astryxdesign/core/SelectableCard';
@@ -22,13 +22,18 @@ const REACTION_OPTIONS: {id: VenueReaction; label: string}[] = [
   {id: 'never_been', label: 'Never been'},
 ];
 
-export function ProfileTasteQuizSection({
-  profile,
-  onProfileSaved,
-}: {
-  profile: TasteProfile;
-  onProfileSaved: (next: TasteProfile) => void;
-}) {
+export type ProfileTasteQuizHandle = {
+  startQuiz: () => void;
+};
+
+export const ProfileTasteQuizSection = forwardRef<
+  ProfileTasteQuizHandle,
+  {
+    profile: TasteProfile;
+    onProfileSaved: (next: TasteProfile) => void;
+    onActiveChange?: (active: boolean) => void;
+  }
+>(function ProfileTasteQuizSection({profile, onProfileSaved, onActiveChange}, ref) {
   const [active, setActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +43,14 @@ export function ProfileTasteQuizSection({
   const reactedIds = Object.keys(profile.venueReactions);
   const area = profile.homeArea.trim() || 'Amsterdam';
   const cuisines = profile.preferences.cuisineAffinities ?? [];
+
+  const setActiveSafe = useCallback(
+    (next: boolean) => {
+      setActive(next);
+      onActiveChange?.(next);
+    },
+    [onActiveChange],
+  );
 
   const persist = useCallback(
     (next: TasteProfile) => {
@@ -77,17 +90,19 @@ export function ProfileTasteQuizSection({
     }
   }, [area, cuisines, reactedIds]);
 
-  const startQuiz = () => {
-    setActive(true);
+  const startQuiz = useCallback(() => {
+    setActiveSafe(true);
     void loadBatch();
-  };
+  }, [loadBatch, setActiveSafe]);
+
+  useImperativeHandle(ref, () => ({startQuiz}), [startQuiz]);
 
   const handleReaction = (reaction: VenueReaction) => {
     const venue = venues[index];
     if (venue == null) return;
     persist(applyVenueReaction(profile, venue.id, reaction));
     if (index >= venues.length - 1) {
-      setActive(false);
+      setActiveSafe(false);
       setVenues([]);
       setIndex(0);
       return;
@@ -98,8 +113,10 @@ export function ProfileTasteQuizSection({
   const venue = venues[index];
   const known = venue != null ? findVenueOption(venue.id) : undefined;
 
+  if (!active) return null;
+
   return (
-    <VStack gap={2} align="stretch">
+    <VStack gap={2} align="stretch" style={{marginTop: 16}}>
       <Text type="label" weight="semibold">
         Quiz
       </Text>
@@ -107,31 +124,25 @@ export function ProfileTasteQuizSection({
         Keep training your taste — new restaurants tailored to you.
       </Text>
 
-      {!active && (
-        <HStack hAlign="start">
-          <Button label="Start another round" variant="secondary" onClick={startQuiz} />
-        </HStack>
-      )}
-
-      {active && loading && (
+      {loading && (
         <Text type="supporting" color="secondary">
           Finding places near {area}…
         </Text>
       )}
 
-      {active && !loading && error != null && (
+      {!loading && error != null && (
         <VStack gap={2} align="stretch">
           <Text type="supporting" color="secondary">
             {error}
           </Text>
           <HStack hAlign="start" gap={2}>
             <Button label="Try again" variant="ghost" size="sm" onClick={() => void loadBatch()} />
-            <Button label="Close" variant="ghost" size="sm" onClick={() => setActive(false)} />
+            <Button label="Close" variant="ghost" size="sm" onClick={() => setActiveSafe(false)} />
           </HStack>
         </VStack>
       )}
 
-      {active && !loading && error == null && venue != null && (
+      {!loading && error == null && venue != null && (
         <VStack gap={3} align="stretch">
           <Text type="supporting" color="secondary">
             {index + 1} of {venues.length}
@@ -164,9 +175,9 @@ export function ProfileTasteQuizSection({
               />
             ))}
           </HStack>
-          <Button label="Stop for now" variant="ghost" size="sm" onClick={() => setActive(false)} />
+          <Button label="Stop for now" variant="ghost" size="sm" onClick={() => setActiveSafe(false)} />
         </VStack>
       )}
     </VStack>
   );
-}
+});

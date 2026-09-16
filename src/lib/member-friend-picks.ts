@@ -1,6 +1,6 @@
 import type {FriendPick} from '@/lib/friend-graph-mock';
 import type {CuisineId, TasteProfile, VenueReaction} from '@/lib/taste-profile';
-import {buildCatalogTasteQuizVenues, isAmsterdamCatalogArea} from '@/lib/taste-quiz';
+import {buildCatalogTasteQuizVenues, isAmsterdamMetroHomeArea} from '@/lib/taste-quiz';
 import {findVenueOption} from '@/lib/venue-options';
 
 export type FriendSuggestedPick = {
@@ -24,6 +24,22 @@ const RATING_RANK: Record<FriendPick['rating'], number> = {
   fine: 2,
 };
 
+function applyPositivePlaceOrder(picks: FriendPick[], order: string[]): FriendPick[] {
+  if (order.length === 0) return picks;
+  const byId = new Map(picks.map((pick) => [pick.venueId, pick]));
+  const ordered: FriendPick[] = [];
+  for (const venueId of order) {
+    const pick = byId.get(venueId);
+    if (pick == null) continue;
+    ordered.push(pick);
+    byId.delete(venueId);
+  }
+  for (const pick of picks) {
+    if (byId.has(pick.venueId)) ordered.push(pick);
+  }
+  return ordered;
+}
+
 /** Loved/liked quiz answers plus positive visits — never surfaces not_for_me or dislikes. */
 export function positivePicksFromTasteProfile(profile: TasteProfile): FriendPick[] {
   const byVenue = new Map<string, FriendPick>();
@@ -36,8 +52,8 @@ export function positivePicksFromTasteProfile(profile: TasteProfile): FriendPick
     const venue = findVenueOption(venueId);
     byVenue.set(venueId, {
       venueId,
-      title: venue?.title ?? venueId,
-      vibe: venue?.subtitle ?? '',
+      title: venue?.title ?? visit?.title ?? venueId,
+      vibe: venue?.subtitle ?? visit?.subtitle ?? '',
       note: reactionNote(reaction),
       visitedAt: visit?.visitedAt ?? profile.updatedAt.slice(0, 10),
       rating: reaction === 'love' ? 'loved' : 'fine',
@@ -56,18 +72,19 @@ export function positivePicksFromTasteProfile(profile: TasteProfile): FriendPick
           : 'On their list';
     byVenue.set(visit.venueId, {
       venueId: visit.venueId,
-      title: venue?.title ?? visit.venueId,
-      vibe: venue?.subtitle ?? '',
+      title: venue?.title ?? visit.title ?? visit.venueId,
+      vibe: venue?.subtitle ?? visit.subtitle ?? '',
       note: sourceNote,
       visitedAt: visit.visitedAt,
       rating: 'liked',
     });
   }
 
-  return [...byVenue.values()].sort((a, b) => {
+  const defaultSorted = [...byVenue.values()].sort((a, b) => {
     if (a.rating !== b.rating) return RATING_RANK[a.rating] - RATING_RANK[b.rating];
     return b.visitedAt.localeCompare(a.visitedAt);
   });
+  return applyPositivePlaceOrder(defaultSorted, profile.positivePlaceOrder ?? []);
 }
 
 /** Three catalog picks tailored to onboarding cuisine choices (Amsterdam catalog v1). */
@@ -77,7 +94,7 @@ export function suggestedPicksFromTasteProfile(
 ): FriendSuggestedPick[] {
   const cuisines = (profile.preferences.cuisineAffinities ?? []) as CuisineId[];
   const area = profile.homeArea.trim() || 'Amsterdam';
-  if (!isAmsterdamCatalogArea(area) && cuisines.length === 0) return [];
+  if (!isAmsterdamMetroHomeArea(area) && cuisines.length === 0) return [];
 
   const exclude = [
     ...Object.keys(profile.venueReactions),

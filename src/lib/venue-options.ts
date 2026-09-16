@@ -959,9 +959,6 @@ export function formatDietaryBadge(
   return null;
 }
 
-import {mockSocialProofForVenue} from '@/lib/social-proof-mock';
-import {friendSocialProofForVenue} from '@/lib/friend-graph-mock';
-
 export function findVenueOption(idOrTitle: string): VenueOptionCard | undefined {
   const needle = idOrTitle.trim().toLowerCase();
   return ALL_VENUE_OPTIONS.find(
@@ -1100,10 +1097,7 @@ export function enrichVenueOption(option: VenueOptionCard): VenueOptionCard {
 
 function withMockSocialProof(option: VenueOptionCard): VenueOptionCard {
   if (option.social_proof != null) return option;
-  const friendProof = friendSocialProofForVenue(option.id);
-  if (friendProof != null) return {...option, social_proof: friendProof};
-  const mocked = mockSocialProofForVenue(option.id);
-  return mocked != null ? {...option, social_proof: mocked} : option;
+  return option;
 }
 
 export function formatMichelinLine(option: VenueOptionCard): string | null {

@@ -18,6 +18,9 @@ import {
 import {clerkDisplayName, mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {
   buildOnboardingSummaryRows,
+  inviteShareMessage,
+  inviteShareUrl,
+  recordProfileInviteSent,
   refreshTasteConfidence,
   saveTasteProfile,
   validateUsername,
@@ -50,10 +53,12 @@ export function HomeProfileTabPanel({
   const [homeAreaInput, setHomeAreaInput] = useState(profile.homeArea);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null);
+  const [inviteShareNote, setInviteShareNote] = useState<string | null>(null);
   const [quizActive, setQuizActive] = useState(false);
   const quizRef = useRef<ProfileTasteQuizHandle>(null);
 
   const lovedQuizRowLabel = 'Loved in the quiz';
+  const friendInvitesRowLabel = 'Friend invites';
 
   useEffect(() => {
     setUsernameInput(profile.username);
@@ -88,6 +93,33 @@ export function HomeProfileTabPanel({
   const dirty =
     usernameInput.trim().toLowerCase() !== profile.username ||
     (homeAreaInput.trim() || 'Amsterdam') !== profile.homeArea;
+
+  const shareInviteLink = async () => {
+    setInviteShareNote(null);
+    const url = inviteShareUrl(profile.userId);
+    const message = inviteShareMessage(profile.username || clerkDisplayName(profile) || 'Someone', url);
+    if (typeof navigator !== 'undefined' && navigator.share != null) {
+      try {
+        await navigator.share({title: 'Quiet Table', text: message, url});
+        const next = recordProfileInviteSent(profile, 'share_sheet');
+        saveTasteProfile(next);
+        onProfileSaved(next);
+        setInviteShareNote('Invite shared.');
+        return;
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(message);
+      const next = recordProfileInviteSent(profile, 'copy_link');
+      saveTasteProfile(next);
+      onProfileSaved(next);
+      setInviteShareNote('Invite link copied.');
+    } catch {
+      setInviteShareNote('Could not copy — try again.');
+    }
+  };
 
   return (
     <VStack style={panel} gap={4} align="stretch">
@@ -141,6 +173,7 @@ export function HomeProfileTabPanel({
           <VStack gap={2} align="stretch">
             {summaryRows.map((row) => {
               const isLovedQuiz = row.label === lovedQuizRowLabel;
+              const isFriendInvites = row.label === friendInvitesRowLabel;
               return (
                 <VStack key={row.label} gap={0}>
                   <Text type="supporting" color="secondary">
@@ -148,7 +181,7 @@ export function HomeProfileTabPanel({
                   </Text>
                   <HStack
                     hAlign="between"
-                    vAlign="start"
+                    vAlign="center"
                     gap={3}
                     style={{width: '100%'}}>
                     <Text type="label" style={{flex: 1, minWidth: 0}}>
@@ -162,7 +195,20 @@ export function HomeProfileTabPanel({
                         onClick={() => quizRef.current?.startQuiz()}
                       />
                     )}
+                    {isFriendInvites && (
+                      <Button
+                        label="Share link"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void shareInviteLink()}
+                      />
+                    )}
                   </HStack>
+                  {isFriendInvites && inviteShareNote != null && (
+                    <Text type="supporting" color="secondary">
+                      {inviteShareNote}
+                    </Text>
+                  )}
                 </VStack>
               );
             })}

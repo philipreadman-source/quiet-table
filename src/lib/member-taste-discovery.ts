@@ -81,6 +81,14 @@ export function scoreMemberVenuePick(
   if (intentLower.includes('date') && pick.vibe.includes('date-night')) score += 6;
   if (intentLower.includes('group') && pick.vibe.includes('group')) score += 5;
   if (intentLower.includes('casual') && pick.vibe.includes('casual')) score += 4;
+  const pickIndex = member.topPicks.findIndex(
+    (candidate) =>
+      candidate.venueId === venueId || normalizeTitle(candidate.title) === normalizeTitle(venueTitle),
+  );
+  if (pickIndex >= 0 && member.topPicks.length > 1) {
+    score +=
+      ((member.topPicks.length - 1 - pickIndex) / (member.topPicks.length - 1)) * 2;
+  }
   return score;
 }
 

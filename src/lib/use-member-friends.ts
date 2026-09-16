@@ -56,8 +56,3 @@ export function useMemberFriends(clerkUserId: string | null | undefined): {
 
   return {members, loading, error};
 }
-
-/** Demo personas only for local UI work — never on production. */
-export function shouldUseDemoFriendFallback(memberCount: number): boolean {
-  return process.env.NODE_ENV === 'development' && memberCount === 0;
-}

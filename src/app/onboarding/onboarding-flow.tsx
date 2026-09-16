@@ -12,7 +12,7 @@ import {TextInput} from '@astryxdesign/core/TextInput';
 import {SelectableCard} from '@astryxdesign/core/SelectableCard';
 import {Avatar} from '@astryxdesign/core/Avatar';
 import {findVenueOption} from '@/lib/venue-options';
-import type {TasteQuizVenue} from '@/lib/taste-quiz';
+import {quizCityArea, type TasteQuizVenue} from '@/lib/taste-quiz';
 import {
   applyVenueReaction,
   createEmptyTasteProfile,
@@ -20,8 +20,10 @@ import {
   finishOnboarding,
   hasOnboardingUsername,
   isOnboardingComplete,
+  formatInviteSentSummary,
   inviteShareMessage,
   inviteShareUrl,
+  recordProfileInviteSent,
   markStepSkipped,
   ONBOARDING_STEP_ORDER,
   refreshTasteConfidence,
@@ -170,7 +172,7 @@ export function OnboardingFlow() {
         if (cancelled) return;
         setQuizVenues(venues);
         if (venues.length === 0) {
-          setQuizError(`No restaurants found near ${area}. You can skip this step.`);
+          setQuizError(`No restaurants found in ${quizCityArea(area)}. You can skip this step.`);
         }
       })
       .catch((error: unknown) => {
@@ -278,19 +280,7 @@ export function OnboardingFlow() {
 
   const recordInviteSent = (channel: 'share_sheet' | 'copy_link') => {
     if (profile == null) return;
-    persist({
-      ...profile,
-      social: {
-        ...profile.social,
-        invites: {
-          ...profile.social.invites,
-          sent: [
-            ...profile.social.invites.sent,
-            {sentAt: new Date().toISOString(), channel},
-          ],
-        },
-      },
-    });
+    persist(recordProfileInviteSent(profile, channel));
   };
 
   const shareInvite = async () => {
@@ -333,7 +323,7 @@ export function OnboardingFlow() {
     );
   }
 
-  const quizAreaLabel = profile.homeArea.trim();
+  const quizAreaLabel = quizCityArea(profile.homeArea.trim());
 
   return (
     <Layout
@@ -413,7 +403,7 @@ export function OnboardingFlow() {
                 <Text type="label" weight="semibold">
                   Have you eaten here?
                 </Text>
-                <Text color="secondary">Finding places near {quizAreaLabel}…</Text>
+                <Text color="secondary">Finding places in {quizAreaLabel}…</Text>
               </VStack>
             )}
 
@@ -475,12 +465,12 @@ export function OnboardingFlow() {
                   Who has great taste?
                 </Text>
                 <Text color="secondary">
-                  Invite up to three people whose restaurant picks you&apos;d actually take. When
-                  they&apos;re on Quiet Table, you&apos;ll see where they&apos;ve booked — no reviews,
-                  just where they went.
+                  Share your link with people whose restaurant picks you&apos;d actually take. When
+                  they&apos;re on Quiet Table, you&apos;ll see where they&apos;ve been — no reviews,
+                  just taste.
                 </Text>
                 <Text type="supporting" color="secondary">
-                  {invitesSent} of {profile.social.invites.targetCount} invited
+                  {formatInviteSentSummary(invitesSent)}
                 </Text>
                 <HStack gap={2} vAlign="center" wrap="wrap">
                   <Button

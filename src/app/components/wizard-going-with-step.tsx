@@ -10,6 +10,7 @@ import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
 type WizardGoingWithStepProps = {
   intentLead?: string | null;
   friends: readonly FriendFoodProfile[];
+  loading?: boolean;
   selectedFriendIds: string[];
   onToggleFriend: (friendId: string, selected: boolean) => void;
   onSkip: () => void;
@@ -19,6 +20,7 @@ type WizardGoingWithStepProps = {
 export function WizardGoingWithStep({
   intentLead,
   friends,
+  loading = false,
   selectedFriendIds,
   onToggleFriend,
   onSkip,
@@ -32,6 +34,20 @@ export function WizardGoingWithStep({
   return (
     <VStack gap={3}>
       <Text>{question}</Text>
+      <Text type="supporting" color="secondary">
+        Same people as Friends — pick who is joining to weight their taste on this search.
+      </Text>
+      {loading && (
+        <Text type="supporting" color="secondary">
+          Loading members…
+        </Text>
+      )}
+      {!loading && friends.length === 0 && (
+        <Text type="supporting" color="secondary">
+          No one else on the member list yet. Skip to use everyone&apos;s taste in beta, or invite
+          friends from Profile.
+        </Text>
+      )}
       <HStack gap={2} wrap="wrap" vAlign="start">
         {friends.map((friend) => {
           const selected = selectedFriendIds.includes(friend.id);

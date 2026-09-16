@@ -1,17 +1,27 @@
 'use client';
 
-import {useEffect, useMemo, useState, type CSSProperties} from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type ReactNode,
+} from 'react';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
+import {Icon} from '@astryxdesign/core/Icon';
 import {HStack, VStack} from '@astryxdesign/core/Layout';
 import {Popover} from '@astryxdesign/core/Popover';
 import {Text} from '@astryxdesign/core/Text';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {positivePicksFromTasteProfile} from '@/lib/member-friend-picks';
+import type {FriendPick} from '@/lib/friend-graph-mock';
 import {
   addPositiveRestaurantToProfile,
   removePositiveRestaurantFromProfile,
   saveTasteProfile,
+  setPositivePlaceOrder,
   type TasteProfile,
 } from '@/lib/taste-profile';
 import type {VenueOptionCard} from '@/lib/venue-options';
@@ -83,6 +93,73 @@ function PlaceRatingMenu({
   );
 }
 
+function ReorderablePlaceRow({
+  place,
+  index,
+  isLast,
+  isDragging,
+  isDropTarget,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  children,
+}: {
+  place: FriendPick;
+  index: number;
+  isLast: boolean;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  onDragStart: (index: number) => void;
+  onDragOver: (event: DragEvent, index: number) => void;
+  onDrop: (index: number) => void;
+  onDragEnd: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <VStack
+      gap={0}
+      style={{
+        ...row,
+        borderBottom: isLast ? 'none' : row.borderBottom,
+        opacity: isDragging ? 0.45 : 1,
+        backgroundColor: isDropTarget ? 'var(--color-bg-secondary)' : undefined,
+        borderRadius: isDropTarget ? 'var(--radius-sm)' : undefined,
+        transition: 'background-color 120ms ease',
+      }}
+      onDragOver={(event) => onDragOver(event, index)}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDrop(index);
+      }}>
+      <HStack gap={2} vAlign="start" style={{width: '100%'}}>
+        <button
+          type="button"
+          draggable
+          aria-label={`Reorder ${place.title}`}
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', place.venueId);
+            onDragStart(index);
+          }}
+          onDragEnd={onDragEnd}
+          style={{
+            marginTop: 2,
+            padding: 'var(--spacing-1)',
+            border: 'none',
+            background: 'none',
+            cursor: 'grab',
+            color: 'var(--color-text-secondary)',
+            touchAction: 'none',
+          }}>
+          <Icon icon="arrowsUpDown" size="sm" color="secondary" />
+        </button>
+        <div style={{flex: 1, minWidth: 0}}>{children}</div>
+      </HStack>
+    </VStack>
+  );
+}
+
 export function ProfileMyPlacesSection({
   profile,
   onProfileSaved,
@@ -91,6 +168,8 @@ export function ProfileMyPlacesSection({
   onProfileSaved: (next: TasteProfile) => void;
 }) {
   const places = useMemo(() => positivePicksFromTasteProfile(profile), [profile]);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
   const [searchResults, setSearchResults] = useState<VenueOptionCard[]>([]);
@@ -160,6 +239,32 @@ export function ProfileMyPlacesSection({
     exitAddMode();
   };
 
+  const commitReorder = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    const ids = places.map((place) => place.venueId);
+    const [moved] = ids.splice(fromIndex, 1);
+    if (moved == null) return;
+    ids.splice(toIndex, 0, moved);
+    saveProfile(setPositivePlaceOrder(profile, ids));
+  };
+
+  const handleDragOver = (event: DragEvent, index: number) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDropIndex(index);
+  };
+
+  const handleDrop = (toIndex: number) => {
+    if (dragIndex != null) commitReorder(dragIndex, toIndex);
+    setDragIndex(null);
+    setDropIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setDropIndex(null);
+  };
+
   return (
     <VStack gap={3} align="stretch" style={{marginTop: 'var(--spacing-8)'}}>
       <HStack hAlign="between" vAlign="center" style={{width: '100%'}}>
@@ -168,7 +273,7 @@ export function ProfileMyPlacesSection({
             Places you enjoy
           </Text>
           <Text type="supporting" color="secondary">
-            Only positive picks — if it is on Quiet Table, it is part of your taste profile.
+            Only positive picks — drag to rank; top spots weigh more in Find.
           </Text>
         </VStack>
         {!adding && (
@@ -244,7 +349,10 @@ export function ProfileMyPlacesSection({
                         size="sm"
                         onClick={() =>
                           persistNewPlace(
-                            addPositiveRestaurantToProfile(profile, venue.id, 'fine'),
+                            addPositiveRestaurantToProfile(profile, venue.id, 'fine', {
+                              title: venue.title,
+                              subtitle: venue.subtitle,
+                            }),
                           )
                         }
                       />
@@ -254,7 +362,10 @@ export function ProfileMyPlacesSection({
                         size="sm"
                         onClick={() =>
                           persistNewPlace(
-                            addPositiveRestaurantToProfile(profile, venue.id, 'liked'),
+                            addPositiveRestaurantToProfile(profile, venue.id, 'liked', {
+                              title: venue.title,
+                              subtitle: venue.subtitle,
+                            }),
                           )
                         }
                       />
@@ -263,7 +374,10 @@ export function ProfileMyPlacesSection({
                         size="sm"
                         onClick={() =>
                           persistNewPlace(
-                            addPositiveRestaurantToProfile(profile, venue.id, 'loved'),
+                            addPositiveRestaurantToProfile(profile, venue.id, 'loved', {
+                              title: venue.title,
+                              subtitle: venue.subtitle,
+                            }),
                           )
                         }
                       />
@@ -280,13 +394,17 @@ export function ProfileMyPlacesSection({
         ) : (
           <VStack gap={0} align="stretch">
             {places.map((place, index) => (
-              <VStack
+              <ReorderablePlaceRow
                 key={place.venueId}
-                gap={0}
-                style={{
-                  ...row,
-                  borderBottom: index === places.length - 1 ? 'none' : row.borderBottom,
-                }}>
+                place={place}
+                index={index}
+                isLast={index === places.length - 1}
+                isDragging={dragIndex === index}
+                isDropTarget={dropIndex === index && dragIndex !== index}
+                onDragStart={setDragIndex}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}>
                 <HStack hAlign="between" vAlign="center" style={{width: '100%'}}>
                   <Text type="label" weight="semibold">
                     {place.title}
@@ -313,7 +431,7 @@ export function ProfileMyPlacesSection({
                     {place.vibe}
                   </Text>
                 )}
-              </VStack>
+              </ReorderablePlaceRow>
             ))}
           </VStack>
         )}

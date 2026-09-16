@@ -15,7 +15,7 @@ Until a real social graph ships:
 - **All members are friends**: any Clerk user who saved a taste profile with a username is added to the Redis set `quiet-table:member-ids` and returned by `GET /api/members` (excluding the signed-in user).
 - **Identity from Clerk**: store `profile.clerk` (`firstName`, `lastName`, `imageUrl`) and `avatarSrc` via `mergeClerkUserIntoProfile` on save/hydrate.
 - **Avatar fallback**: use `@astryxdesign/core/Avatar` with `src` from Clerk when present; pass `name` as full display name (Clerk name or `@username`) so initials render when there is no photo.
-- **Demo personas**: `friend-graph-mock.ts` remains for venue social proof and local dev; Friends tab and wizard prefer live `/api/members` when non-empty.
+- **No demo personas in UI**: Friends, Find “going with”, and card social lines use live `/api/members` only (local dev same as production). `friend-graph-mock.ts` keeps types and agent tool stubs only — not user-facing lists.
 - **Discovery**: In Find/fallback ranking, treat **all other members as followed** when the wizard has no explicit “going with” selection (`effectiveCommunityCompanionIds` in `member-taste-discovery.ts`). Boost venues from their `topPicks` and show member social lines on cards. Still hide venues the **viewer** already loved/liked (`positiveVenueIds` in user memory).
 
 Do not gate the member list on `social.friendUserIds` in beta.

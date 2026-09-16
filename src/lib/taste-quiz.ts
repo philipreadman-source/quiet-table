@@ -73,6 +73,59 @@ export function isAmsterdamCatalogArea(area: string): boolean {
   return normalized === 'amsterdam' || normalized.includes('amsterdam');
 }
 
+/** Districts we treat as Amsterdam for city-wide quiz catalog (not neighborhood OSM). */
+const AMSTERDAM_DISTRICT_KEYWORDS = [
+  'centrum',
+  'de pijp',
+  'indische buurt',
+  'jordaan',
+  'museumkwartier',
+  'nieuwmarkt',
+  'noord',
+  'oost',
+  'oosterpark',
+  'oud-west',
+  'oud-zuid',
+  'plantage',
+  'rivierenbuurt',
+  'west',
+  'westergas',
+  'zuid',
+  'zuidas',
+];
+
+export function isAmsterdamMetroHomeArea(homeArea: string): boolean {
+  if (isAmsterdamCatalogArea(homeArea)) return true;
+  const normalized = homeArea.trim().toLowerCase();
+  if (normalized.length === 0) return false;
+  return AMSTERDAM_DISTRICT_KEYWORDS.some(
+    (district) => normalized === district || normalized.startsWith(`${district},`),
+  );
+}
+
+/** Quiz searches at city granularity — not tight neighborhood OSM. */
+export function quizCityArea(homeArea: string): string {
+  const trimmed = homeArea.trim();
+  if (trimmed.length === 0) return 'Amsterdam';
+  if (isAmsterdamMetroHomeArea(trimmed)) return 'Amsterdam';
+
+  const parts = trimmed
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length >= 2) {
+    const countryPattern =
+      /^(netherlands|the netherlands|nederland|nl|uk|united kingdom|usa|united states)$/i;
+    const localities = parts.filter((part) => !countryPattern.test(part));
+    if (localities.length >= 2) {
+      return localities[localities.length - 1]!;
+    }
+    if (localities.length === 1) return localities[0]!;
+  }
+
+  return trimmed;
+}
+
 export function cuisineTagsForVenue(venue: VenueOptionCard): CuisineId[] {
   const override = VENUE_CUISINE_OVERRIDES[venue.id];
   if (override != null && override.length > 0) return override;
@@ -177,7 +230,7 @@ export async function buildExternalTasteQuizVenues(
   excludeIds: string[] = [],
 ): Promise<TasteQuizVenue[]> {
   const exclude = new Set(excludeIds.map((id) => id.trim().toLowerCase()));
-  const areaPart = area.trim();
+  const areaPart = quizCityArea(area);
   const collected: VenueOptionCard[] = [];
   const seen = new Set<string>();
 
@@ -212,10 +265,38 @@ export async function buildTasteQuizVenues(
   limit = TASTE_QUIZ_VENUE_COUNT,
   excludeIds: string[] = [],
 ): Promise<TasteQuizVenue[]> {
-  if (isAmsterdamCatalogArea(area)) {
-    return buildCatalogTasteQuizVenues(cuisines, limit, excludeIds);
+  const cityArea = quizCityArea(area);
+
+  if (isAmsterdamMetroHomeArea(area)) {
+    const fromCatalog = buildCatalogTasteQuizVenues(cuisines, limit, excludeIds);
+    if (fromCatalog.length >= limit) return fromCatalog;
+
+    const exclude = [
+      ...excludeIds,
+      ...fromCatalog.map((venue) => venue.id),
+    ];
+    const fromExternal = await buildExternalTasteQuizVenues(
+      cityArea,
+      cuisines,
+      limit - fromCatalog.length,
+      exclude,
+    );
+    const merged = dedupeQuizVenues([...fromCatalog, ...fromExternal]);
+    if (merged.length > 0) return merged.slice(0, limit);
+
+    return fromCatalog;
   }
-  return buildExternalTasteQuizVenues(area, cuisines, limit, excludeIds);
+
+  let venues = await buildExternalTasteQuizVenues(cityArea, cuisines, limit, excludeIds);
+  if (venues.length === 0 && !cityArea.toLowerCase().includes('netherlands')) {
+    venues = await buildExternalTasteQuizVenues(
+      `${cityArea}, Netherlands`,
+      cuisines,
+      limit,
+      excludeIds,
+    );
+  }
+  return venues;
 }
 
 export const PROFILE_TASTE_QUIZ_BATCH = 5;

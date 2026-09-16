@@ -53,7 +53,6 @@ import {HomeSectionTabBar, type HomeMainSection} from '@/app/components/home-sec
 import {WizardGoingWithStep} from '@/app/components/wizard-going-with-step';
 import {
   derivePartyDietaryFromCompanions,
-  listWizardCompanionFriends,
   type FriendFoodProfile,
 } from '@/lib/friend-graph-mock';
 import {reverseGeocode} from '@/lib/reverse-geocode';
@@ -252,10 +251,16 @@ function wizardStageOrder(
 ): WizardStage[] {
   const goingWith: WizardStage[] = skipGoingWith ? [] : ['goingWith'];
   if (sizeStepSkipped && dateNightStepsIncluded) {
-    return ['intent', 'location', 'occasion', 'spend', 'date', 'time'];
+    return ['intent', ...goingWith, 'location', 'occasion', 'spend', 'date', 'time'];
   }
-  if (sizeStepSkipped) return ['intent', 'location', 'date', 'time'];
+  if (sizeStepSkipped) return ['intent', ...goingWith, 'location', 'date', 'time'];
   return ['intent', 'size', ...goingWith, 'location', 'date', 'time'];
+}
+
+function stageAfterIntentSelection(fixedPartySize: string | undefined): WizardStage {
+  if (fixedPartySize != null && isSoloPartySize(fixedPartySize)) return 'location';
+  if (fixedPartySize != null) return 'goingWith';
+  return 'size';
 }
 
 function visibleWizardStages(
@@ -903,12 +908,11 @@ export default function Home() {
   const router = useRouter();
   const {userId: clerkUserId, isLoaded: isAuthLoaded} = useAuth();
   const {user: clerkUser} = useUser();
-  const {members: memberFriends} = useMemberFriends(clerkUserId);
-  const wizardCompanionFriends = useMemo(() => {
-    if (memberFriends.length > 0) return memberFriends.slice(0, 8);
-    if (process.env.NODE_ENV === 'development') return [...listWizardCompanionFriends()];
-    return [];
-  }, [memberFriends]);
+  const {members: memberFriends, loading: memberFriendsLoading} = useMemberFriends(clerkUserId);
+  const wizardCompanionFriends = useMemo(
+    () => (memberFriends.length > 0 ? memberFriends.slice(0, 8) : []),
+    [memberFriends],
+  );
   const [tasteProfile, setTasteProfile] = useState<TasteProfile | null>(null);
   const [ready, setReady] = useState(false);
   const [messages, setMessages] = useState<ChatTurn[]>([]);
@@ -1248,7 +1252,7 @@ export default function Home() {
                                     }));
                                     setSizeStepSkipped(true);
                                     setDateNightStepsIncluded(card.id === 'date-night');
-                                    setStage('location');
+                                    setStage(stageAfterIntentSelection(card.fixedPartySize));
                                   } else {
                                     setBookingDraft((prev) => ({...prev, intent: card.message, partySize: undefined}));
                                     setSizeStepSkipped(false);
@@ -1326,6 +1330,7 @@ export default function Home() {
                           <WizardGoingWithStep
                             intentLead={intentAcknowledgement}
                             friends={wizardCompanionFriends}
+                            loading={memberFriendsLoading}
                             selectedFriendIds={bookingDraft.goingWithFriendIds ?? []}
                             onToggleFriend={(friendId, selected) => {
                               setBookingDraft((prev) =>

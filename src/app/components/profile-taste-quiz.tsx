@@ -13,7 +13,7 @@ import {
   type TasteProfile,
   type VenueReaction,
 } from '@/lib/taste-profile';
-import {PROFILE_TASTE_QUIZ_BATCH, type TasteQuizVenue} from '@/lib/taste-quiz';
+import {PROFILE_TASTE_QUIZ_BATCH, quizCityArea, type TasteQuizVenue} from '@/lib/taste-quiz';
 
 const REACTION_OPTIONS: {id: VenueReaction; label: string}[] = [
   {id: 'love', label: 'Love it'},
@@ -41,7 +41,8 @@ export const ProfileTasteQuizSection = forwardRef<
   const [index, setIndex] = useState(0);
 
   const reactedIds = Object.keys(profile.venueReactions);
-  const area = profile.homeArea.trim() || 'Amsterdam';
+  const homeArea = profile.homeArea.trim() || 'Amsterdam';
+  const quizArea = quizCityArea(homeArea);
   const cuisines = profile.preferences.cuisineAffinities ?? [];
 
   const setActiveSafe = useCallback(
@@ -67,7 +68,7 @@ export const ProfileTasteQuizSection = forwardRef<
     setError(null);
     setIndex(0);
     const params = new URLSearchParams({
-      area,
+      area: homeArea,
       limit: String(PROFILE_TASTE_QUIZ_BATCH),
       exclude: reactedIds.join(','),
     });
@@ -80,7 +81,7 @@ export const ProfileTasteQuizSection = forwardRef<
       const nextVenues = payload.venues ?? [];
       setVenues(nextVenues);
       if (nextVenues.length === 0) {
-        setError(`No new places left near ${area} — you've seen the current set.`);
+        setError(`No new places left in ${quizArea} — you've seen the current set.`);
       }
     } catch (err) {
       setVenues([]);
@@ -88,7 +89,7 @@ export const ProfileTasteQuizSection = forwardRef<
     } finally {
       setLoading(false);
     }
-  }, [area, cuisines, reactedIds]);
+  }, [homeArea, quizArea, cuisines, reactedIds]);
 
   const startQuiz = useCallback(() => {
     setActiveSafe(true);
@@ -126,7 +127,7 @@ export const ProfileTasteQuizSection = forwardRef<
 
       {loading && (
         <Text type="supporting" color="secondary">
-          Finding places near {area}…
+          Finding places in {quizArea}…
         </Text>
       )}
 
@@ -146,7 +147,7 @@ export const ProfileTasteQuizSection = forwardRef<
         <VStack gap={3} align="stretch">
           <Text type="supporting" color="secondary">
             {index + 1} of {venues.length}
-            {cuisines.length > 0 ? ' · picked for your cravings' : ` · popular in ${area}`}
+            {cuisines.length > 0 ? ' · picked for your cravings' : ` · popular in ${quizArea}`}
           </Text>
           <SelectableCard
             label={venue.title}

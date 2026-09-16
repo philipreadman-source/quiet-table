@@ -18,6 +18,8 @@ export type UserMemory = {
   savedVenueIds: string[];
   excludedVenueIds: string[];
   anchorVenueIds: string[];
+  /** Top of the list weighs most in Find ranking. */
+  positivePlaceOrder: string[];
   /** Loved / fine / liked — already on the member's taste profile; omit from discovery. */
   positiveVenueIds: string[];
   preferences: {
@@ -34,6 +36,7 @@ export const EMPTY_USER_MEMORY: UserMemory = {
   savedVenueIds: [],
   excludedVenueIds: [],
   anchorVenueIds: [],
+  positivePlaceOrder: [],
   positiveVenueIds: [],
   preferences: {},
 };
@@ -65,6 +68,7 @@ export function profileToUserMemory(profile: TasteProfile): UserMemory {
     savedVenueIds: profile.savedVenueIds,
     excludedVenueIds: profile.excludedVenueIds,
     anchorVenueIds: profile.anchorVenueIds,
+    positivePlaceOrder: profile.positivePlaceOrder ?? [],
     positiveVenueIds: collectPositiveVenueIds(profile),
     preferences: profile.preferences,
   };
@@ -111,14 +115,24 @@ export function excludedVenueTitles(options: {id: string; title: string}[], memo
   return options.filter((option) => isVenueExcluded(option.id, memory)).map((option) => option.title);
 }
 
+function positivePlaceOrderBoost(venueId: string, order: string[]): number {
+  const index = order.indexOf(venueId);
+  if (index < 0 || order.length <= 1) return 0;
+  return ((order.length - 1 - index) / (order.length - 1)) * 2;
+}
+
 /** Positive signals boost ranking; dislikes that weren't filtered still sink. */
 export function memoryRankScore(venueId: string, memory: UserMemory): number {
-  if (memory.anchorVenueIds.includes(venueId)) return 4;
-  const visit = visitForVenue(memory, venueId);
-  if (visit?.rating === 'liked') return 3;
-  if (visit?.rating === 'disliked') return -5;
-  if (memory.savedVenueIds.includes(venueId)) return 2;
-  return 0;
+  let score = 0;
+  if (memory.anchorVenueIds.includes(venueId)) score = 4;
+  else {
+    const visit = visitForVenue(memory, venueId);
+    if (visit?.rating === 'liked') score = 3;
+    else if (visit?.rating === 'disliked') score = -5;
+    else if (memory.savedVenueIds.includes(venueId)) score = 2;
+  }
+  score += positivePlaceOrderBoost(venueId, memory.positivePlaceOrder);
+  return score;
 }
 
 export function formatPersonalizationBadge(venueId: string, memory: UserMemory): string | null {

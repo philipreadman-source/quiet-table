@@ -31,6 +31,14 @@ export type VenueVisit = {
   rating: 'liked' | 'disliked' | 'neutral';
   source: 'quiz' | 'booking' | 'manual' | 'inferred';
   notes?: string;
+  /** Display name when venueId is outside the catalog (e.g. osm-* search hits). */
+  title?: string;
+  subtitle?: string;
+};
+
+export type VenueVisitDisplay = {
+  title?: string;
+  subtitle?: string;
 };
 
 export type PendingInvite = {
@@ -70,6 +78,8 @@ export type TasteProfile = {
     capturedAt: string;
   };
   recentVisits: VenueVisit[];
+  /** Member-ranked positive places — first id weighs most in Find and taste signals. */
+  positivePlaceOrder: string[];
   savedVenueIds: string[];
   social: {
     friendUserIds: string[];
@@ -125,6 +135,7 @@ export function createEmptyTasteProfile(userId?: string): TasteProfile {
     excludedVenueIds: [],
     venueReactions: {},
     recentVisits: [],
+    positivePlaceOrder: [],
     savedVenueIds: [],
     social: {
       friendUserIds: [],
@@ -279,11 +290,45 @@ export function applyVenueReaction(
   });
 }
 
+function appendPositivePlaceOrder(profile: TasteProfile, venueId: string): string[] {
+  const without = profile.positivePlaceOrder.filter((id) => id !== venueId);
+  return [...without, venueId];
+}
+
+export function setPositivePlaceOrder(profile: TasteProfile, orderedVenueIds: string[]): TasteProfile {
+  return refreshTasteConfidence({
+    ...profile,
+    positivePlaceOrder: orderedVenueIds,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function attachVisitDisplay(
+  profile: TasteProfile,
+  venueId: string,
+  display?: VenueVisitDisplay,
+): TasteProfile {
+  if (display?.title == null && display?.subtitle == null) return profile;
+  return {
+    ...profile,
+    recentVisits: profile.recentVisits.map((visit) =>
+      visit.venueId === venueId
+        ? {
+            ...visit,
+            title: display?.title ?? visit.title,
+            subtitle: display?.subtitle ?? visit.subtitle,
+          }
+        : visit,
+    ),
+  };
+}
+
 /** Add a place the member enjoyed — positive-only taste graph (no dislike list on QT). */
 export function addPositiveRestaurantToProfile(
   profile: TasteProfile,
   venueId: string,
   strength: 'loved' | 'liked' | 'fine',
+  display?: VenueVisitDisplay,
 ): TasteProfile {
   const now = new Date().toISOString().slice(0, 10);
 
@@ -296,6 +341,8 @@ export function addPositiveRestaurantToProfile(
       ...next,
       excludedVenueIds: next.excludedVenueIds.filter((id) => id !== venueId),
     };
+    next = attachVisitDisplay(next, venueId, display);
+    next = {...next, positivePlaceOrder: appendPositivePlaceOrder(next, venueId)};
     return refreshTasteConfidence({...next, updatedAt: new Date().toISOString()});
   }
 
@@ -308,13 +355,22 @@ export function addPositiveRestaurantToProfile(
       ...next,
       excludedVenueIds: next.excludedVenueIds.filter((id) => id !== venueId),
     };
+    next = attachVisitDisplay(next, venueId, display);
+    next = {...next, positivePlaceOrder: appendPositivePlaceOrder(next, venueId)};
     return refreshTasteConfidence({...next, updatedAt: new Date().toISOString()});
   }
 
   const venueReactions = {...profile.venueReactions};
   delete venueReactions[venueId];
   let recentVisits = profile.recentVisits.filter((visit) => visit.venueId !== venueId);
-  recentVisits.push({venueId, visitedAt: now, rating: 'liked', source: 'manual'});
+  recentVisits.push({
+    venueId,
+    visitedAt: now,
+    rating: 'liked',
+    source: 'manual',
+    title: display?.title,
+    subtitle: display?.subtitle,
+  });
   const savedVenueIds = profile.savedVenueIds.includes(venueId)
     ? profile.savedVenueIds
     : [...profile.savedVenueIds, venueId];
@@ -326,6 +382,7 @@ export function addPositiveRestaurantToProfile(
     excludedVenueIds: profile.excludedVenueIds.filter((id) => id !== venueId),
     recentVisits,
     savedVenueIds,
+    positivePlaceOrder: appendPositivePlaceOrder(profile, venueId),
     updatedAt: new Date().toISOString(),
   });
 }
@@ -343,6 +400,7 @@ export function removePositiveRestaurantFromProfile(
     anchorVenueIds: profile.anchorVenueIds.filter((id) => id !== venueId),
     savedVenueIds: profile.savedVenueIds.filter((id) => id !== venueId),
     recentVisits: profile.recentVisits.filter((visit) => visit.venueId !== venueId),
+    positivePlaceOrder: profile.positivePlaceOrder.filter((id) => id !== venueId),
     updatedAt: new Date().toISOString(),
   });
 }
@@ -405,6 +463,30 @@ export function inviteShareUrl(userId: string, origin?: string): string {
 
 export function inviteShareMessage(username: string, url: string): string {
   return `${username} invited you to Quiet Table — see where friends actually eat and book a table. ${url}`;
+}
+
+export function formatInviteSentSummary(sentCount: number): string {
+  return `${sentCount} sent`;
+}
+
+export function recordProfileInviteSent(
+  profile: TasteProfile,
+  channel: 'share_sheet' | 'copy_link',
+): TasteProfile {
+  return {
+    ...profile,
+    social: {
+      ...profile.social,
+      invites: {
+        ...profile.social.invites,
+        sent: [
+          ...profile.social.invites.sent,
+          {sentAt: new Date().toISOString(), channel},
+        ],
+      },
+    },
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 const ONBOARDING_STEP_LABELS: Record<OnboardingStepId, string> = {
@@ -470,7 +552,7 @@ export function buildOnboardingSummaryRows(profile: TasteProfile): OnboardingSum
 
   rows.push({
     label: 'Friend invites',
-    value: `${profile.social.invites.sent.length} of ${profile.social.invites.targetCount} sent`,
+    value: formatInviteSentSummary(profile.social.invites.sent.length),
   });
 
   if (profile.onboarding.completedAt != null) {

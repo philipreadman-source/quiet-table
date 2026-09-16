@@ -1,10 +1,5 @@
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
-import {
-  getFriendFoodProfile,
-  getMentionedFriend,
-  friendRankScoreForCompanions,
-  friendSocialProofForVenue,
-} from '@/lib/friend-graph-mock';
+import {friendRankScoreForCompanions} from '@/lib/friend-graph-mock';
 import {
   assignOfferedAvailabilityForResults,
   buildVenueOptionsTitle,
@@ -79,12 +74,23 @@ function isLocationChangeMessage(message: string): boolean {
   return parseLocationFromMessage(message) != null;
 }
 
+function mentionedCommunityMember(
+  message: string,
+  members: FriendFoodProfile[],
+): FriendFoodProfile | undefined {
+  const lower = message.toLowerCase();
+  return members.find(
+    (member) =>
+      lower.includes(member.name.toLowerCase()) ||
+      lower.includes(member.fullName.toLowerCase()),
+  );
+}
+
 function isVagueFreeText(message: string): boolean {
   const lower = message.trim().toLowerCase();
   if (lower.length < 3) return true;
   if (/\b(show more|book|confirm|reserve|yes)\b/i.test(lower)) return false;
   if (/\b(no restrictions|vegetarian|vegan|mixed)\b/i.test(lower)) return false;
-  if (getMentionedFriend(message) != null) return false;
   if (parseLocationFromMessage(message) != null) return false;
   if (/\b(nice|good|something|somewhere|surprise|help|recommend|ideas|options|hungry)\b/i.test(lower)) {
     return true;
@@ -133,9 +139,12 @@ function buildVenueOptionsFallbackResponse(
   const optionsOut = pageOptions.map((option) => {
     const offered = offeredById.get(option.id);
     let row = offered != null ? {...option, meta: formatOfferedAvailabilityLine(offered)} : option;
-    const companionProof =
-      memberSocialProofForVenue(row.id, row.title, communityMembers, companionIds) ??
-      friendSocialProofForVenue(row.id, companionIds);
+    const companionProof = memberSocialProofForVenue(
+      row.id,
+      row.title,
+      communityMembers,
+      companionIds,
+    );
     if (companionProof != null) row = {...row, social_proof: companionProof};
     return row;
   });
@@ -157,11 +166,11 @@ function buildVenueOptionsFallbackResponse(
     page === 0 && draft.personalizationNoteShown !== true
       ? buildVenueListPersonalizationNote(userMemory, excluded)
       : null;
-  const mentionedFriend = getMentionedFriend(message);
+  const mentionedFriend = mentionedCommunityMember(message, communityMembers);
   const location = draft.location ?? 'Amsterdam';
   const companionNames =
     draft.goingWithFriendIds
-      ?.map((id) => getFriendFoodProfile(id)?.name)
+      ?.map((id) => communityLookup(id)?.name)
       .filter((name): name is string => name != null && name.length > 0) ?? [];
   const friendHint =
     companionNames.length > 0
@@ -306,9 +315,12 @@ function tryBroadCatalogOptions(
   const optionsOut = pageOptions.map((option: VenueOptionCard) => {
     const offered = offeredById.get(option.id);
     let row = offered != null ? {...option, meta: formatOfferedAvailabilityLine(offered)} : option;
-    const companionProof =
-      memberSocialProofForVenue(row.id, row.title, communityMembers, companionIds) ??
-      friendSocialProofForVenue(row.id, companionIds);
+    const companionProof = memberSocialProofForVenue(
+      row.id,
+      row.title,
+      communityMembers,
+      companionIds,
+    );
     if (companionProof != null) row = {...row, social_proof: companionProof};
     return row;
   });

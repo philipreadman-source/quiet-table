@@ -8,11 +8,7 @@ import {
   getUserMemory,
   summarizeUserMemoryForAgent,
 } from '@/lib/user-memory';
-import {
-  getFriendFoodProfile,
-  summarizeFriendForAgent,
-  summarizeFriendGraphForAgent,
-} from '@/lib/friend-graph-mock';
+import {getFriendFoodProfile, summarizeFriendForAgent} from '@/lib/friend-graph-mock';
 import {tasteProfileToFriendFoodProfile} from '@/lib/member-friends';
 import {listMemberProfilesForSession} from '@/lib/member-registry-server';
 import {summarizeCommunityTasteForAgent} from '@/lib/member-taste-discovery';
@@ -357,10 +353,9 @@ export async function POST(request: Request) {
       : null,
     draft != null ? `Current booking draft JSON: ${JSON.stringify(draft)}.` : null,
     `User dining memory JSON: ${JSON.stringify(summarizeUserMemoryForAgent(memory))}.`,
-    `Close friends food graph JSON: ${JSON.stringify(summarizeFriendGraphForAgent())}.`,
     communityMembers.length > 0
-      ? `Community taste (beta — treat every member as followed; boost their loved/liked venues in results): ${JSON.stringify(summarizeCommunityTasteForAgent(communityMembers))}.`
-      : null,
+      ? `Member taste graph (beta — treat every member as followed; boost their loved/liked venues in results): ${JSON.stringify(summarizeCommunityTasteForAgent(communityMembers))}.`
+      : 'No other members on the table yet — rely on the signed-in user taste profile only.',
     catalogAgentContextLine(),
   ].filter(Boolean);
 

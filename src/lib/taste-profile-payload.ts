@@ -64,5 +64,8 @@ export function parseTasteProfilePayloadForSession(
 export function normalizeTasteProfileRecord(profile: TasteProfile): TasteProfile {
   const avatarSrc =
     profile.avatarSrc != null && profile.avatarSrc.length > 0 ? profile.avatarSrc : undefined;
-  return {...profile, avatarSrc};
+  const positivePlaceOrder = Array.isArray(profile.positivePlaceOrder)
+    ? profile.positivePlaceOrder.filter((id) => typeof id === 'string' && id.length > 0)
+    : [];
+  return {...profile, avatarSrc, positivePlaceOrder};
 }

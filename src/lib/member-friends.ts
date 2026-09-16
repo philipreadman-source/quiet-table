@@ -1,5 +1,4 @@
 import type {FriendFoodProfile, FriendPick} from '@/lib/friend-graph-mock';
-import {getFriendFoodProfile} from '@/lib/friend-graph-mock';
 import {clerkDisplayName, clerkShortName} from '@/lib/clerk-profile';
 import {
   positivePicksFromTasteProfile,
@@ -60,7 +59,5 @@ export function resolveFriendFoodProfile(
   id: string,
   members: readonly FriendFoodProfile[],
 ): FriendFoodProfile | undefined {
-  const member = members.find((friend) => friend.id === id);
-  if (member != null) return member;
-  return getFriendFoodProfile(id);
+  return members.find((friend) => friend.id === id);
 }

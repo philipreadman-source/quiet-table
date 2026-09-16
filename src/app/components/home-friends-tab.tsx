@@ -1,18 +1,18 @@
 'use client';
 
 import {useUser} from '@clerk/nextjs';
-import {useMemo, useState, type CSSProperties} from 'react';
-import {Avatar, AvatarStatusDot} from '@astryxdesign/core/Avatar';
+import {useEffect, useMemo, useState, type CSSProperties} from 'react';
+import {Avatar} from '@astryxdesign/core/Avatar';
 import {Card} from '@astryxdesign/core/Card';
 import {HStack, VStack} from '@astryxdesign/core/Layout';
+import {SelectableCard} from '@astryxdesign/core/SelectableCard';
 import {Text} from '@astryxdesign/core/Text';
-import {
-  friendShowsOnlineInDemo,
-  listFriendsForFriendsTab,
-  type FriendFoodProfile,
-  type FriendPick,
-} from '@/lib/friend-graph-mock';
-import {shouldUseDemoFriendFallback, useMemberFriends} from '@/lib/use-member-friends';
+import {type FriendFoodProfile, type FriendPick} from '@/lib/friend-graph-mock';
+import {mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
+import {tasteProfileToFriendFoodProfile} from '@/lib/member-friends';
+import {fetchTasteProfileFromServer} from '@/lib/profile-sync';
+import {hasOnboardingUsername} from '@/lib/taste-profile';
+import {useMemberFriends} from '@/lib/use-member-friends';
 import {enrichVenueOption, findVenueOption} from '@/lib/venue-options';
 
 const panel: CSSProperties = {
@@ -38,46 +38,42 @@ const visitImage: CSSProperties = {
   backgroundColor: 'var(--color-bg-secondary)',
 };
 
+type RosterEntry = {
+  friend: FriendFoodProfile;
+  isSelf: boolean;
+};
+
 function FriendAvatarChip({
-  friend,
+  entry,
   selected,
   onSelect,
 }: {
-  friend: FriendFoodProfile;
+  entry: RosterEntry;
   selected: boolean;
-  onSelect: () => void;
+  onSelect: (selected: boolean) => void;
 }) {
-  const online = friendShowsOnlineInDemo(friend.id);
+  const {friend, isSelf} = entry;
+  const caption = isSelf ? 'You' : friend.name;
+
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-label={`${friend.name}${online ? ', online' : ''}`}
-      aria-pressed={selected}
-      style={{
-        background: 'none',
-        border: 'none',
-        padding: 4,
-        cursor: 'pointer',
-        borderRadius: '9999px',
-        outline: selected ? '2px solid var(--color-border-emphasis)' : '2px solid transparent',
-      }}>
-      <Avatar
-        src={friend.avatarSrc}
-        name={friend.fullName}
-        alt={friend.fullName}
+    <SelectableCard
+      label={isSelf ? 'You' : friend.fullName}
+      width={72}
+      padding={3}
+      isSelected={selected}
+      onChange={onSelect}>
+      <VStack gap={1} hAlign="center">
+        <Avatar
+          src={friend.avatarSrc}
+          name={friend.fullName}
+          alt={friend.fullName}
         size={48}
-        status={
-          online ? (
-            <AvatarStatusDot
-              variant="success"
-              label="Online"
-              style={{width: 10, height: 10, borderWidth: 1}}
-            />
-          ) : undefined
-        }
       />
-    </button>
+        <Text type="label" weight={selected ? 'semibold' : undefined} justify="center">
+          {caption}
+        </Text>
+      </VStack>
+    </SelectableCard>
   );
 }
 
@@ -121,15 +117,48 @@ function FriendVisitCard({pick}: {pick: FriendPick}) {
 
 export function HomeFriendsTabPanel() {
   const {user} = useUser();
-  const {members, loading, error} = useMemberFriends(user?.id);
-  const friends = useMemo(() => {
-    if (members.length > 0) return members;
-    if (shouldUseDemoFriendFallback(members.length)) return [...listFriendsForFriendsTab()];
-    return [];
-  }, [members]);
+  const {members, loading} = useMemberFriends(user?.id);
+  const [selfFriend, setSelfFriend] = useState<FriendFoodProfile | null>(null);
+
+  useEffect(() => {
+    const userId = user?.id?.trim();
+    if (userId == null || userId.length === 0) {
+      setSelfFriend(null);
+      return;
+    }
+
+    let cancelled = false;
+    void fetchTasteProfileFromServer().then((profile) => {
+      if (cancelled || profile == null || !hasOnboardingUsername(profile)) {
+        if (!cancelled) setSelfFriend(null);
+        return;
+      }
+      const merged = mergeClerkUserIntoProfile(profile, user);
+      if (!cancelled) setSelfFriend(tasteProfileToFriendFoodProfile(merged));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const otherMembers = members;
+
+  const roster = useMemo((): RosterEntry[] => {
+    const list: RosterEntry[] = [];
+    if (selfFriend != null) list.push({friend: selfFriend, isSelf: true});
+    for (const friend of otherMembers) {
+      if (selfFriend != null && friend.id === selfFriend.id) continue;
+      list.push({friend, isSelf: false});
+    }
+    return list;
+  }, [selfFriend, otherMembers]);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected =
-    selectedId != null ? friends.find((friend) => friend.id === selectedId) : undefined;
+  const selectedEntry =
+    selectedId != null ? roster.find((entry) => entry.friend.id === selectedId) : undefined;
+  const selected = selectedEntry?.friend;
+  const selectedIsSelf = selectedEntry?.isSelf ?? false;
   const lovedOrLiked = selected?.topPicks ?? [];
   const mayLike = selected?.suggestedPicks ?? [];
 
@@ -139,8 +168,7 @@ export function HomeFriendsTabPanel() {
         See where everyone ate
       </Text>
       <Text type="supporting" color="secondary">
-        In beta, every member shares taste — Find surfaces picks from the whole table, not just people
-        you select.
+        In beta, every member shares taste.
       </Text>
 
       {loading && (
@@ -149,27 +177,27 @@ export function HomeFriendsTabPanel() {
         </Text>
       )}
 
-      {!loading && error != null && (
-        <Text type="supporting" color="secondary">
-          {error} Check Upstash env vars on Vercel if this persists.
-        </Text>
-      )}
-
-      {!loading && error == null && friends.length === 0 && (
+      {!loading && roster.length === 0 && (
         <Text type="supporting" color="secondary">
           No one else on the member list yet. Ask friends to sign up on this app, finish onboarding
-          with a username, and save their profile — then pull to refresh here.
+          with a username, and save their profile — then reload this tab.
         </Text>
       )}
 
-      {friends.length > 0 && (
-        <HStack gap={3} vAlign="center">
-          {friends.map((friend) => (
+      {!loading && roster.length > 0 && otherMembers.length === 0 && selfFriend != null && (
+        <Text type="supporting" color="secondary">
+          You&apos;re on the list — invite others to sign up and save a profile to see them here.
+        </Text>
+      )}
+
+      {roster.length > 0 && (
+        <HStack gap={2} wrap="wrap" vAlign="start">
+          {roster.map((entry) => (
             <FriendAvatarChip
-              key={friend.id}
-              friend={friend}
-              selected={selectedId === friend.id}
-              onSelect={() => setSelectedId(friend.id)}
+              key={entry.friend.id}
+              entry={entry}
+              selected={selectedId === entry.friend.id}
+              onSelect={(isSelected) => setSelectedId(isSelected ? entry.friend.id : null)}
             />
           ))}
         </HStack>
@@ -184,11 +212,13 @@ export function HomeFriendsTabPanel() {
             marginTop: 'var(--spacing-8)',
           }}>
           <Text type="label" weight="semibold">
-            Restaurants they loved or liked
+            {selectedIsSelf ? 'Restaurants you loved or liked' : 'Restaurants they loved or liked'}
           </Text>
           {lovedOrLiked.length === 0 ? (
             <Text type="supporting" color="secondary">
-              Nothing from onboarding yet — they can add places from Profile after a visit.
+              {selectedIsSelf
+                ? 'Nothing here yet — add places from Profile after a visit.'
+                : 'Nothing from onboarding yet — they can add places from Profile after a visit.'}
             </Text>
           ) : (
             lovedOrLiked.map((pick) => <FriendVisitCard key={pick.venueId} pick={pick} />)
@@ -197,7 +227,7 @@ export function HomeFriendsTabPanel() {
           {mayLike.length > 0 && (
             <>
               <Text type="label" weight="semibold" style={{marginTop: 'var(--spacing-6)'}}>
-                Restaurants they may like
+                {selectedIsSelf ? 'Restaurants you may like' : 'Restaurants they may like'}
               </Text>
               {mayLike.map((pick) => (
                 <FriendVisitCard key={`suggest-${pick.venueId}`} pick={pick} />

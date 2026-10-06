@@ -82,7 +82,8 @@ function searchTermsFromQuery(query: string | undefined, location: string | unde
 }
 
 function venueMatchesTerms(venue: VenueOptionCard, terms: string[]): boolean {
-  const haystack = [venue.title, venue.subtitle, venue.description, venue.menu_overview]
+  // Title + "Area · Cuisine" only: descriptions are full of generic words ("seating", "cosy").
+  const haystack = [venue.title, venue.subtitle]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
@@ -106,6 +107,21 @@ function catalogForSearch(
   const matches = [...inIntent, ...elsewhere];
   if (matches.length > 0) return {catalog: matches, matched: true};
   return {catalog: intentCatalog, matched: false};
+}
+
+export const FALLBACK_CAPABILITIES_MESSAGE =
+  "The agent's off, so I can't answer questions right now. I can still narrow the list — try a food (\"seafood\"), an area (\"in De Pijp\") or a time (\"8pm\").";
+
+function looksLikeQuestion(text: string): boolean {
+  const trimmed = text.trim().toLowerCase();
+  return (
+    trimmed.endsWith('?') ||
+    /^(is|are|does|do|did|can|could|would|will|should|what|how|why|when|where|which|who)\b/.test(trimmed)
+  );
+}
+
+function mentionsTime(text: string): boolean {
+  return /\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b/i.test(text);
 }
 
 function capitalize(text: string): string {
@@ -175,6 +191,15 @@ function buildVenueOptionsFallbackResponse(
   const page = showMore ? (draft.venueResultsPage ?? 1) : 0;
   const searchTerms = searchTermsFromQuery(draft.searchQuery, draft.location);
   const {catalog, matched: searchMatched} = catalogForSearch(draft.intent!, searchTerms);
+  if (
+    !showMore &&
+    !searchMatched &&
+    looksLikeQuestion(message) &&
+    !isLocationChangeMessage(message) &&
+    !mentionsTime(message)
+  ) {
+    return {text: FALLBACK_CAPABILITIES_MESSAGE, ui: {interactive: {type: 'none'}}};
+  }
   const excluded = excludedVenueTitles(catalog, userMemory);
   const eligible = filterVenuesByAimedTime(
     filterExcludedVenues(catalog, userMemory),

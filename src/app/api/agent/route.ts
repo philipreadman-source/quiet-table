@@ -363,6 +363,10 @@ async function loadCommunityMembers(sessionUserId: string | undefined): Promise<
   return listed.profiles.map(tasteProfileToFriendFoodProfile);
 }
 
+export function GET() {
+  return NextResponse.json({fallback: USE_LOCAL_FALLBACK});
+}
+
 export async function POST(request: Request) {
   const {history, message, location, draft, tasteProfile} = (await request.json()) as {
     history: ChatTurn[];

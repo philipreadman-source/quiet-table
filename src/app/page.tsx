@@ -223,8 +223,9 @@ const POST_WIZARD_PLACEHOLDERS = {
   dietary: 'Or mention any dietary needs...',
   results: "Can't find what you're looking for? Or have any questions...",
   default: 'Or tell me anything else...',
-  fallback: 'Agent off — working from fallback data',
 } as const;
+
+const FALLBACK_MODE_PLACEHOLDER = 'Agent off — working from fallback data';
 
 const TODAY_ISO = new Date().toISOString().slice(0, 10) as ISODateString;
 
@@ -243,7 +244,7 @@ function resolveComposerPlaceholder(args: {
   showingDietary: boolean;
   agentFallback: boolean;
 }): string {
-  if (args.agentFallback && args.wizardComplete) return POST_WIZARD_PLACEHOLDERS.fallback;
+  if (args.agentFallback) return FALLBACK_MODE_PLACEHOLDER;
   if (args.hasVenueResults) return POST_WIZARD_PLACEHOLDERS.results;
   if (args.showingDietary) return POST_WIZARD_PLACEHOLDERS.dietary;
   if (args.wizardComplete) return POST_WIZARD_PLACEHOLDERS.default;
@@ -1045,6 +1046,19 @@ export default function Home() {
 
   useEffect(() => {
     requestLocation();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch('/api/agent')
+      .then((res) => (res.ok ? (res.json() as Promise<{fallback?: boolean}>) : null))
+      .then((body) => {
+        if (!cancelled && body != null) setAgentFallback(body.fallback === true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (!isAuthLoaded || clerkUserId == null || !ready) {

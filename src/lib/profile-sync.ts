@@ -109,7 +109,7 @@ export async function hydrateTasteProfileWithServer(clerkUserId: string): Promis
   }
 
   if (remote != null && remote.userId !== userId) {
-    return persistLocal(createEmptyTasteProfile(userId));
+    return finalizeHydratedProfile(persistLocal({...remote, userId}));
   }
 
   if (local != null) {

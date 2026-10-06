@@ -2,11 +2,9 @@ import {auth, currentUser} from '@clerk/nextjs/server';
 import {NextResponse} from 'next/server';
 import {normalizeProfileEmail} from '@/lib/profile-email';
 import {
-  findStoredProfileByEmail,
-  getStoredProfile,
   isProfileStoreConfigured,
-  migrateStoredProfileToUserId,
   putStoredProfile,
+  resolveProfileForSession,
 } from '@/lib/profile-store-server';
 import {parseTasteProfilePayloadForSession} from '@/lib/taste-profile-payload';
 
@@ -28,17 +26,12 @@ export async function GET() {
     return NextResponse.json({error: 'Profile storage not configured.', profile: null}, {status: 503});
   }
 
-  let profile = await getStoredProfile(userId);
-  if (profile == null) {
-    const clerkUser = await currentUser();
-    const email = clerkPrimaryEmailFromUser(clerkUser);
-    if (email != null) {
-      const existing = await findStoredProfileByEmail(email);
-      if (existing != null && existing.userId !== userId) {
-        profile = await migrateStoredProfileToUserId(existing, userId);
-      }
-    }
-  }
+  const clerkUser = await currentUser();
+  const profile = await resolveProfileForSession(userId, {
+    primaryEmail: clerkPrimaryEmailFromUser(clerkUser),
+    firstName: clerkUser?.firstName,
+    lastName: clerkUser?.lastName,
+  });
 
   if (profile == null) {
     return NextResponse.json({profile: null}, {status: 404});

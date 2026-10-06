@@ -5,17 +5,20 @@ import {
   type TasteProfile,
 } from '@/lib/taste-profile';
 
-/** Taste profile owned by this Clerk user — never merge another account's localStorage row. */
-export function localTasteProfileForUser(clerkUserId: string): TasteProfile {
+/** Read local profile for this Clerk user only — does not create or overwrite storage. */
+export function loadLocalTasteProfileForUser(clerkUserId: string): TasteProfile | null {
   const userId = clerkUserId.trim();
-  if (userId.length === 0) {
-    throw new Error('Clerk user id is required.');
-  }
+  if (userId.length === 0) return null;
   const local = loadTasteProfile();
-  if (local != null && local.userId === userId) {
-    return local;
-  }
-  const fresh = createEmptyTasteProfile(userId);
+  if (local != null && local.userId === userId) return local;
+  return null;
+}
+
+/** Taste profile owned by this Clerk user — creates an empty row when none exists locally. */
+export function localTasteProfileForUser(clerkUserId: string): TasteProfile {
+  const existing = loadLocalTasteProfileForUser(clerkUserId);
+  if (existing != null) return existing;
+  const fresh = createEmptyTasteProfile(clerkUserId);
   saveTasteProfileToLocalStorage(fresh);
   return fresh;
 }

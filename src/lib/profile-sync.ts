@@ -1,10 +1,11 @@
 import {
   createEmptyTasteProfile,
   hasOnboardingUsername,
+  isOnboardingComplete,
   saveTasteProfileToLocalStorage,
   type TasteProfile,
 } from '@/lib/taste-profile';
-import {localTasteProfileForUser} from '@/lib/taste-profile-session';
+import {loadLocalTasteProfileForUser} from '@/lib/taste-profile-session';
 
 export function shouldSyncProfileToServer(profile: TasteProfile): boolean {
   return profile.userId.trim().length > 0 && hasOnboardingUsername(profile);
@@ -36,33 +37,74 @@ export async function fetchTasteProfileFromServer(): Promise<TasteProfile | null
   }
 }
 
-/** Merge server copy when newer; never apply another user's localStorage to this Clerk id. */
+function persistLocal(profile: TasteProfile): TasteProfile {
+  saveTasteProfileToLocalStorage(profile);
+  return profile;
+}
+
+function maybePushCompleteLocalToServer(local: TasteProfile): void {
+  if (isOnboardingComplete(local)) {
+    void pushTasteProfileToServer(local);
+  }
+}
+
+/**
+ * Merge server copy with local — fetch remote before creating an empty local row.
+ * Returning users with a server profile skip onboarding even if localStorage was cleared or held another account.
+ */
 export async function hydrateTasteProfileWithServer(clerkUserId: string): Promise<TasteProfile> {
   const userId = clerkUserId.trim();
-  const local = localTasteProfileForUser(userId);
   const remote = await fetchTasteProfileFromServer();
+  const local = loadLocalTasteProfileForUser(userId);
 
-  if (remote == null) {
+  if (remote != null && remote.userId === userId) {
+    if (local == null) {
+      return persistLocal(remote);
+    }
+
+    const localComplete = isOnboardingComplete(local);
+    const remoteComplete = isOnboardingComplete(remote);
+
+    if (!localComplete && remoteComplete) {
+      return persistLocal(remote);
+    }
+    if (localComplete && !remoteComplete) {
+      maybePushCompleteLocalToServer(local);
+      return local;
+    }
+    if (!localComplete && !remoteComplete) {
+      if (hasOnboardingUsername(remote) && !hasOnboardingUsername(local)) {
+        return persistLocal(remote);
+      }
+      if (hasOnboardingUsername(local) && !hasOnboardingUsername(remote)) {
+        return local;
+      }
+      if (!hasOnboardingUsername(local) && !hasOnboardingUsername(remote)) {
+        return persistLocal(remote);
+      }
+    }
+
+    const remoteTime = Date.parse(remote.updatedAt);
+    const localTime = Date.parse(local.updatedAt);
+    if (Number.isFinite(remoteTime) && Number.isFinite(localTime) && remoteTime > localTime) {
+      return persistLocal(remote);
+    }
+    if (Number.isFinite(localTime) && Number.isFinite(remoteTime) && localTime > remoteTime) {
+      maybePushCompleteLocalToServer(local);
+    }
+    return local;
+  }
+
+  if (remote != null && remote.userId !== userId) {
+    return persistLocal(createEmptyTasteProfile(userId));
+  }
+
+  if (local != null) {
     if (hasOnboardingUsername(local)) {
       void pushTasteProfileToServer(local);
     }
     return local;
   }
 
-  if (remote.userId !== userId) {
-    const fresh = createEmptyTasteProfile(userId);
-    saveTasteProfileToLocalStorage(fresh);
-    return fresh;
-  }
-
-  const remoteTime = Date.parse(remote.updatedAt);
-  const localTime = Date.parse(local.updatedAt);
-  if (Number.isFinite(remoteTime) && Number.isFinite(localTime) && remoteTime > localTime) {
-    saveTasteProfileToLocalStorage(remote);
-    return remote;
-  }
-  if (Number.isFinite(localTime) && Number.isFinite(remoteTime) && localTime > remoteTime) {
-    void pushTasteProfileToServer(local);
-  }
-  return local;
+  return persistLocal(createEmptyTasteProfile(userId));
 }

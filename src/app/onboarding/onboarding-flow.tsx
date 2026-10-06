@@ -35,7 +35,7 @@ import {
   type TasteProfile,
   type VenueReaction,
 } from '@/lib/taste-profile';
-import {consumePendingInviteRef, localTasteProfileForUser} from '@/lib/taste-profile-session';
+import {consumePendingInviteRef} from '@/lib/taste-profile-session';
 
 const shell: CSSProperties = {
   minHeight: '100dvh',

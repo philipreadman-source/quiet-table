@@ -1,3 +1,4 @@
+import {lookupClerkPrimaryEmails} from '@/lib/clerk-directory-server';
 import {getStoredProfile, isProfileStoreConfigured} from '@/lib/profile-store-server';
 import {normalizeProfileEmail, profilePrimaryEmail} from '@/lib/profile-email';
 import {hasOnboardingUsername, type TasteProfile} from '@/lib/taste-profile';
@@ -48,9 +49,11 @@ export async function listMemberProfilesForSession(
   }
   const selfId = sessionUserId.trim();
   const selfEmail = normalizeProfileEmail(sessionEmail);
-  const ids = await listRegisteredMemberUserIds();
-  const others = ids.filter((id) => id !== selfId);
-  const profiles = await Promise.all(others.map((id) => getStoredProfile(id)));
+  const others = (await listRegisteredMemberUserIds()).filter((id) => id !== selfId);
+  // Redis may be shared across environments, so deleted accounts are hidden, never pruned.
+  const liveAccounts = await lookupClerkPrimaryEmails(others);
+  const visible = liveAccounts == null ? others : others.filter((id) => liveAccounts.has(id));
+  const profiles = await Promise.all(visible.map((id) => getStoredProfile(id)));
   const seenEmails = new Set<string>();
   if (selfEmail != null) seenEmails.add(selfEmail);
 
@@ -58,7 +61,7 @@ export async function listMemberProfilesForSession(
     ok: true,
     profiles: profiles.filter((profile): profile is TasteProfile => {
       if (profile == null || !hasOnboardingUsername(profile)) return false;
-      const email = profilePrimaryEmail(profile);
+      const email = liveAccounts?.get(profile.userId) ?? profilePrimaryEmail(profile);
       if (email != null) {
         if (seenEmails.has(email)) return false;
         seenEmails.add(email);

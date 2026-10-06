@@ -26,12 +26,10 @@ export async function GET() {
     return NextResponse.json({error: 'Profile storage not configured.', profile: null}, {status: 503});
   }
 
-  const clerkUser = await currentUser();
-  const profile = await resolveProfileForSession(userId, {
-    primaryEmail: clerkPrimaryEmailFromUser(clerkUser),
-    firstName: clerkUser?.firstName,
-    lastName: clerkUser?.lastName,
-  });
+  const profile = await resolveProfileForSession(
+    userId,
+    clerkPrimaryEmailFromUser(await currentUser()),
+  );
 
   if (profile == null) {
     return NextResponse.json({profile: null}, {status: 404});

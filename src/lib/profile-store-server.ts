@@ -7,6 +7,7 @@ import {
   profileEmailIndexKey,
   profilePrimaryEmail,
 } from '@/lib/profile-email';
+import {lookupClerkPrimaryEmails} from '@/lib/clerk-directory-server';
 import {
   listRegisteredMemberUserIds,
   registerMemberUserId,
@@ -40,48 +41,13 @@ function withStorageUserId(userId: string, profile: TasteProfile): TasteProfile 
 async function getUserIdForProfileEmail(email: string): Promise<string | null> {
   const redis = getRedisClient();
   if (redis == null) return null;
-  const normalized = normalizeProfileEmail(email);
-  if (normalized == null) return null;
-  const raw = await redis.get<string>(profileEmailIndexKey(normalized));
+  const raw = await redis.get<string>(profileEmailIndexKey(email));
   return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : null;
 }
 
-async function setProfileEmailIndex(email: string, userId: string): Promise<void> {
-  const redis = getRedisClient();
-  if (redis == null) return;
-  const normalized = normalizeProfileEmail(email);
-  if (normalized == null) return;
-  await redis.set(profileEmailIndexKey(normalized), userId.trim());
-}
-
-async function retireStoredProfile(userId: string): Promise<void> {
-  const redis = getRedisClient();
-  const id = userId.trim();
-  if (redis != null) {
-    await redis.del(profileKey(id));
-  }
-  await unregisterMemberUserId(id);
-}
-
 function withPrimaryEmail(profile: TasteProfile, email: string): TasteProfile {
-  const normalized = normalizeProfileEmail(email);
-  if (normalized == null || profilePrimaryEmail(profile) === normalized) return profile;
-  return {...profile, clerk: {...profile.clerk, primaryEmail: normalized}};
-}
-
-function clerkNamesMatch(
-  profile: TasteProfile,
-  firstName?: string | null,
-  lastName?: string | null,
-): boolean {
-  const pf = profile.clerk?.firstName?.trim().toLowerCase();
-  const pl = profile.clerk?.lastName?.trim().toLowerCase();
-  const cf = firstName?.trim().toLowerCase();
-  const cl = lastName?.trim().toLowerCase();
-  if (cf == null || cf.length === 0 || pf == null || pf.length === 0) return false;
-  if (pf !== cf) return false;
-  if (cl != null && cl.length > 0 && pl != null && pl.length > 0 && pl !== cl) return false;
-  return true;
+  if (profilePrimaryEmail(profile) === email) return profile;
+  return {...profile, clerk: {...profile.clerk, primaryEmail: email}};
 }
 
 function profileRecoveryScore(profile: TasteProfile): number {
@@ -110,60 +76,29 @@ export async function putStoredProfile(
     return {ok: false, error: 'Profile storage is not configured (Upstash Redis env vars missing).'};
   }
   const stored = withStorageUserId(profile.userId, profile);
+  await redis.set(profileKey(stored.userId), stored);
   const email = profilePrimaryEmail(stored);
   if (email != null) {
-    const previousOwner = await getUserIdForProfileEmail(email);
-    if (previousOwner != null && previousOwner !== stored.userId) {
-      await retireStoredProfile(previousOwner);
-    }
-    await setProfileEmailIndex(email, stored.userId);
+    await redis.set(profileEmailIndexKey(email), stored.userId);
   }
-  await redis.set(profileKey(stored.userId), stored);
   if (hasOnboardingUsername(stored)) {
     await registerMemberUserId(stored.userId);
   }
   return {ok: true};
 }
 
-export async function findStoredProfileByEmail(email: string): Promise<TasteProfile | null> {
-  const normalized = normalizeProfileEmail(email);
-  if (normalized == null) return null;
-
-  const indexedUserId = await getUserIdForProfileEmail(normalized);
+async function findStoredProfileByEmail(email: string): Promise<TasteProfile | null> {
+  const indexedUserId = await getUserIdForProfileEmail(email);
   if (indexedUserId != null) {
     const indexed = await getStoredProfile(indexedUserId);
-    if (indexed != null) return indexed;
+    if (indexed != null && profilePrimaryEmail(indexed) === email) return indexed;
   }
 
-  const ids = await listRegisteredMemberUserIds();
-  let best: TasteProfile | null = null;
-  let bestScore = -1;
-  for (const id of ids) {
-    const profile = await getStoredProfile(id);
-    if (profile == null) continue;
-    if (profilePrimaryEmail(profile) !== normalized) continue;
-    const score = profileRecoveryScore(profile);
-    if (score >= bestScore) {
-      best = profile;
-      bestScore = score;
-    }
-  }
-  return best;
-}
-
-/** Profiles saved before primaryEmail — recover when Clerk assigns a new user id. */
-async function findStoredProfileByClerkIdentity(
-  sessionUserId: string,
-  firstName?: string | null,
-  lastName?: string | null,
-): Promise<TasteProfile | null> {
   let best: TasteProfile | null = null;
   let bestScore = -1;
   for (const id of await listRegisteredMemberUserIds()) {
-    if (id === sessionUserId) continue;
     const profile = await getStoredProfile(id);
-    if (profile == null || !hasOnboardingUsername(profile)) continue;
-    if (!clerkNamesMatch(profile, firstName, lastName)) continue;
+    if (profile == null || profilePrimaryEmail(profile) !== email) continue;
     const score = profileRecoveryScore(profile);
     if (score > bestScore) {
       best = profile;
@@ -173,69 +108,56 @@ async function findStoredProfileByClerkIdentity(
   return best;
 }
 
-export async function migrateStoredProfileToUserId(
+async function migrateStoredProfileToUserId(
   source: TasteProfile,
   sessionUserId: string,
-  primaryEmail?: string | null,
+  email: string,
 ): Promise<TasteProfile> {
-  const targetId = sessionUserId.trim();
   const fromId = source.userId.trim();
-  const email =
-    normalizeProfileEmail(primaryEmail) ?? profilePrimaryEmail(source);
-  const body = email != null ? withPrimaryEmail(source, email) : source;
-  const migrated: TasteProfile = {
-    ...body,
-    userId: targetId,
+  const migrated = withStorageUserId(sessionUserId, {
+    ...withPrimaryEmail(source, email),
     updatedAt: new Date().toISOString(),
-  };
+  });
   const saved = await putStoredProfile(migrated);
-  if (!saved.ok) return withStorageUserId(targetId, migrated);
-  if (fromId !== targetId) {
-    await retireStoredProfile(fromId);
+  if (saved.ok && fromId !== migrated.userId) {
+    await getRedisClient()?.del(profileKey(fromId));
+    await unregisterMemberUserId(fromId);
   }
-  return withStorageUserId(targetId, migrated);
+  return migrated;
 }
 
 /**
- * Sign-in path: one taste profile per email. Clerk user id may change; email is canonical.
+ * Sign-in: the profile under this Clerk id, or — when Clerk issued a new id for the same email
+ * (account deleted and recreated) — the profile left behind by the old, now-deleted account.
+ * Returns null for a genuinely new email, which sends the user through onboarding.
  */
 export async function resolveProfileForSession(
   sessionUserId: string,
-  options: {
-    primaryEmail?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-  },
+  primaryEmail: string | null | undefined,
 ): Promise<TasteProfile | null> {
   const userId = sessionUserId.trim();
-  const email = normalizeProfileEmail(options.primaryEmail);
+  const email = normalizeProfileEmail(primaryEmail);
 
-  let profile = await getStoredProfile(userId);
-  if (profile != null) {
+  const own = await getStoredProfile(userId);
+  if (own != null) {
     if (email != null) {
-      profile = withPrimaryEmail(profile, email);
-      if (profilePrimaryEmail(profile) === email) {
-        await putStoredProfile(profile);
+      const tagged = withPrimaryEmail(own, email);
+      const indexedUserId = await getUserIdForProfileEmail(email);
+      if (tagged !== own || indexedUserId !== userId) {
+        await putStoredProfile(tagged);
       }
+      return tagged;
     }
-    return profile;
+    return own;
   }
 
-  if (email != null) {
-    const existing = await findStoredProfileByEmail(email);
-    if (existing != null) {
-      return migrateStoredProfileToUserId(existing, userId, email);
-    }
-  }
+  if (email == null) return null;
+  const previous = await findStoredProfileByEmail(email);
+  if (previous == null || previous.userId === userId) return null;
 
-  const legacy = await findStoredProfileByClerkIdentity(
-    userId,
-    options.firstName,
-    options.lastName,
-  );
-  if (legacy != null) {
-    return migrateStoredProfileToUserId(legacy, userId, email);
-  }
+  // Only adopt a profile whose Clerk account is gone; a live account still owns its own data.
+  const liveAccounts = await lookupClerkPrimaryEmails([previous.userId]);
+  if (liveAccounts == null || liveAccounts.has(previous.userId)) return null;
 
-  return null;
+  return migrateStoredProfileToUserId(previous, userId, email);
 }

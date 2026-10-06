@@ -86,7 +86,11 @@ export function OnboardingFlow() {
   }, [step]);
 
   useEffect(() => {
-    if (!isAuthLoaded || clerkUserId == null) return;
+    if (!isAuthLoaded) return;
+    if (clerkUserId == null) {
+      router.replace('/sign-in');
+      return;
+    }
 
     if (searchParams.get('reset') === '1') {
       const fresh = createEmptyTasteProfile(clerkUserId);

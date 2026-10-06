@@ -992,7 +992,11 @@ export default function Home() {
   const userMemory = useMemo(() => getUserMemory(tasteProfile), [tasteProfile]);
 
   useEffect(() => {
-    if (!isAuthLoaded || clerkUserId == null) return;
+    if (!isAuthLoaded) return;
+    if (clerkUserId == null) {
+      router.replace('/sign-in');
+      return;
+    }
     let cancelled = false;
     void import('@/lib/profile-sync').then(({hydrateTasteProfileWithServer}) =>
       hydrateTasteProfileWithServer(clerkUserId),

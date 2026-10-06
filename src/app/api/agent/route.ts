@@ -18,12 +18,22 @@ import {buildFallbackResponse} from '@/lib/fallback-response';
 import {catalogAgentContextLine} from '@/lib/venue-options';
 
 /**
- * USE_LOCAL_FALLBACK=true  → buildFallbackResponse only. No Anthropic, web_search, or MCP — zero agent credits.
- * USE_LOCAL_FALLBACK=false → Live agent: Claude + web_search + search_quiet_table_catalog (local catalog tools).
- * Override via env (e.g. USE_LOCAL_FALLBACK=true in .env.local for UI work).
+ * Fallback → buildFallbackResponse only (response includes fallback: true). No Anthropic credits.
+ * Live agent → Claude + web_search + catalog tools when USE_LIVE_AGENT=true on Vercel production,
+ * or USE_LOCAL_FALLBACK=false, or unset locally/preview with ANTHROPIC_API_KEY.
  */
-const USE_LOCAL_FALLBACK =
-  process.env.USE_LOCAL_FALLBACK === 'true' || process.env.USE_LOCAL_FALLBACK === '1';
+function useLocalFallback(): boolean {
+  const flag = process.env.USE_LOCAL_FALLBACK;
+  if (flag === 'true' || flag === '1') return true;
+  if (flag === 'false' || flag === '0') return false;
+  if (process.env.USE_LIVE_AGENT === 'true' || process.env.USE_LIVE_AGENT === '1') {
+    return false;
+  }
+  if (process.env.VERCEL_ENV === 'production') return true;
+  return false;
+}
+
+const USE_LOCAL_FALLBACK = useLocalFallback();
 
 const client = new Anthropic();
 

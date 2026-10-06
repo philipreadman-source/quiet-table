@@ -1,4 +1,5 @@
 import {getStoredProfile, isProfileStoreConfigured} from '@/lib/profile-store-server';
+import {normalizeProfileEmail, profilePrimaryEmail} from '@/lib/profile-email';
 import {hasOnboardingUsername, type TasteProfile} from '@/lib/taste-profile';
 import {Redis} from '@upstash/redis';
 
@@ -22,6 +23,14 @@ export async function registerMemberUserId(userId: string): Promise<void> {
   await redis.sadd(MEMBER_IDS_KEY, id);
 }
 
+export async function unregisterMemberUserId(userId: string): Promise<void> {
+  const redis = getRedisClient();
+  if (redis == null) return;
+  const id = userId.trim();
+  if (id.length === 0) return;
+  await redis.srem(MEMBER_IDS_KEY, id);
+}
+
 export async function listRegisteredMemberUserIds(): Promise<string[]> {
   const redis = getRedisClient();
   if (redis == null) return [];
@@ -32,19 +41,29 @@ export async function listRegisteredMemberUserIds(): Promise<string[]> {
 
 export async function listMemberProfilesForSession(
   sessionUserId: string,
+  sessionEmail?: string | null,
 ): Promise<{ok: true; profiles: TasteProfile[]} | {ok: false; error: string}> {
   if (!isProfileStoreConfigured()) {
     return {ok: false, error: 'Profile storage is not configured.'};
   }
   const selfId = sessionUserId.trim();
+  const selfEmail = normalizeProfileEmail(sessionEmail);
   const ids = await listRegisteredMemberUserIds();
   const others = ids.filter((id) => id !== selfId);
   const profiles = await Promise.all(others.map((id) => getStoredProfile(id)));
+  const seenEmails = new Set<string>();
+  if (selfEmail != null) seenEmails.add(selfEmail);
+
   return {
     ok: true,
-    profiles: profiles.filter(
-      (profile): profile is NonNullable<typeof profile> =>
-        profile != null && hasOnboardingUsername(profile),
-    ),
+    profiles: profiles.filter((profile): profile is TasteProfile => {
+      if (profile == null || !hasOnboardingUsername(profile)) return false;
+      const email = profilePrimaryEmail(profile);
+      if (email != null) {
+        if (seenEmails.has(email)) return false;
+        seenEmails.add(email);
+      }
+      return true;
+    }),
   };
 }

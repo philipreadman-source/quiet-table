@@ -60,6 +60,8 @@ export type TasteProfile = {
     firstName?: string;
     lastName?: string;
     imageUrl?: string;
+    /** Clerk primary email — used to dedupe duplicate Clerk users and merge profiles on sign-in. */
+    primaryEmail?: string;
   };
   homeArea: string;
   homeCoordinates?: {lat: number; lon: number};

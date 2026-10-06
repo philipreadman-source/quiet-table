@@ -1,7 +1,23 @@
-import {auth} from '@clerk/nextjs/server';
+import {auth, currentUser} from '@clerk/nextjs/server';
 import {NextResponse} from 'next/server';
-import {getStoredProfile, isProfileStoreConfigured, putStoredProfile} from '@/lib/profile-store-server';
+import {normalizeProfileEmail} from '@/lib/profile-email';
+import {
+  findStoredProfileByEmail,
+  getStoredProfile,
+  isProfileStoreConfigured,
+  migrateStoredProfileToUserId,
+  putStoredProfile,
+} from '@/lib/profile-store-server';
 import {parseTasteProfilePayloadForSession} from '@/lib/taste-profile-payload';
+
+function clerkPrimaryEmailFromUser(
+  user: Awaited<ReturnType<typeof currentUser>>,
+): string | undefined {
+  const email =
+    user?.primaryEmailAddress?.emailAddress?.trim() ??
+    user?.emailAddresses?.[0]?.emailAddress?.trim();
+  return normalizeProfileEmail(email) ?? undefined;
+}
 
 export async function GET() {
   const {userId} = await auth();
@@ -11,7 +27,19 @@ export async function GET() {
   if (!isProfileStoreConfigured()) {
     return NextResponse.json({error: 'Profile storage not configured.', profile: null}, {status: 503});
   }
-  const profile = await getStoredProfile(userId);
+
+  let profile = await getStoredProfile(userId);
+  if (profile == null) {
+    const clerkUser = await currentUser();
+    const email = clerkPrimaryEmailFromUser(clerkUser);
+    if (email != null) {
+      const existing = await findStoredProfileByEmail(email);
+      if (existing != null && existing.userId !== userId) {
+        profile = await migrateStoredProfileToUserId(existing, userId);
+      }
+    }
+  }
+
   if (profile == null) {
     return NextResponse.json({profile: null}, {status: 404});
   }
@@ -36,9 +64,20 @@ export async function PUT(request: Request) {
   if (!parsed.ok) {
     return NextResponse.json({error: parsed.error}, {status: 400});
   }
-  const saved = await putStoredProfile(parsed.profile);
+
+  const clerkUser = await currentUser();
+  const primaryEmail = clerkPrimaryEmailFromUser(clerkUser);
+  const profile =
+    primaryEmail != null
+      ? {
+          ...parsed.profile,
+          clerk: {...parsed.profile.clerk, primaryEmail},
+        }
+      : parsed.profile;
+
+  const saved = await putStoredProfile(profile);
   if (!saved.ok) {
     return NextResponse.json({error: saved.error}, {status: 503});
   }
-  return NextResponse.json({ok: true, userId: parsed.profile.userId});
+  return NextResponse.json({ok: true, userId: profile.userId});
 }

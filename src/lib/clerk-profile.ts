@@ -5,6 +5,8 @@ type ClerkUserIdentity = {
   lastName?: string | null;
   hasImage?: boolean;
   imageUrl?: string;
+  primaryEmailAddress?: {emailAddress?: string | null} | null;
+  emailAddresses?: {emailAddress?: string | null}[];
 };
 
 /** Public Clerk fields stored on the taste profile for avatars and display names. */
@@ -17,18 +19,23 @@ export function mergeClerkUserIntoProfile(
   const imageUrl = user.hasImage && user.imageUrl != null ? user.imageUrl : undefined;
   const firstName = user.firstName?.trim() || undefined;
   const lastName = user.lastName?.trim() || undefined;
+  const primaryEmail =
+    user.primaryEmailAddress?.emailAddress?.trim().toLowerCase() ||
+    user.emailAddresses?.[0]?.emailAddress?.trim().toLowerCase() ||
+    undefined;
 
   const prev = profile.clerk;
   const sameClerk =
     prev?.firstName === firstName &&
     prev?.lastName === lastName &&
-    prev?.imageUrl === imageUrl;
+    prev?.imageUrl === imageUrl &&
+    prev?.primaryEmail === primaryEmail;
   const sameAvatar = profile.avatarSrc === imageUrl || (imageUrl == null && profile.avatarSrc == null);
   if (sameClerk && sameAvatar) return profile;
 
   return {
     ...profile,
-    clerk: {firstName, lastName, imageUrl},
+    clerk: {firstName, lastName, imageUrl, primaryEmail},
     avatarSrc: imageUrl ?? profile.avatarSrc,
     updatedAt: new Date().toISOString(),
   };

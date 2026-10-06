@@ -2,6 +2,7 @@ import {
   createEmptyTasteProfile,
   hasOnboardingUsername,
   isOnboardingComplete,
+  repairLegacyOnboardingComplete,
   saveTasteProfileToLocalStorage,
   type TasteProfile,
 } from '@/lib/taste-profile';
@@ -48,6 +49,18 @@ function maybePushCompleteLocalToServer(local: TasteProfile): void {
   }
 }
 
+function finalizeHydratedProfile(profile: TasteProfile): TasteProfile {
+  const repaired = repairLegacyOnboardingComplete(profile);
+  if (repaired !== profile) {
+    saveTasteProfileToLocalStorage(repaired);
+    if (isOnboardingComplete(repaired)) {
+      void pushTasteProfileToServer(repaired);
+    }
+    return repaired;
+  }
+  return profile;
+}
+
 /**
  * Merge server copy with local — fetch remote before creating an empty local row.
  * Returning users with a server profile skip onboarding even if localStorage was cleared or held another account.
@@ -59,40 +72,40 @@ export async function hydrateTasteProfileWithServer(clerkUserId: string): Promis
 
   if (remote != null && remote.userId === userId) {
     if (local == null) {
-      return persistLocal(remote);
+      return finalizeHydratedProfile(persistLocal(remote));
     }
 
     const localComplete = isOnboardingComplete(local);
     const remoteComplete = isOnboardingComplete(remote);
 
     if (!localComplete && remoteComplete) {
-      return persistLocal(remote);
+      return finalizeHydratedProfile(persistLocal(remote));
     }
     if (localComplete && !remoteComplete) {
       maybePushCompleteLocalToServer(local);
-      return local;
+      return finalizeHydratedProfile(local);
     }
     if (!localComplete && !remoteComplete) {
       if (hasOnboardingUsername(remote) && !hasOnboardingUsername(local)) {
-        return persistLocal(remote);
+        return finalizeHydratedProfile(persistLocal(remote));
       }
       if (hasOnboardingUsername(local) && !hasOnboardingUsername(remote)) {
-        return local;
+        return finalizeHydratedProfile(local);
       }
       if (!hasOnboardingUsername(local) && !hasOnboardingUsername(remote)) {
-        return persistLocal(remote);
+        return finalizeHydratedProfile(persistLocal(remote));
       }
     }
 
     const remoteTime = Date.parse(remote.updatedAt);
     const localTime = Date.parse(local.updatedAt);
     if (Number.isFinite(remoteTime) && Number.isFinite(localTime) && remoteTime > localTime) {
-      return persistLocal(remote);
+      return finalizeHydratedProfile(persistLocal(remote));
     }
     if (Number.isFinite(localTime) && Number.isFinite(remoteTime) && localTime > remoteTime) {
       maybePushCompleteLocalToServer(local);
     }
-    return local;
+    return finalizeHydratedProfile(local);
   }
 
   if (remote != null && remote.userId !== userId) {
@@ -103,7 +116,7 @@ export async function hydrateTasteProfileWithServer(clerkUserId: string): Promis
     if (hasOnboardingUsername(local)) {
       void pushTasteProfileToServer(local);
     }
-    return local;
+    return finalizeHydratedProfile(local);
   }
 
   return persistLocal(createEmptyTasteProfile(userId));

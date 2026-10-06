@@ -428,6 +428,16 @@ export function isOnboardingComplete(profile: TasteProfile | null | undefined): 
   );
 }
 
+/** Beta profiles saved before completedAt existed — still treat as onboarded. */
+export function repairLegacyOnboardingComplete(profile: TasteProfile): TasteProfile {
+  if (isOnboardingComplete(profile)) return profile;
+  const homeOk = validateHomeArea(profile.homeArea).ok;
+  if (hasOnboardingUsername(profile) && homeOk) {
+    return finishOnboarding(profile);
+  }
+  return profile;
+}
+
 export function saveTasteProfileToLocalStorage(profile: TasteProfile): void {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(TASTE_PROFILE_STORAGE_KEY, JSON.stringify(profile));

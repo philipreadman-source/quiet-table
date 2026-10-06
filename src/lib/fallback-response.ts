@@ -7,6 +7,7 @@ import {
   findVenueOption,
   formatOfferedAvailabilityLine,
   getVenueOptionsForIntent,
+  listUniqueCatalogVenues,
   nearestAvailableTimesAcrossVenues,
   paginateVenueOptions,
   rankVenueOptions,
@@ -48,7 +49,68 @@ type BookingDraft = {
   goingWithFriendIds?: string[];
   goingWithSkipped?: boolean;
   partyDietarySummary?: string;
+  searchQuery?: string;
 };
+
+const SEARCH_STOPWORDS = new Set([
+  'search', 'again', 'show', 'more', 'find', 'give', 'something', 'some', 'any', 'the', 'and', 'for',
+  'with', 'want', 'like', 'please', 'restaurant', 'restaurants', 'place', 'places', 'spot', 'spots',
+  'options', 'other', 'others', 'different', 'instead', 'food', 'dinner', 'lunch', 'table', 'tonight',
+  'what', 'about', 'how', 'can', 'you', 'get', 'try', 'maybe', 'let', 'lets', 'have', 'got', 'near',
+  'around', 'nice', 'good', 'great', 'best', 'new', 'one', 'ones', 'casual', 'date', 'night', 'group',
+  'business', 'michelin', 'star', 'party', 'people', 'tomorrow', 'today', 'amsterdam',
+]);
+
+const SEARCH_SYNONYMS: Record<string, string[]> = {
+  seafood: ['seafood', 'fish', 'oyster', 'shellfish', 'sushi', 'crab', 'lobster'],
+  fish: ['fish', 'seafood', 'oyster', 'sushi'],
+  vegetarian: ['vegetarian', 'veggie', 'plant'],
+  vegan: ['vegan', 'plant'],
+  pasta: ['pasta', 'italian', 'trattoria'],
+  pizza: ['pizza', 'italian'],
+  steak: ['steak', 'grill', 'meat'],
+  wine: ['wine', 'natural wine', 'bar'],
+};
+
+function searchTermsFromQuery(query: string | undefined, location: string | undefined): string[] {
+  if (query == null) return [];
+  const locationWords = new Set((location ?? '').toLowerCase().split(/[^a-zà-ÿ]+/));
+  return query
+    .toLowerCase()
+    .split(/[^a-zà-ÿ]+/)
+    .filter((word) => word.length >= 3 && !SEARCH_STOPWORDS.has(word) && !locationWords.has(word));
+}
+
+function venueMatchesTerms(venue: VenueOptionCard, terms: string[]): boolean {
+  const haystack = [venue.title, venue.subtitle, venue.description, venue.menu_overview]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return terms.some((term) =>
+    (SEARCH_SYNONYMS[term] ?? [term]).some((needle) => haystack.includes(needle)),
+  );
+}
+
+/** Keyword-narrowed catalog for fallback free text; falls back to the full catalog when nothing matches. */
+function catalogForSearch(
+  intent: string,
+  terms: string[],
+): {catalog: VenueOptionCard[]; matched: boolean} {
+  const intentCatalog = getVenueOptionsForIntent(intent);
+  if (terms.length === 0) return {catalog: intentCatalog, matched: false};
+  const inIntent = intentCatalog.filter((venue) => venueMatchesTerms(venue, terms));
+  const intentTitles = new Set(inIntent.map((venue) => venue.title.toLowerCase()));
+  const elsewhere = listUniqueCatalogVenues().filter(
+    (venue) => !intentTitles.has(venue.title.toLowerCase()) && venueMatchesTerms(venue, terms),
+  );
+  const matches = [...inIntent, ...elsewhere];
+  if (matches.length > 0) return {catalog: matches, matched: true};
+  return {catalog: intentCatalog, matched: false};
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 export type ClarifyOption = {id: string; label: string};
 
@@ -111,7 +173,8 @@ function buildVenueOptionsFallbackResponse(
   const time = draft.time!;
   const showMore = /\bshow more\b/i.test(message);
   const page = showMore ? (draft.venueResultsPage ?? 1) : 0;
-  const catalog = getVenueOptionsForIntent(draft.intent!);
+  const searchTerms = searchTermsFromQuery(draft.searchQuery, draft.location);
+  const {catalog, matched: searchMatched} = catalogForSearch(draft.intent!, searchTerms);
   const excluded = excludedVenueTitles(catalog, userMemory);
   const eligible = filterVenuesByAimedTime(
     filterExcludedVenues(catalog, userMemory),
@@ -181,10 +244,18 @@ function buildVenueOptionsFallbackResponse(
         ? `${mentionedFriend.name}'s taste in the mix`
         : null;
 
+  const matchedTerms = searchTerms.filter((term) =>
+    catalog.some((venue) => venueMatchesTerms(venue, [term])),
+  );
+  const searchLabel = (searchMatched ? matchedTerms : searchTerms).join(' ');
   const lead =
-    options?.locationChanged === true
-      ? `Top ${fallbackIntentLabel(draft.intent!)} picks in ${location}.`
-      : `Top ${fallbackIntentLabel(draft.intent!)} picks at ${time}.`;
+    searchTerms.length > 0
+      ? searchMatched
+        ? `${capitalize(searchLabel)} picks at ${time}.`
+        : `Nothing for "${searchLabel}" in the fallback data — here are other picks.`
+      : options?.locationChanged === true
+        ? `Top ${fallbackIntentLabel(draft.intent!)} picks in ${location}.`
+        : `Top ${fallbackIntentLabel(draft.intent!)} picks at ${time}.`;
 
   const bullets: string[] = [lead.trim()];
   if (friendHint != null) bullets.push(friendHint);
@@ -375,7 +446,8 @@ export function buildFallbackResponse(
     };
   }
 
-  if (venue != null) {
+  const mentionsVenue = venue != null && message.toLowerCase().includes(venue.toLowerCase());
+  if (venue != null && mentionsVenue) {
     const known = findVenueOption(venue);
     return {
       text: `${venue} fits the brief. Ready when you are.`,

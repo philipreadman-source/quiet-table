@@ -223,6 +223,7 @@ const POST_WIZARD_PLACEHOLDERS = {
   dietary: 'Or mention any dietary needs...',
   results: "Can't find what you're looking for? Or have any questions...",
   default: 'Or tell me anything else...',
+  fallback: 'Agent off — working from fallback data',
 } as const;
 
 const TODAY_ISO = new Date().toISOString().slice(0, 10) as ISODateString;
@@ -240,7 +241,9 @@ function resolveComposerPlaceholder(args: {
   wizardComplete: boolean;
   hasVenueResults: boolean;
   showingDietary: boolean;
+  agentFallback: boolean;
 }): string {
+  if (args.agentFallback && args.wizardComplete) return POST_WIZARD_PLACEHOLDERS.fallback;
   if (args.hasVenueResults) return POST_WIZARD_PLACEHOLDERS.results;
   if (args.showingDietary) return POST_WIZARD_PLACEHOLDERS.dietary;
   if (args.wizardComplete) return POST_WIZARD_PLACEHOLDERS.default;
@@ -292,6 +295,8 @@ type BookingDraft = {
   dietaryNeeds?: DietaryNeeds;
   venueResultsPage?: number;
   personalizationNoteShown?: boolean;
+  /** Latest free-text ask after results — fallback mode keyword-filters on it, show more keeps it. */
+  searchQuery?: string;
   occasion?: DateNightOccasion;
   spend?: DateNightSpend;
   occasionNotes?: string;
@@ -870,9 +875,7 @@ function mergeDraftFromText(
   if (placeMatch != null && parsedLocation == null) next.location = placeMatch[1];
   if (lower.includes('amsterdam') && parsedLocation == null) next.location = 'Amsterdam';
 
-  const maySetLocation =
-    stage === 'location' || (wizardComplete && draft.intent != null && draft.time != null);
-  if (maySetLocation && looksLikeLocationText(text)) {
+  if (!wizardComplete && stage === 'location' && looksLikeLocationText(text)) {
     next.location = toTitleCase(text.trim());
   }
 
@@ -894,13 +897,18 @@ async function callAgent(
   location: string | null,
   draft: BookingDraft,
   tasteProfile: TasteProfile | null,
-): Promise<{text: string; ui: UiDirective | null}> {
+): Promise<{text: string; ui: UiDirective | null; fallback?: boolean}> {
   const res = await fetch('/api/agent', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({history, message, location, draft, tasteProfile}),
   });
-  const body = (await res.json()) as {text: string; ui: UiDirective | null; error?: string};
+  const body = (await res.json()) as {
+    text: string;
+    ui: UiDirective | null;
+    fallback?: boolean;
+    error?: string;
+  };
   if (!res.ok) {
     throw new Error(body.error ?? `agent request failed: ${res.status}`);
   }
@@ -923,6 +931,7 @@ export default function Home() {
   const [wizardComposerThread, setWizardComposerThread] = useState<PostSummaryItem[]>([]);
   const [locationFromComposer, setLocationFromComposer] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [agentFallback, setAgentFallback] = useState(false);
   const [mainSection, setMainSection] = useState<HomeMainSection>('find');
   // Fixed pre-agent wizard: intent -> party size -> location -> date -> time.
   const [stage, setStage] = useState<WizardStage>('intent');
@@ -967,6 +976,7 @@ export default function Home() {
     wizardComplete,
     hasVenueResults,
     showingDietary,
+    agentFallback,
   });
 
   // Best-effort: ask for location. If permission is denied or geolocation
@@ -1115,6 +1125,9 @@ export default function Home() {
 
     let nextDraft =
       draftOverride ?? mergeDraftFromText(bookingDraft, text, stage, summaryExists);
+    if (summaryExists && draftOverride == null) {
+      nextDraft = {...nextDraft, venue: undefined, venueResultsPage: 0, searchQuery: text};
+    }
 
     if (
       summaryExists &&
@@ -1177,13 +1190,14 @@ export default function Home() {
 
     setIsLoading(true);
     try {
-      const {text: replyText, ui} = await callAgent(
+      const {text: replyText, ui, fallback} = await callAgent(
         history,
         text,
         nextDraft.location ?? userLocation,
         nextDraft,
         tasteProfile,
       );
+      setAgentFallback(fallback === true);
       const appendResponse = (prev: PostSummaryItem[]) =>
         appendAgentResponseToThread(prev, replyText, ui, options?.mergeOptions === true);
       if (isSummaryTurn || summaryExists) {

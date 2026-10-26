@@ -197,3 +197,10 @@
   line-height: 1.4;
   color: #a3a3a3;
 }
+
+/* Friends who liked or loved the venue — top-right of the card. */
+.friendStack {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-top: 2px;
+}

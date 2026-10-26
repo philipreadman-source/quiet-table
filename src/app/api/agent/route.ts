@@ -135,7 +135,7 @@ Discovery & menus (catalog + web):
 - Quiet Table ships a curated Amsterdam catalog (search_quiet_table_catalog). Treat it as solid product data: editorial lists, friend visits, dietary tags, stable ids.
 - For Amsterdam: one catalog search filtered by vibe and near from the draft. Include catalog picks in render_ui.options (exact id + title). For any other city, use web_search instead of the catalog. For Amsterdam, add web_search only when Michelin mode or the user asked for menus/openings not in catalog.
 - Venues on the cards come from this turn's search (catalog or web_search results). Friend and member data only ranks and labels those venues. Never use a friend's loved list as the result set. Add at most ONE friend favourite that search didn't return, and only for a friend in draft.goingWithFriendIds. If web_search returned venues, at least three cards must be from those results.
-- Put menu summaries in description / menu_overview. View menu only when menu_url is known (catalog or web).
+- Card text is short; the app fills in the rest. For catalog venues send only id and title: the app adds description, menu, links and availability from the catalog. Never set meta; the app uses it for availability. For web_search venues send title, subtitle (area · cuisine) and a one-sentence description (max 140 characters), plus menu_url when the search gave one. Never put menu_overview on an options list.
 - Never set image_url on options or detail — the UI is text-first (no venue photos).
 
 UI & booking (Quiet Table layer — non-negotiable):
@@ -146,9 +146,9 @@ UI & booking (Quiet Table layer — non-negotiable):
 - Optional context (noise preference, tie-in plans, dietary for a named guest) — pick up naturally if mentioned; never assume or center the flow on it.
 - Call get_user_dining_history when you need taste memory. Never re-suggest venues the user recently disliked; boost places they liked or saved.
 - Ground every claim in actual tool results this turn. Never narrate checks or obstacles that didn't happen.
-- At the end of every turn, call render_ui exactly once. interactive.type "options" works for venues, neighborhoods, or any short list. Include tool_status when you called other tools.
+- At the end of every turn, call render_ui exactly once. interactive.type "options" works for venues, neighborhoods, or any short list. Don't report tool calls; the app logs them itself.
 - After catalog search (and optional single web_search), render venue choices as interactive.type "options". After venue selection → "detail" for that venue. Quiet Table does not book tables: the detail card's Book button opens Google Maps and copies the date, time and party size. Never say a table is booked or confirmed.
-- Put AI menu summaries on the card (description / menu_overview), not behind View menu. View menu only for real menu_url.
+- Menu summaries (menu_overview, max 2 sentences, grounded in search results) go on the detail card only, after the user picks a venue. View menu only for a real menu_url.
 - Keep occasion options consistent with draft context — e.g. never offer "date night" when party size ≥ 3.
 - First venue-results spoken text (interactive.type "options" after draft complete): one tight hook only — e.g. vibe + strongest friend or dietary note + "pick a table below". No venue essays, no repeating card copy, empty string OK on "show more". Example shape: "Saturday date night — leaning on your taste profile and a friend's favourite. Three strong fits at 8:30."`;
 
@@ -201,19 +201,6 @@ const renderUiTool: Anthropic.Tool = {
   input_schema: {
     type: 'object',
     properties: {
-      tool_status: {
-        type: 'array',
-        description: 'Tool calls made this turn, for a transparency panel.',
-        items: {
-          type: 'object',
-          properties: {
-            name: {type: 'string'},
-            target: {type: 'string'},
-            status: {type: 'string', enum: ['complete', 'running']},
-          },
-          required: ['name', 'target', 'status'],
-        },
-      },
       interactive: {
         type: 'object',
         description: 'The one interactive control to render. Set type to "none" for a plain free-form question.',
@@ -231,20 +218,14 @@ const renderUiTool: Anthropic.Tool = {
             items: {
               type: 'object',
               properties: {
-                id: {type: 'string'},
+                id: {type: 'string', description: 'Catalog id for catalog venues'},
                 title: {type: 'string'},
-                subtitle: {type: 'string'},
-                meta: {type: 'string'},
-                description: {type: 'string'},
+                subtitle: {type: 'string', description: 'Web venues only: area · cuisine'},
+                description: {type: 'string', description: 'Web venues only: one sentence, max 140 characters'},
                 cta_label: {type: 'string'},
                 menu_url: {
                   type: 'string',
                   description: 'Exact menu page URL from web_search when available',
-                },
-                menu_overview: {
-                  type: 'string',
-                  description:
-                    'Short AI menu summary when menu_url is unknown — grounded in search results, no invented dishes',
                 },
                 michelin_guide_url: {
                   type: 'string',

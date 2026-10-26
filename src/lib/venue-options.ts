@@ -860,20 +860,13 @@ function dietaryRankScore(tags: DietaryTag[] | undefined, needs: DietaryNeeds | 
  * Callers should filter with filterVenuesByAimedTime first. */
 export function rankVenueOptions(
   options: VenueOptionCard[],
-  dateIso: string | undefined,
-  time: string,
+  _dateIso: string | undefined,
+  _time: string,
   dietaryNeeds?: DietaryNeeds,
   memoryRank?: (venueId: string) => number,
 ): VenueOptionCard[] {
+  // Ranked on taste and diet only: there's no real availability to sort by.
   return [...options].sort((a, b) => {
-    if (dateIso != null) {
-      const offeredA = resolveOfferedAvailability(a.id, dateIso, time);
-      const offeredB = resolveOfferedAvailability(b.id, dateIso, time);
-      const rankKind = (kind: OfferedAvailability['kind'] | undefined) =>
-        kind === 'exact' ? 2 : kind === 'near-15' ? 1 : kind === 'near-30' ? 0 : -1;
-      const kindDiff = rankKind(offeredB?.kind) - rankKind(offeredA?.kind);
-      if (kindDiff !== 0) return kindDiff;
-    }
     if (memoryRank != null) {
       const memA = memoryRank(a.id);
       const memB = memoryRank(b.id);
@@ -896,28 +889,10 @@ export function paginateVenueOptions(
   return {options, hasMore: start + pageSize < ranked.length, total: ranked.length};
 }
 
-export function buildVenueOptionsTitle(
-  _total: number,
-  time: string,
-  dateIso: string | undefined,
-  ranked: VenueOptionCard[],
-): string {
-  if (dateIso == null) return `Top restaurants at ${time}`;
-  if (_total === 0) {
-    const nearestTimes = nearestAvailableTimesAcrossVenues(
-      ranked.map((option) => option.id),
-      dateIso,
-      time,
-    );
-    return nearestTimes.length > 0
-      ? `No tables around ${time} — try ${nearestTimes.join(' or ')}`
-      : `No tables around ${time}`;
-  }
-  const exactCount = ranked.filter((option) => isVenueAvailableAt(option.id, dateIso, time)).length;
-  if (exactCount === _total) {
-    return `Top restaurants at ${time}`;
-  }
-  return `Top restaurants around ${time}`;
+// No live availability, so the title never claims a table is open or full.
+export function buildVenueOptionsTitle(total: number, time: string): string {
+  if (total === 0) return 'No matches for that yet';
+  return `Top restaurants for ${time}`;
 }
 
 export function formatDietaryBadge(

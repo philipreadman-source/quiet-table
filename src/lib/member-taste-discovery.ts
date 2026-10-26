@@ -26,6 +26,22 @@ function whenFromPick(pick: FriendPick): string | undefined {
   return undefined;
 }
 
+/** Members who liked or loved this venue, most recent visit first — the card's avatar stack. */
+export function membersWhoLikedVenue(
+  venueId: string,
+  venueTitle: string,
+  members: FriendFoodProfile[],
+): FriendFoodProfile[] {
+  return members
+    .map((member) => ({member, pick: pickForVenue(member, venueId, venueTitle)}))
+    .filter(
+      (entry): entry is {member: FriendFoodProfile; pick: FriendPick} =>
+        entry.pick != null && entry.pick.rating !== 'fine',
+    )
+    .sort((a, b) => b.pick.visitedAt.localeCompare(a.pick.visitedAt))
+    .map((entry) => entry.member);
+}
+
 /** Beta: empty wizard selection → weight all other members' tastes. */
 export function effectiveCommunityCompanionIds(
   selectedCompanionIds: string[] | undefined,

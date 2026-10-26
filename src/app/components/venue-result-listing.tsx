@@ -2,6 +2,8 @@
 
 import {useState, type CSSProperties, type MouseEvent, type ReactNode} from 'react';
 import {Sparkles} from 'lucide-react';
+import {Avatar} from '@astryxdesign/core/Avatar';
+import {AvatarGroup, AvatarGroupOverflow} from '@astryxdesign/core/AvatarGroup';
 import {Button} from '@astryxdesign/core/Button';
 import {
   enrichVenueOption,
@@ -9,13 +11,14 @@ import {
   formatMichelinLine,
   formatRatingsLine,
   formatSocialProof,
-  formatVenueAvailabilityLine,
   resolveMenuAction,
   venueAiWriteUps,
   type DietaryNeeds,
   type VenueOptionCard,
 } from '@/lib/venue-options';
 import {formatPersonalizationBadge, getUserMemory, type UserMemory} from '@/lib/user-memory';
+import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
+import {membersWhoLikedVenue} from '@/lib/member-taste-discovery';
 import {PersonaAvatar, PrincipalAvatar} from '@/app/components/persona-avatar';
 import {BookOnMapsIcon} from '@/app/components/book-on-maps-icon';
 import styles from './venue-result-listing.module.css';
@@ -182,15 +185,26 @@ function VenueListActions({
   );
 }
 
+const FRIEND_STACK_MAX = 3;
+
+function friendStackLabel(fans: FriendFoodProfile[]): string {
+  const names = fans.slice(0, 2).map((member) => member.name);
+  const others = fans.length - names.length;
+  if (others > 0) return `${names.join(', ')} and ${others} more loved it`;
+  return `${names.join(' and ')} loved it`;
+}
+
 export function VenueResultListingContent({
   option,
-  date,
-  time,
   dietaryNeeds,
   onBookTable,
   userMemory,
+  communityMembers,
 }: {
   option: VenueOptionCard;
+  /** Real members; anyone who liked or loved this venue shows in the avatar stack. */
+  communityMembers?: FriendFoodProfile[];
+  /** Kept for callers; cards no longer show availability. */
   date?: string;
   time?: string;
   dietaryNeeds?: DietaryNeeds;
@@ -206,12 +220,13 @@ export function VenueResultListingContent({
   const personalizationBadge = formatPersonalizationBadge(enriched.id, memory);
   const menuAction = resolveMenuAction(enriched);
   const aiWriteUps = venueAiWriteUps(enriched).slice(0, 1);
+  // Everyone in the stack liked or loved it; newest visit first.
+  const fans = membersWhoLikedVenue(enriched.id, enriched.title, communityMembers ?? []);
+  const fansLabel = friendStackLabel(fans);
 
-  const availabilityLine =
-    enriched.meta ??
-    (date != null && time != null
-      ? formatVenueAvailabilityLine(enriched.id, date, time)
-      : null);
+  // No real availability source: the Google Maps button is where a table gets
+  // checked, so cards don't show invented open times.
+  const availabilityLine = enriched.meta ?? null;
 
   const handleViewMenu = () => {
     if (menuAction?.mode === 'exact') {
@@ -220,7 +235,9 @@ export function VenueResultListingContent({
   };
 
   const metaRows: {key: string; icon?: ReactNode; avatar?: ReactNode; text: string}[] = [];
-  if (social != null && enriched.social_proof != null) {
+  // The avatar stack already shows friends, so skip the single-friend line then.
+  const friendLineInStack = fans.length > 0 && enriched.social_proof?.source === 'contact';
+  if (social != null && enriched.social_proof != null && !friendLineInStack) {
     const proof = enriched.social_proof;
     metaRows.push({
       key: 'social',
@@ -275,6 +292,22 @@ export function VenueResultListingContent({
             </span>
           )}
         </div>
+        {fans.length > 0 && (
+          <div className={styles.friendStack} title={fansLabel} aria-label={fansLabel}>
+            <AvatarGroup size={24}>
+              {fans.slice(0, FRIEND_STACK_MAX).map((member) => (
+                <Avatar
+                  key={member.id}
+                  name={member.fullName || member.name}
+                  src={member.avatarSrc}
+                />
+              ))}
+              {fans.length > FRIEND_STACK_MAX && (
+                <AvatarGroupOverflow count={fans.length - FRIEND_STACK_MAX} />
+              )}
+            </AvatarGroup>
+          </div>
+        )}
       </div>
 
       {aiWriteUps.length > 0 && (

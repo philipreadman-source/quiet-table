@@ -1,14 +1,10 @@
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
 import {friendRankScoreForCompanions} from '@/lib/friend-graph-mock';
 import {
-  assignOfferedAvailabilityForResults,
   buildVenueOptionsTitle,
-  filterVenuesByAimedTime,
   findVenueOption,
-  formatOfferedAvailabilityLine,
   getVenueOptionsForIntent,
   listUniqueCatalogVenues,
-  nearestAvailableTimesAcrossVenues,
   paginateVenueOptions,
   rankVenueOptions,
   TIME_SLOTS,
@@ -200,11 +196,7 @@ function buildVenueOptionsFallbackResponse(
     return {text: FALLBACK_CAPABILITIES_MESSAGE, ui: {interactive: {type: 'none'}}};
   }
   const excluded = excludedVenueTitles(catalog, userMemory);
-  const eligible = filterVenuesByAimedTime(
-    filterExcludedVenues(catalog, userMemory),
-    dateIso,
-    time,
-  );
+  const eligible = filterExcludedVenues(catalog, userMemory);
   const ranked = rankVenueOptions(
     eligible,
     dateIso,
@@ -221,11 +213,8 @@ function buildVenueOptionsFallbackResponse(
       ),
   );
   const {options: pageOptions, hasMore, total} = paginateVenueOptions(ranked, page);
-  const offeredById =
-    dateIso != null ? assignOfferedAvailabilityForResults(ranked, dateIso, time) : new Map();
   const optionsOut = pageOptions.map((option) => {
-    const offered = offeredById.get(option.id);
-    let row = offered != null ? {...option, meta: formatOfferedAvailabilityLine(offered)} : option;
+    let row = option;
     const companionProof = memberSocialProofForVenue(
       row.id,
       row.title,
@@ -236,18 +225,7 @@ function buildVenueOptionsFallbackResponse(
     return row;
   });
 
-  let title = buildVenueOptionsTitle(total, time, dateIso, ranked);
-  if (total === 0 && dateIso != null) {
-    const nearestTimes = nearestAvailableTimesAcrossVenues(
-      catalog.map((option) => option.id),
-      dateIso,
-      time,
-    );
-    title =
-      nearestTimes.length > 0
-        ? `No tables around ${time} — try ${nearestTimes.join(' or ')}`
-        : `No tables around ${time}`;
-  }
+  const title = buildVenueOptionsTitle(total, time);
 
   const exclusionNote =
     page === 0 && draft.personalizationNoteShown !== true
@@ -405,11 +383,8 @@ function tryBroadCatalogOptions(
       friendRankScoreForCompanions(venueId, companionIds, message, intent, communityLookup),
   );
   const {options: pageOptions, hasMore, total} = paginateVenueOptions(ranked, 0);
-  const offeredById =
-    dateIso != null ? assignOfferedAvailabilityForResults(ranked, dateIso, time) : new Map();
   const optionsOut = pageOptions.map((option: VenueOptionCard) => {
-    const offered = offeredById.get(option.id);
-    let row = offered != null ? {...option, meta: formatOfferedAvailabilityLine(offered)} : option;
+    let row = option;
     const companionProof = memberSocialProofForVenue(
       row.id,
       row.title,

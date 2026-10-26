@@ -634,6 +634,7 @@ function AgentUiBlock({
   onSelectVenue,
   showMoreEnabled = true,
   userMemory,
+  communityMembers,
 }: {
   ui: UiDirective;
   venueOptions?: VenueOptionCard[];
@@ -642,6 +643,7 @@ function AgentUiBlock({
   onSelectVenue: (title: string) => void;
   showMoreEnabled?: boolean;
   userMemory: UserMemory;
+  communityMembers: FriendFoodProfile[];
 }) {
   const interactive = ui.interactive;
   const listingOptions =
@@ -750,6 +752,7 @@ function AgentUiBlock({
                   dietaryNeeds={bookingDraft.dietaryNeeds}
                   onBookTable={() => bookVenueOnMaps(enriched)}
                   userMemory={userMemory}
+                  communityMembers={communityMembers}
                 />
               </Card>
             );
@@ -1657,6 +1660,7 @@ export default function Home() {
                                 }
                                 showMoreEnabled={index === lastOptionsUiIndex}
                                 userMemory={userMemory}
+                                communityMembers={memberFriends}
                               />
                             </ChatMessageBubble>
                           </ChatMessage>

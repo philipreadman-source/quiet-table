@@ -7,7 +7,9 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {HStack, VStack} from '@astryxdesign/core/Layout';
+import {RadioList, RadioListItem} from '@astryxdesign/core/RadioList';
 import {Text} from '@astryxdesign/core/Text';
+import {TextArea} from '@astryxdesign/core/TextArea';
 import {TextInput} from '@astryxdesign/core/TextInput';
 import {PrincipalAvatar} from '@/app/components/persona-avatar';
 import {ProfileMyPlacesSection} from '@/app/components/profile-my-places';
@@ -18,6 +20,8 @@ import {
 import {clerkDisplayName, mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {
   buildOnboardingSummaryRows,
+  DIET_OPTIONS,
+  DIETARY_NOTES_MAX,
   inviteShareMessage,
   inviteShareUrl,
   recordProfileInviteSent,
@@ -53,6 +57,11 @@ export function HomeProfileTabPanel({
   const [homeAreaInput, setHomeAreaInput] = useState(profile.homeArea);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null);
+  const savedDiet = profile.preferences.dietaryLean ?? 'none';
+  const savedDietNotes = profile.preferences.dietaryNotes ?? '';
+  const [dietInput, setDietInput] = useState(savedDiet);
+  const [dietNotesInput, setDietNotesInput] = useState(savedDietNotes);
+  const [dietSaveNote, setDietSaveNote] = useState<string | null>(null);
   const [inviteShareNote, setInviteShareNote] = useState<string | null>(null);
   const [quizActive, setQuizActive] = useState(false);
   const quizRef = useRef<ProfileTasteQuizHandle>(null);
@@ -63,7 +72,31 @@ export function HomeProfileTabPanel({
   useEffect(() => {
     setUsernameInput(profile.username);
     setHomeAreaInput(profile.homeArea);
-  }, [profile.username, profile.homeArea]);
+    setDietInput(savedDiet);
+    setDietNotesInput(savedDietNotes);
+  }, [profile.username, profile.homeArea, savedDiet, savedDietNotes]);
+
+  const dietNotesTooLong = dietNotesInput.trim().length > DIETARY_NOTES_MAX;
+  const dietDirty = dietInput !== savedDiet || dietNotesInput.trim() !== savedDietNotes;
+
+  // The agent reads these as hard limits for this user, and for any friend
+  // who books with them, so they're saved on their own, not with the name.
+  const handleDietSave = () => {
+    if (dietNotesTooLong) return;
+    const notes = dietNotesInput.trim();
+    const next: TasteProfile = {
+      ...profile,
+      preferences: {
+        ...profile.preferences,
+        dietaryLean: dietInput,
+        dietaryNotes: notes.length > 0 ? notes : undefined,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    saveTasteProfile(next);
+    onProfileSaved(next);
+    setDietSaveNote('Dietary needs saved.');
+  };
 
   const handleSave = () => {
     setSaveNote(null);
@@ -148,7 +181,7 @@ export function HomeProfileTabPanel({
             label="Username"
             value={usernameInput}
             onChange={setUsernameInput}
-            placeholder="philip"
+            placeholder="yourname"
             status={usernameError != null ? {type: 'error', message: usernameError} : undefined}
           />
           <TextInput
@@ -163,6 +196,62 @@ export function HomeProfileTabPanel({
           {saveNote != null && (
             <Banner status="success" title={saveNote} />
           )}
+        </VStack>
+
+        <VStack gap={2} align="stretch" style={{marginTop: 'var(--spacing-8)'}}>
+          <Text type="label" weight="semibold">
+            Dietary needs
+          </Text>
+          <Text type="supporting" color="secondary">
+            Quiet Table leaves out places you can&apos;t eat at, for you and for friends booking with you.
+          </Text>
+          <Card padding={4}>
+            <VStack gap={4} align="stretch">
+              <RadioList
+                label="Diet"
+                isLabelHidden
+                value={dietInput}
+                onChange={(value) => {
+                  const option = DIET_OPTIONS.find((item) => item.id === value);
+                  if (option != null) setDietInput(option.id);
+                  setDietSaveNote(null);
+                }}>
+                {DIET_OPTIONS.map((option) => (
+                  <RadioListItem
+                    key={option.id}
+                    value={option.id}
+                    label={option.label}
+                    description={option.description}
+                  />
+                ))}
+              </RadioList>
+              <TextArea
+                label="Allergies and other notes"
+                value={dietNotesInput}
+                onChange={(value) => {
+                  setDietNotesInput(value);
+                  setDietSaveNote(null);
+                }}
+                isOptional
+                placeholder="e.g. nut allergy, no pork, lactose intolerant"
+                rows={2}
+                maxLength={DIETARY_NOTES_MAX}
+                status={
+                  dietNotesTooLong
+                    ? {type: 'error', message: `Keep it under ${DIETARY_NOTES_MAX} characters.`}
+                    : undefined
+                }
+              />
+              <HStack hAlign="start">
+                <Button
+                  label="Save dietary needs"
+                  onClick={handleDietSave}
+                  isDisabled={!dietDirty || dietNotesTooLong}
+                />
+              </HStack>
+              {dietSaveNote != null && <Banner status="success" title={dietSaveNote} />}
+            </VStack>
+          </Card>
         </VStack>
 
         <VStack gap={2} align="stretch" style={{marginTop: 'var(--spacing-8)'}}>

@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import {NextResponse} from 'next/server';
-import {checkVenueAvailability, createBooking, getContactPreferences, searchTables} from '@/lib/booking-data';
+import {searchTables} from '@/lib/booking-data';
 import type {DietaryNeeds} from '@/lib/venue-options';
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
 import {
@@ -9,7 +9,7 @@ import {
   summarizeUserMemoryForAgent,
 } from '@/lib/user-memory';
 import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
-import {getFriendFoodProfile, summarizeFriendForAgent} from '@/lib/friend-graph-mock';
+import {summarizeFriendForAgent} from '@/lib/friend-graph-mock';
 import {tasteProfileToFriendFoodProfile} from '@/lib/member-friends';
 import {listMemberProfilesForSession} from '@/lib/member-registry-server';
 import {summarizeCommunityTasteForAgent} from '@/lib/member-taste-discovery';
@@ -37,6 +37,63 @@ const USE_LOCAL_FALLBACK = useLocalFallback();
 
 const client = new Anthropic();
 
+// Model for the live agent. Set AGENT_MODEL in Vercel to switch without a code
+// change. Haiku is the current choice for cost testing.
+const AGENT_MODEL = process.env.AGENT_MODEL?.trim() || 'claude-sonnet-4-6';
+
+// Token measurement for cost work. Logs counts only, never message text.
+// Read in Vercel → Logs by searching for "agent_usage".
+function logUsage(iteration: number, response: Anthropic.Beta.BetaMessage, systemChars: number) {
+  console.log(
+    'agent_usage',
+    JSON.stringify({
+      iteration,
+      model: response.model,
+      stop_reason: response.stop_reason,
+      system_chars: systemChars,
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+      cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
+      cache_creation_input_tokens: response.usage.cache_creation_input_tokens ?? 0,
+      web_search_requests: response.usage.server_tool_use?.web_search_requests ?? 0,
+      tools_called: toolsCalled(response),
+      web_search_errors: webSearchErrors(response),
+    }),
+  );
+}
+
+// Names of every tool the model called this round, client and server side.
+function toolsCalled(response: Anthropic.Beta.BetaMessage): string[] {
+  return response.content.flatMap((block) =>
+    block.type === 'tool_use' || block.type === 'server_tool_use' ? [block.name] : [],
+  );
+}
+
+// Web search failures come back inside the response as an error object, not
+// as a thrown error, so they never reach the catch block. Log their codes.
+function webSearchErrors(response: Anthropic.Beta.BetaMessage): string[] {
+  return response.content.flatMap((block) => {
+    if (block.type !== 'web_search_tool_result') return [];
+    const content = block.content as unknown;
+    if (Array.isArray(content)) return [];
+    const code = (content as {error_code?: unknown}).error_code;
+    return [typeof code === 'string' ? code : 'unknown_error'];
+  });
+}
+
+type FallbackArgs = Parameters<typeof buildFallbackResponse>;
+
+// Answers from the catalog with a short note, for when live search can't
+// finish inside the turn budget. Keeps the chat from waiting on a dead request.
+function fallbackWithNote(note: string, ...args: FallbackArgs) {
+  const fallback = buildFallbackResponse(...args);
+  return NextResponse.json({
+    ...fallback,
+    text: [note, fallback.text].filter(Boolean).join('\n\n'),
+    fallback: true,
+  });
+}
+
 function agentErrorResponse(error: unknown) {
   console.error('[agent] Anthropic request failed:', error);
   let detail = 'Agent unavailable';
@@ -59,11 +116,10 @@ Identity & tone:
 - Ask clarifying questions when a request is ambiguous (city, occasion, budget) — but respect that the web wizard may already have captured party size, date, time, and dietary needs via cards and pickers; don't re-ask what's in the draft.
 
 Social graph & trust (Friend Foodie layer):
-- When recommending, prioritize restaurants friends have visited and rated highly. Note which friend(s) went and what they said when that data exists in get_user_dining_history or context — surface it on cards via subtitle or meta (e.g. "Maya booked last month").
+- Among the venues your search returned, rank ones friends have visited and rated highly first. Note which friend(s) went and what they said when that data exists in get_user_dining_history or context — surface it on cards via subtitle or meta (e.g. "<friend name> loved it last month").
 - If you have no logged friend-visit data for this user/city, say so plainly in spoken text — do not invent friend reviews or fake social proof. Offer general (non-friend-sourced) suggestions ranked by vibe, taste memory, and availability instead.
 - Passive signals beat reviews: a friend's booking or save is enough; don't ask users to write reviews in chat.
-- Use get_friend_food_profile when the user names a friend or asks for picks in a friend's taste. Synthetic demo friends until real users join: Savas Ozay (ramen, Korean BBQ, Asian fusion), Maya Chen (quiet date nights, wine), Emma van Dijk (group Italian, shareable tables; pescatarian — vegetarian plus fish/seafood, no meat).
-- Use get_contact_preferences when a named guest is mentioned for dietary needs. Help build the graph over time by acknowledging saves, likes, and bookings the user makes in-session.
+- Friends are real Quiet Table members, listed in the Member taste graph JSON. Use get_friend_food_profile only for a named friend missing from it. Help build the graph over time by acknowledging saves and likes the user makes in-session.
 - As the social graph grows, warm friend signals should progressively outweigh generic picks; when the graph is empty, lean on taste memory and honest fit copy.
 
 Vibe, price & Michelin:
@@ -72,32 +128,29 @@ Vibe, price & Michelin:
 - MICHELIN MODE: When the booking draft intent is Michelin star, run exactly ONE web_search (e.g. site:guide.michelin.com Michelin star restaurants Amsterdam Noord). Do not repeat web_search with rephrased queries. Only propose restaurants you found on guide.michelin.com. Every venue in render_ui.options MUST include michelin_guide_url and michelin_distinction when known. Never claim Michelin status without a Guide URL.
 
 Tool budget (speed — follow strictly):
-- Venue-results turn (first options list after draft complete): at most ONE search_quiet_table_catalog, at most ONE web_search (Michelin intent only, or catalog clearly insufficient), ZERO check_venue_availability calls. Card times are illustrative; the product does not have live reservation APIs in beta.
-- Do NOT call get_friend_food_profile when Member taste graph JSON is already in context — use that data for Savas and other members.
+- Venue-results turn (first options list after draft complete): at most ONE search_quiet_table_catalog, at most ONE web_search (cities other than Amsterdam, Michelin intent, or the catalog has nothing for the request). Card times are illustrative; there are no live reservation APIs.
+- Do NOT call get_friend_food_profile when Member taste graph JSON is already in context — use that data for members.
 - Do NOT call get_user_dining_history if User dining memory JSON is already in context unless the user just changed preferences in chat.
-- check_venue_availability: only when the user has picked one specific venue and is confirming a booking — never to "pre-check" every option on the list.
-- search_tables is an alias of search_quiet_table_catalog — pick one catalog call per turn.
-
 Discovery & menus (catalog + web):
 - Quiet Table ships a curated Amsterdam catalog (search_quiet_table_catalog). Treat it as solid product data: editorial lists, friend visits, dietary tags, stable ids.
-- For Amsterdam: one catalog search filtered by vibe and near from the draft. Include catalog picks in render_ui.options (exact id + title). Add web_search only when Michelin mode or the user asked for menus/openings not in catalog.
+- For Amsterdam: one catalog search filtered by vibe and near from the draft. Include catalog picks in render_ui.options (exact id + title). For any other city, use web_search instead of the catalog. For Amsterdam, add web_search only when Michelin mode or the user asked for menus/openings not in catalog.
+- Venues on the cards come from this turn's search (catalog or web_search results). Friend and member data only ranks and labels those venues. Never use a friend's loved list as the result set. Add at most ONE friend favourite that search didn't return, and only for a friend in draft.goingWithFriendIds. If web_search returned venues, at least three cards must be from those results.
 - Put menu summaries in description / menu_overview. View menu only when menu_url is known (catalog or web).
 - Never set image_url on options or detail — the UI is text-first (no venue photos).
 
 UI & booking (Quiet Table layer — non-negotiable):
-- The UI is the primary path. Prefer structured render_ui controls (venue cards, detail, confirm, success) over prose-only next steps. Spoken text explains why the UI choices are shown; it doesn't replace them.
+- The UI is the primary path. Prefer structured render_ui controls (venue cards, detail) over prose-only next steps. Spoken text explains why the UI choices are shown; it doesn't replace them.
 - Treat the booking draft JSON from the client as source of truth. If the user's latest text changes part of it, acknowledge and return the next useful UI control.
-- When draft.goingWithFriendIds is set: boost venues from those friends' catalog picks (search_quiet_table_catalog / get_friend_food_profile), surface their social lines on cards, and honor draft.dietaryNeeds + draft.partyDietarySummary from companion restrictions (e.g. pescatarian — fish OK, no meat).
+- When draft.goingWithFriendIds is set: rank search results by those friends' taste (cuisines, vibes, venues they loved), surface their social lines on cards, and honor draft.dietaryNeeds + draft.partyDietarySummary from companion restrictions (e.g. pescatarian — fish OK, no meat).
+- Dietary limits are hard filters, not ranking hints. Read them from draft.dietaryNeeds, draft.partyDietarySummary, the user's memory preferences (dietaryLean, dietaryNotes) and dietaryNotes for each friend in draft.goingWithFriendIds. Drop any venue built around food someone in the party can't eat (e.g. steakhouses, smokehouses and BBQ for a vegetarian or pescatarian). When the user states a new limit in chat, search again with it rather than re-ranking the previous cards.
 - Optional context (noise preference, tie-in plans, dietary for a named guest) — pick up naturally if mentioned; never assume or center the flow on it.
 - Call get_user_dining_history when you need taste memory. Never re-suggest venues the user recently disliked; boost places they liked or saved.
-- Never call create_booking without explicit prior confirmation in this conversation.
 - Ground every claim in actual tool results this turn. Never narrate checks or obstacles that didn't happen.
 - At the end of every turn, call render_ui exactly once. interactive.type "options" works for venues, neighborhoods, or any short list. Include tool_status when you called other tools.
-- After catalog search (and optional single web_search), render venue choices as interactive.type "options". After venue selection → "detail" or "confirm". Use interactive.type "success" the moment create_booking has run.
+- After catalog search (and optional single web_search), render venue choices as interactive.type "options". After venue selection → "detail" for that venue. Quiet Table does not book tables: the detail card's Book button opens Google Maps and copies the date, time and party size. Never say a table is booked or confirmed.
 - Put AI menu summaries on the card (description / menu_overview), not behind View menu. View menu only for real menu_url.
 - Keep occasion options consistent with draft context — e.g. never offer "date night" when party size ≥ 3.
-- You have Astryx design system access via MCP — consult it when choosing render_ui patterns.
-- First venue-results spoken text (interactive.type "options" after draft complete): one tight hook only — e.g. vibe + strongest friend or dietary note + "pick a table below". No venue essays, no repeating card copy, empty string OK on "show more". Example shape: "Saturday date night — leaning on Maya's favourites and your taste profile. Three strong fits at 8:30."`;
+- First venue-results spoken text (interactive.type "options" after draft complete): one tight hook only — e.g. vibe + strongest friend or dietary note + "pick a table below". No venue essays, no repeating card copy, empty string OK on "show more". Example shape: "Saturday date night — leaning on your taste profile and a friend's favourite. Three strong fits at 8:30."`;
 
 const domainTools: Anthropic.Tool[] = [
   {
@@ -112,16 +165,7 @@ const domainTools: Anthropic.Tool[] = [
       'Rarely needed — member taste graph is already in context. Only if the user names a friend who is NOT in that JSON.',
     input_schema: {
       type: 'object',
-      properties: {name: {type: 'string', description: 'Friend first name or id, e.g. Savas, Maya, Emma'}},
-      required: ['name'],
-    },
-  },
-  {
-    name: 'get_contact_preferences',
-    description: "Look up a named contact's saved preferences, e.g. dietary restrictions.",
-    input_schema: {
-      type: 'object',
-      properties: {name: {type: 'string', description: 'First name of the contact'}},
+      properties: {name: {type: 'string', description: 'Friend first name or member id'}},
       required: ['name'],
     },
   },
@@ -139,53 +183,17 @@ const domainTools: Anthropic.Tool[] = [
       },
     },
   },
-  {
-    name: 'search_tables',
-    description: 'Alias for search_quiet_table_catalog — prefer search_quiet_table_catalog.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        vibe: {type: 'string'},
-        near: {type: 'string'},
-        query: {type: 'string'},
-        limit: {type: 'integer'},
-        party_size: {type: 'integer'},
-        time_window: {type: 'string'},
-        dietary_restrictions: {type: 'array', items: {type: 'string'}},
-      },
-    },
-  },
-  {
-    name: 'check_venue_availability',
-    description:
-      'Beta stub only — not a live reservation system. Call ONLY once, when the user is confirming a booking for one chosen venue. Never call for every card on an options list.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        venue_id: {type: 'string'},
-        time: {type: 'string'},
-      },
-      required: ['venue_id', 'time'],
-    },
-  },
-  {
-    name: 'create_booking',
-    description: 'Book a table. Only call after the user has explicitly confirmed the venue and time.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        venue_id: {type: 'string'},
-        time: {type: 'string'},
-        party_size: {type: 'integer'},
-      },
-      required: ['venue_id', 'time', 'party_size'],
-    },
-  },
 ];
 
 // Server-side tool — Anthropic runs the search and returns results inline in
-// the same turn, no client round-trip. GA, no beta header needed.
-const webSearchTool = {type: 'web_search_20260209', name: 'web_search', max_uses: 1};
+// the same turn, no client round-trip. GA, no beta header needed. Haiku gets
+// the basic version: the dynamic-filtering one rejected its search input
+// (invalid_tool_input). Two uses so one bad attempt doesn't end the search.
+const webSearchTool = {
+  type: AGENT_MODEL.includes('haiku') ? 'web_search_20250305' : 'web_search_20260209',
+  name: 'web_search',
+  max_uses: 2,
+};
 
 const renderUiTool: Anthropic.Tool = {
   name: 'render_ui',
@@ -212,7 +220,7 @@ const renderUiTool: Anthropic.Tool = {
         properties: {
           type: {
             type: 'string',
-            enum: ['none', 'confirm', 'options', 'detail', 'success'],
+            enum: ['none', 'confirm', 'options', 'detail'],
           },
           question: {type: 'string', description: 'For type=confirm'},
           confirm_label: {type: 'string', description: 'For type=confirm'},
@@ -323,17 +331,12 @@ function executeDomainTool(
       return summarizeUserMemoryForAgent(getUserMemory(tasteProfile));
     case 'get_friend_food_profile': {
       const rawName = String(input.name ?? '');
-      const friend =
-        resolveCommunityFriendByName(rawName, communityMembers) ??
-        getFriendFoodProfile(rawName);
+      const friend = resolveCommunityFriendByName(rawName, communityMembers);
       return friend != null
         ? summarizeFriendForAgent(friend)
         : {error: 'No friend profile on file — do not invent visits or reviews.'};
     }
-    case 'get_contact_preferences':
-      return getContactPreferences(String(input.name ?? ''));
-    case 'search_quiet_table_catalog':
-    case 'search_tables': {
+    case 'search_quiet_table_catalog': {
       const catalog = searchTables(input);
       const memory = getUserMemory(tasteProfile);
       const allowedIds = new Set(
@@ -344,10 +347,6 @@ function executeDomainTool(
       );
       return catalog.filter((row) => allowedIds.has(row.id));
     }
-    case 'check_venue_availability':
-      return checkVenueAvailability(input as {venue_id: string; time: string});
-    case 'create_booking':
-      return createBooking(input as {venue_id: string; time: string; party_size: number});
     default:
       return {error: `unknown tool: ${name}`};
   }
@@ -393,12 +392,18 @@ export async function POST(request: Request) {
     draft != null ? `Current booking draft JSON: ${JSON.stringify(draft)}.` : null,
     `User dining memory JSON: ${JSON.stringify(summarizeUserMemoryForAgent(memory))}.`,
     communityMembers.length > 0
-      ? `Member taste graph (beta — treat every member as followed; boost their loved/liked venues in results): ${JSON.stringify(summarizeCommunityTasteForAgent(communityMembers))}.`
+      ? `Member taste graph (beta — use it to rank and label search results, not as a source of venues):${JSON.stringify(summarizeCommunityTasteForAgent(communityMembers))}.`
       : 'No other members on the table yet — rely on the signed-in user taste profile only.',
     catalogAgentContextLine(),
   ].filter(Boolean);
 
   const system = contextLines.length > 0 ? `${SYSTEM_PROMPT}\n\n${contextLines.join('\n')}` : SYSTEM_PROMPT;
+  // Static instructions first, marked for caching. Per-request context follows
+  // uncached, so the cached prefix holds across turns and users.
+  const systemBlocks: Anthropic.Beta.BetaTextBlockParam[] = [
+    {type: 'text', text: SYSTEM_PROMPT, cache_control: {type: 'ephemeral'}},
+    ...(contextLines.length > 0 ? [{type: 'text' as const, text: contextLines.join('\n')}] : []),
+  ];
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     ...history.map((turn) => ({role: turn.role, content: turn.text})),
@@ -411,34 +416,44 @@ export async function POST(request: Request) {
   // never from the model's self-reported render_ui.tool_status. Models will
   // happily narrate tool calls (and results) that never happened otherwise.
   const executedCalls: {name: string; target: string; status: 'complete'}[] = [];
-  let tableBookingResult: ReturnType<typeof createBooking> | null = null;
   // web_search's dynamic filtering runs code execution under the hood, which
   // leaves pending tool uses tied to a container — later iterations within
   // this same turn must reference that container or the API rejects them.
   let containerId: string | undefined;
 
+  // Turn budget: live Claude + web search can outlast the platform's function
+  // limit, and a dead request leaves the chat waiting with no cards. Past this,
+  // answer from the catalog and say so.
+  const TURN_BUDGET_MS = 25_000;
+  const TIMED_OUT_NOTE = 'Live search ran out of time, so these picks come from the Quiet Table catalog.';
+  const turnStartedAt = Date.now();
+
   // Manual agentic loop: run entirely within this request. Tool calls and
   // their results stay server-side and are not replayed to the client —
   // the client only keeps plain {role, text} turns, not full Claude blocks.
-  for (let iteration = 0; iteration < 8; iteration++) {
+  for (let iteration = 0; iteration < 4; iteration++) {
+    const remainingMs = TURN_BUDGET_MS - (Date.now() - turnStartedAt);
+    if (remainingMs <= 0) {
+      return fallbackWithNote(TIMED_OUT_NOTE, message, draft, tasteProfile, communityMembers);
+    }
     let response: Anthropic.Beta.BetaMessage;
     try {
       response = await client.beta.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: AGENT_MODEL,
         max_tokens: 2000,
-        betas: ['mcp-client-2025-11-20'],
-        system,
+        system: systemBlocks,
         container: containerId,
-        mcp_servers: [{type: 'url', url: 'https://astryx.atmeta.com/mcp', name: 'xds'}],
         tools: [
           ...(domainTools as Anthropic.Beta.BetaToolUnion[]),
           renderUiTool as Anthropic.Beta.BetaToolUnion,
           webSearchTool as Anthropic.Beta.BetaToolUnion,
-          {type: 'mcp_toolset', mcp_server_name: 'xds'},
         ],
         messages,
-      });
+      }, {timeout: remainingMs, maxRetries: 0});
     } catch (error) {
+      if (error instanceof Anthropic.APIConnectionTimeoutError) {
+        return fallbackWithNote(TIMED_OUT_NOTE, message, draft, tasteProfile, communityMembers);
+      }
       if (USE_LOCAL_FALLBACK) {
         return NextResponse.json({
           ...buildFallbackResponse(message, draft, tasteProfile, communityMembers),
@@ -448,6 +463,7 @@ export async function POST(request: Request) {
       return agentErrorResponse(error);
     }
 
+    logUsage(iteration, response, system.length);
     containerId = response.container?.id ?? containerId;
     messages.push({role: 'assistant', content: response.content});
 
@@ -484,7 +500,6 @@ export async function POST(request: Request) {
       }
       const input = block.input as Record<string, unknown>;
       const result = executeDomainTool(block.name, input, tasteProfile, communityMembers);
-      if (block.name === 'create_booking') tableBookingResult = result as ReturnType<typeof createBooking>;
       executedCalls.push({
         name: block.name,
         target: describeCallTarget(block.name, input, tasteProfile),
@@ -502,20 +517,6 @@ export async function POST(request: Request) {
   const uniqueExecutedCalls = dedupeExecutedCalls(executedCalls);
   if (uiOut != null) {
     uiOut.tool_status = uniqueExecutedCalls.length > 0 ? uniqueExecutedCalls : undefined;
-  }
-
-  // The success banner is the one moment worth guaranteeing outright rather
-  // than hoping the model remembers to call it — the table booking is the
-  // core goal met.
-  if (tableBookingResult != null) {
-    const booking = tableBookingResult as ReturnType<typeof createBooking>;
-    uiOut = uiOut ?? {};
-    uiOut.tool_status = uniqueExecutedCalls;
-    uiOut.interactive = {
-      type: 'success',
-      title: 'Table booked.',
-      description: `${booking.venue_name} · ${booking.time} · party of ${booking.party_size}.`,
-    };
   }
 
   const michelinApplied = applyMichelinModeToUi(textOut, uiOut, draft?.intent);
@@ -542,15 +543,8 @@ function describeCallTarget(
       return getUserMemory(tasteProfile).firstName || 'guest';
     case 'get_friend_food_profile':
       return String(input.name ?? '');
-    case 'get_contact_preferences':
-      return String(input.name ?? '');
     case 'search_quiet_table_catalog':
-    case 'search_tables':
       return [input.vibe, input.near, input.query].filter(Boolean).join(' · ') || 'Amsterdam catalog';
-    case 'check_venue_availability':
-      return `${input.venue_id ?? ''} · ${input.time ?? ''}`;
-    case 'create_booking':
-      return `${input.venue_id ?? ''} · ${input.time ?? ''} · party of ${input.party_size ?? '?'}`;
     default:
       return JSON.stringify(input);
   }

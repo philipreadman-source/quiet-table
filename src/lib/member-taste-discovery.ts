@@ -125,6 +125,8 @@ export function summarizeCommunityTasteForAgent(members: FriendFoodProfile[]) {
     name: member.name,
     homeArea: member.homeArea,
     tasteSummary: member.tasteSummary,
+    // Dietary limits must reach the agent, or it ranks places the friend can't eat at.
+    dietaryNotes: member.dietaryNotes,
     topPicks: member.topPicks.slice(0, 8).map((pick) => ({
       venueId: pick.venueId,
       title: pick.title,

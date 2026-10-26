@@ -6,12 +6,19 @@ import {
 } from '@/lib/member-friend-picks';
 import {CUISINE_OPTIONS, type TasteProfile} from '@/lib/taste-profile';
 
+// The diet word leads so friendDietaryLean reads it before any free-text note.
+const DIET_NOTE: Partial<Record<string, string>> = {
+  vegetarian: 'vegetarian (no meat or seafood)',
+  pescatarian: 'pescatarian (no meat, eats seafood)',
+  vegan: 'vegan (no animal products)',
+};
+
 function dietaryNotesFromProfile(profile: TasteProfile): string | undefined {
   const lean = profile.preferences.dietaryLean;
-  if (lean == null || lean === 'none' || lean === 'mixed') return undefined;
-  if (lean === 'vegetarian') return 'vegetarian';
-  if (lean === 'vegan') return 'vegan';
-  return undefined;
+  const leanNote = lean != null ? DIET_NOTE[lean] : undefined;
+  const extra = profile.preferences.dietaryNotes?.trim();
+  const parts = [leanNote, extra != null && extra.length > 0 ? extra : undefined].filter(Boolean);
+  return parts.length > 0 ? parts.join('. ') : undefined;
 }
 
 function tasteSummaryFromProfile(profile: TasteProfile): string {

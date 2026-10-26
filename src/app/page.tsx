@@ -22,6 +22,7 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Text} from '@astryxdesign/core/Text';
 import {Markdown} from '@astryxdesign/core/Markdown';
 import {Calendar, type ISODateString} from '@astryxdesign/core/Calendar';
+import {Typeahead} from '@astryxdesign/core/Typeahead';
 import {
   enrichVenueOption,
   findVenueOption,
@@ -58,6 +59,7 @@ import {
 } from '@/lib/friend-graph-mock';
 import {reverseGeocode} from '@/lib/reverse-geocode';
 import {parseLocationFromMessage} from '@/lib/parse-location';
+import {createPlaceSearchSource} from '@/lib/place-search';
 import {handoffVenueBooking} from '@/lib/venue-booking-handoff';
 
 const QUIET_TABLE_AVATAR = (
@@ -303,7 +305,7 @@ type BookingDraft = {
   occasionNotes?: string;
   goingWithFriendIds?: string[];
   goingWithSkipped?: boolean;
-  /** Set from companion dietary leans (e.g. Emma pescatarian). */
+  /** Set from companion dietary leans (e.g. a pescatarian friend). */
   partyDietarySummary?: string;
 };
 
@@ -877,7 +879,12 @@ function mergeDraftFromText(
   if (lower.includes('amsterdam') && parsedLocation == null) next.location = 'Amsterdam';
 
   if (!wizardComplete && stage === 'location' && looksLikeLocationText(text)) {
-    next.location = toTitleCase(text.trim());
+    // "London please" → "London": drop polite filler before saving the place.
+    const place = text
+      .replace(/\b(?:please|thanks|thank you|how about|let'?s try|maybe|in|near|around)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (place.length >= 2) next.location = toTitleCase(place);
   }
 
   const timeMatch = lower.match(/\b([6-9](?::30|:00)?\s?(?:pm|p\.m\.))\b/);
@@ -921,6 +928,8 @@ export default function Home() {
   const {userId: clerkUserId, isLoaded: isAuthLoaded} = useAuth();
   const {user: clerkUser} = useUser();
   const {members: memberFriends, loading: memberFriendsLoading} = useMemberFriends(clerkUserId);
+  // Hooks must run before the loading early return below, on every render.
+  const placeSearchSource = useMemo(() => createPlaceSearchSource(), []);
   const wizardCompanionFriends = useMemo(
     () => (memberFriends.length > 0 ? memberFriends.slice(0, 8) : []),
     [memberFriends],
@@ -1022,6 +1031,14 @@ export default function Home() {
         saveTasteProfile(withClerk);
       }
       setTasteProfile(withClerk);
+      // Home area is the base location for every search. Only ask the device
+      // for a position when no home area was saved during onboarding.
+      const home = profile.homeArea.trim();
+      if (home.length > 0) {
+        setBookingDraft((prev) => withDraftField(prev, 'location', home));
+      } else {
+        requestLocation();
+      }
       const name = profile.username.trim();
       setMessages([
         {
@@ -1043,10 +1060,6 @@ export default function Home() {
     saveTasteProfile(merged);
     setTasteProfile(merged);
   }, [clerkUser, tasteProfile]);
-
-  useEffect(() => {
-    requestLocation();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1075,6 +1088,13 @@ export default function Home() {
       />
     );
   }
+
+  // Location step: the saved-location card and the place search both land here.
+  const pickWizardLocation = (location: string) => {
+    setBookingDraft((prev) => withDraftField(prev, 'location', location));
+    setLocationFromComposer(false);
+    setStage(dateNightStepsIncluded ? 'occasion' : 'date');
+  };
 
   const restartFindFlow = () => {
     setMessages((prev) => (prev.length > 0 && prev[0]?.role === 'assistant' ? [prev[0]!] : prev));
@@ -1432,11 +1452,7 @@ export default function Home() {
                                 <ClickableCard
                                   label={userLocation}
                                   padding={4}
-                                  onClick={() => {
-                                    setBookingDraft((prev) => withDraftField(prev, 'location', userLocation));
-                                    setLocationFromComposer(false);
-                                    setStage(dateNightStepsIncluded ? 'occasion' : 'date');
-                                  }}>
+                                  onClick={() => pickWizardLocation(userLocation)}>
                                   <VStack gap={0}>
                                     <Text type="label" weight="semibold">
                                       {userLocation}
@@ -1450,11 +1466,22 @@ export default function Home() {
                                 </ClickableCard>
                               </VStack>
                             ) : (
-                              <VStack gap={2}>
-                                <Text color="secondary">Type a neighborhood or city below, or share your location.</Text>
-                                <Button label="Share my location" size="sm" onClick={requestLocation} />
-                              </VStack>
+                              <HStack hAlign="start">
+                                <Button label="Use my current location" size="sm" onClick={requestLocation} />
+                              </HStack>
                             )}
+                            <Typeahead
+                              label="Or search for a city or area"
+                              placeholder="London, Shoreditch, Paris…"
+                              searchSource={placeSearchSource}
+                              value={null}
+                              onChange={(item) => {
+                                const location = item?.auxiliaryData?.location;
+                                if (location != null) pickWizardLocation(location);
+                              }}
+                              debounceMs={300}
+                              emptySearchResultsText="No places found"
+                            />
                           </VStack>
                         </ChatMessageBubble>
                       </ChatMessage>

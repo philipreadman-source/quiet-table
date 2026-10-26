@@ -25,6 +25,7 @@ export type UserMemory = {
   preferences: {
     noise?: 'quiet' | 'lively' | 'any';
     dietaryLean?: DietaryNeeds;
+    dietaryNotes?: string;
     notes?: string;
   };
 };

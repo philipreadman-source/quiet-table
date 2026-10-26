@@ -3,14 +3,6 @@
 
 import {findVenueOption, searchCatalogForAgent} from '@/lib/venue-options';
 
-export const CONTACTS: Record<string, {name: string; dietary_restrictions: string[]}> = {
-  suzie: {name: 'Suzie', dietary_restrictions: ['shellfish']},
-  emma: {
-    name: 'Emma van Dijk',
-    dietary_restrictions: ['pescatarian', 'no meat', 'fish and seafood ok'],
-  },
-};
-
 export type Venue = {
   id: string;
   name: string;
@@ -74,13 +66,6 @@ export const VENUES: Venue[] = [
   },
 ];
 
-export function getContactPreferences(name: string) {
-  const key = name.trim().toLowerCase();
-  if (CONTACTS[key] != null) return CONTACTS[key];
-  if (key.includes('emma')) return CONTACTS.emma!;
-  return {name, dietary_restrictions: []};
-}
-
 // Tool-call ids/names/vibes drift in shape (hyphens, underscores, spaces,
 // partial words). Normalize to a bare word-sequence before comparing so any
 // form resolves consistently.
@@ -121,22 +106,9 @@ export function searchTables(args: {
     query: args.query,
     limit: args.limit ?? 12,
   });
-  if (catalog.length > 0) return catalog;
-
-  let results = VENUES;
-
-  if (args.vibe != null && args.vibe.trim().length > 0) {
-    const vibeSlug = slug(args.vibe);
-    const matched = results.filter((v) => v.tags.some((tag) => vibeSlug.includes(tag) || tag.includes(vibeSlug)));
-    if (matched.length > 0) results = matched;
-  }
-
-  if (args.dietary_restrictions?.includes('shellfish')) {
-    const safe = results.filter((v) => !v.shellfishHeavy);
-    if (safe.length > 0) results = safe;
-  }
-
-  return results;
+  // Amsterdam catalog only. An empty result means the agent should use
+  // web_search for that city, not the old mock list.
+  return catalog;
 }
 
 // Deterministic pseudo-availability for venues outside the mock catalog —

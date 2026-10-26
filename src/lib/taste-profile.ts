@@ -48,12 +48,11 @@ export type PendingInvite = {
 };
 
 /** Demo principal portrait — served from public/ for local + Vercel. */
-export const PRINCIPAL_AVATAR_SRC = '/personas/philip.jpg';
 
 export type TasteProfile = {
   userId: string;
   username: string;
-  /** Profile photo URL; defaults to PRINCIPAL_AVATAR_SRC for the prototype principal. */
+  /** Profile photo URL. */
   avatarSrc?: string;
   /** Clerk identity snapshot for avatars and display names (initials when no image). */
   clerk?: {
@@ -68,6 +67,8 @@ export type TasteProfile = {
   preferences: {
     noise?: NoisePreference;
     dietaryLean?: DietaryNeeds;
+    /** Free text: allergies and anything the diet choice doesn't cover. */
+    dietaryNotes?: string;
     cuisineAffinities?: CuisineId[];
     notes?: string;
   };
@@ -100,6 +101,16 @@ export type TasteProfile = {
 };
 
 export const TASTE_PROFILE_STORAGE_KEY = 'quiet-table.taste-profile.v1';
+
+/** Personal diet choices. 'mixed' is a party-level value, so it isn't offered here. */
+export const DIET_OPTIONS: {id: DietaryNeeds; label: string; description: string}[] = [
+  {id: 'none', label: 'No restrictions', description: 'Eats everything.'},
+  {id: 'vegetarian', label: 'Vegetarian', description: 'No meat or seafood.'},
+  {id: 'pescatarian', label: 'Pescatarian', description: 'No meat, eats seafood.'},
+  {id: 'vegan', label: 'Vegan', description: 'No animal products.'},
+];
+
+export const DIETARY_NOTES_MAX = 200;
 
 export const CUISINE_OPTIONS: {id: CuisineId; label: string}[] = [
   {id: 'italian', label: 'Italian'},

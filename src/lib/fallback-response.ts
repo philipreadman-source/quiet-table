@@ -30,7 +30,6 @@ import {
   memberSocialProofForVenue,
 } from '@/lib/member-taste-discovery';
 import type {TasteProfile} from '@/lib/taste-profile';
-import {createBooking} from '@/lib/booking-data';
 import {parseLocationFromMessage} from '@/lib/parse-location';
 
 export const FALLBACK_ASLEEP_MESSAGE =
@@ -443,7 +442,6 @@ export function buildFallbackResponse(
   const userMemory = getUserMemory(tasteProfile);
   const venue = draft?.venue;
   const time = draft?.time ?? 'the selected time';
-  const partySize = Number.parseInt(draft?.partySize ?? '2', 10);
   const wantsBooking = /\b(book|confirm|reserve|yes)\b/i.test(message);
 
   const parsedLocation = parseLocationFromMessage(message);
@@ -452,30 +450,15 @@ export function buildFallbackResponse(
       ? {...draft, location: parsedLocation, venue: undefined, venueResultsPage: 0}
       : draft;
 
-  if (venue != null && wantsBooking) {
-    const booking = createBooking({
-      venue_id: venue,
-      time,
-      party_size: Number.isFinite(partySize) ? partySize : 2,
-    });
-    return {
-      text: '',
-      ui: {
-        tool_status: [{name: 'create_booking', target: `${venue} · ${time}`, status: 'complete'}],
-        interactive: {
-          type: 'success',
-          title: 'Table booked.',
-          description: `${booking.venue_name} · ${booking.time} · party of ${booking.party_size}.`,
-        },
-      },
-    };
-  }
-
+  // Booking happens in Google Maps from the detail card's Book button, so a
+  // "book it" message lands on that card rather than a fake confirmation.
   const mentionsVenue = venue != null && message.toLowerCase().includes(venue.toLowerCase());
-  if (venue != null && mentionsVenue) {
+  if (venue != null && (mentionsVenue || wantsBooking)) {
     const known = findVenueOption(venue);
     return {
-      text: `${venue} fits the brief. Ready when you are.`,
+      text: wantsBooking
+        ? 'Tap Book to finish in Google Maps. Your date, time and party size get copied.'
+        : `${venue} fits the brief. Ready when you are.`,
       ui: {
         interactive: {
           type: 'detail',

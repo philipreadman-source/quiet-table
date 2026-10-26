@@ -363,7 +363,6 @@ const CASUAL_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.5,
     review_count: 1240,
     dietary_tags: ['limited-veg'],
-    social_proof: {name: 'John', action: 'liked', source: 'contact'},
   },
   {
     id: 'cafe-de-klos',
@@ -377,7 +376,6 @@ const CASUAL_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.3,
     review_count: 8900,
     dietary_tags: ['limited-veg'],
-    social_proof: {name: 'Emma', action: 'loved', source: 'contact', when: 'last month'},
   },
   {
     id: 'genki',
@@ -390,7 +388,6 @@ const CASUAL_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.2,
     review_count: 980,
     dietary_tags: ['vegetarian-friendly'],
-    social_proof: {name: 'Alex', action: 'liked', source: 'contact'},
   },
   {
     id: 'sla-amsterdam',
@@ -403,7 +400,6 @@ const CASUAL_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.3,
     review_count: 2100,
     dietary_tags: ['vegan-friendly', 'vegetarian-friendly'],
-    social_proof: {name: 'Nina', action: 'saved', source: 'instagram'},
   },
   {
     id: 'lapaz',
@@ -428,7 +424,6 @@ const CASUAL_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.4,
     review_count: 3400,
     dietary_tags: ['vegan-friendly', 'vegetarian-friendly'],
-    social_proof: {name: 'Chris', action: 'recommended', source: 'contact'},
   },
   {
     id: 'piket',
@@ -453,7 +448,6 @@ const CASUAL_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.0,
     review_count: 4500,
     dietary_tags: ['limited-veg'],
-    social_proof: {name: 'Tom', action: 'loved', source: 'contact', when: 'last week'},
   },
   {
     id: 'kimchi-premium',
@@ -482,7 +476,6 @@ const DATE_NIGHT_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.5,
     review_count: 2100,
     dietary_tags: ['vegetarian-friendly'],
-    social_proof: {name: 'Sophie', action: 'recommended', source: 'contact'},
   },
   {
     id: 'taiko',
@@ -508,7 +501,6 @@ const DATE_NIGHT_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.5,
     review_count: 1240,
     dietary_tags: ['limited-veg'],
-    social_proof: {name: 'John', action: 'liked', source: 'contact'},
   },
   {
     id: 'restaurant-cedric',
@@ -533,7 +525,6 @@ const DATE_NIGHT_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.7,
     review_count: 540,
     dietary_tags: ['vegan-friendly', 'vegetarian-friendly'],
-    social_proof: {name: 'Anna', action: 'saved', source: 'instagram'},
   },
   {
     id: 'gruppo-di-amici',
@@ -570,7 +561,6 @@ const DATE_NIGHT_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.2,
     review_count: 2800,
     dietary_tags: ['vegetarian-friendly', 'vegan-friendly'],
-    social_proof: {name: 'Lisa', action: 'loved', source: 'contact', when: 'for an anniversary'},
   },
   {
     id: 'restaurant-212',
@@ -601,7 +591,6 @@ const MICHELIN_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.6,
     review_count: 3200,
     dietary_tags: ['vegetarian-friendly'],
-    social_proof: {name: 'Marco', action: 'loved', source: 'contact', when: 'in March'},
   },
   {
     id: 'graphite',
@@ -617,7 +606,6 @@ const MICHELIN_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.7,
     review_count: 410,
     dietary_tags: ['limited-veg'],
-    social_proof: {name: 'Anna', action: 'saved', source: 'instagram'},
   },
   {
     id: 'restaurant-gem',
@@ -702,7 +690,6 @@ const MICHELIN_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.5,
     review_count: 650,
     dietary_tags: ['vegetarian-friendly'],
-    social_proof: {name: 'Sophie', action: 'recommended', source: 'contact'},
   },
 ];
 
@@ -731,7 +718,6 @@ const GROUP_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.2,
     review_count: 1800,
     dietary_tags: ['vegetarian-friendly'],
-    social_proof: {name: 'Tom', action: 'loved', source: 'contact', when: 'for a team dinner'},
   },
   {
     id: 'momo',
@@ -745,7 +731,6 @@ const GROUP_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.3,
     review_count: 2400,
     dietary_tags: ['vegetarian-friendly'],
-    social_proof: {name: 'Lisa', action: 'recommended', source: 'contact'},
   },
   {
     id: 'the-pancake-bakery',
@@ -794,7 +779,6 @@ const GROUP_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.4,
     review_count: 1100,
     dietary_tags: ['vegan-friendly', 'vegetarian-friendly'],
-    social_proof: {name: 'Nina', action: 'loved', source: 'contact', when: 'with a group'},
   },
   {
     id: 'restaurant-canvas',

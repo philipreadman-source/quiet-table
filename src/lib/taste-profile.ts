@@ -15,6 +15,12 @@ export type CuisineId =
   | 'modern-european'
   | 'steak-grill'
   | 'vegetarian-forward'
+  | 'korean'
+  | 'chinese'
+  | 'southeast-asian'
+  | 'indian'
+  | 'indonesian'
+  | 'spanish-tapas'
   | 'other';
 
 export type OnboardingStepId =
@@ -116,7 +122,13 @@ export const CUISINE_OPTIONS: {id: CuisineId; label: string}[] = [
   {id: 'italian', label: 'Italian'},
   {id: 'french', label: 'French'},
   {id: 'japanese', label: 'Japanese'},
+  {id: 'korean', label: 'Korean'},
+  {id: 'chinese', label: 'Chinese'},
+  {id: 'southeast-asian', label: 'Southeast Asian'},
+  {id: 'indian', label: 'Indian'},
+  {id: 'indonesian', label: 'Indonesian'},
   {id: 'modern-european', label: 'Modern European'},
+  {id: 'spanish-tapas', label: 'Spanish & tapas'},
   {id: 'seafood', label: 'Seafood'},
   {id: 'mexican', label: 'Mexican'},
   {id: 'middle-eastern', label: 'Middle Eastern'},

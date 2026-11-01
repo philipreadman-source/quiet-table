@@ -405,7 +405,6 @@ export function OnboardingFlow() {
                 <Text type="label" weight="semibold">
                   First, the basics
                 </Text>
-                <Text color="secondary">Pick a username — how friends will see your picks.</Text>
                 <TextInput
                   label="Username"
                   value={usernameInput}
@@ -425,7 +424,7 @@ export function OnboardingFlow() {
                   }
                 />
                 <Text type="supporting" color="secondary">
-                  Your home area is the default for every search. You can change it later in your profile.
+                  Your location is the default for every search. You can change it later in your profile.
                 </Text>
                 <HStack gap={2} wrap="wrap">
                   <Button

@@ -274,14 +274,9 @@ export function ProfileMyPlacesSection({
   return (
     <VStack gap={3} align="stretch">
       <HStack hAlign="between" vAlign="center" style={{width: '100%'}}>
-        <VStack gap={0}>
-          <Text type="label" weight="semibold">
-            Reviews
-          </Text>
-          <Text type="supporting" color="secondary">
-            Only positive picks — drag to rank; top spots weigh more in Find.
-          </Text>
-        </VStack>
+        <Text type="label" weight="semibold">
+          Reviews
+        </Text>
         {!adding && (
           <Button label="Add a place" variant="secondary" onClick={() => setAdding(true)} />
         )}

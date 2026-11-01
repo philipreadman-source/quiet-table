@@ -12,6 +12,9 @@ const shellStyle = {
   gap: 12,
   fontFamily: 'inherit',
   color: '#6b6b6b',
+  // #fafafa by request; no Astryx token has this value in light mode. Dark
+  // mode keeps the Astryx page background.
+  background: 'light-dark(#fafafa, var(--color-background-body))',
 } as const;
 
 export function ClerkAuthShell({children}: {children: ReactNode}) {

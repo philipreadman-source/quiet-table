@@ -128,10 +128,30 @@ a {
   width: 100%;
   max-width: 100%;
 }
+/* Light green (the theme's dark-mode accent) — same as the Quiet Table dot.
+   Dark text in both modes, since the fill stays light. */
 .astryx-chat-message-bubble[data-sender='assistant'][data-variant='filled'] {
-  background-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-accent-muted));
-  color: var(--color-text-primary);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  background-color: #a8c29f;
+  color: var(--color-on-light);
+}
+
+/* Placeholder Quiet Table mark. Centred on the first line of the block
+   beside it: padded bubbles and cards put that line ~26px down... */
+.qt-dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  margin-top: 22px;
+  border-radius: var(--radius-full);
+  background-color: #a8c29f;
+}
+
+/* ...while unpadded wizard blocks that open with a line of text put it ~10px down. */
+.astryx-chat-message:has(
+    .astryx-chat-message-bubble[data-variant='ghost'] > .astryx-stack:first-child > .astryx-text:first-child
+  )
+  .qt-dot {
+  margin-top: 6px;
 }
 
 @media (prefers-color-scheme: dark) {

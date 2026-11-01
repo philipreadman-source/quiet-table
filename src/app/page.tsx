@@ -13,7 +13,6 @@ import {
   ChatMessageList,
   ChatToolCalls,
 } from '@astryxdesign/core/Chat';
-import {Avatar} from '@astryxdesign/core/Avatar';
 import {Button} from '@astryxdesign/core/Button';
 import {Card} from '@astryxdesign/core/Card';
 import {SelectableCard} from '@astryxdesign/core/SelectableCard';
@@ -62,9 +61,9 @@ import {parseLocationFromMessage} from '@/lib/parse-location';
 import {createPlaceSearchSource} from '@/lib/place-search';
 import {handoffVenueBooking} from '@/lib/venue-booking-handoff';
 
-const QUIET_TABLE_AVATAR = (
-  <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="xsmall" />
-);
+// Placeholder mark until there's a real logo: a small light-green dot,
+// styled and aligned in globals.css (.qt-dot).
+const QUIET_TABLE_AVATAR = <span role="img" aria-label="Quiet Table" className="qt-dot" />;
 
 
 const root: CSSProperties = {height: '100dvh', width: '100%'};
@@ -1130,11 +1129,10 @@ export default function Home() {
         border: 'none',
         padding: 0,
         cursor: 'pointer',
-        borderRadius: '9999px',
-        display: 'inline-flex',
+        display: 'block',
         lineHeight: 0,
       }}>
-      <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="xsmall" />
+      {QUIET_TABLE_AVATAR}
     </button>
   );
 

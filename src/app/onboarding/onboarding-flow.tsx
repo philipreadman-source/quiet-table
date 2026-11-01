@@ -15,6 +15,7 @@ import {Typeahead} from '@astryxdesign/core/Typeahead';
 import {SelectableCard} from '@astryxdesign/core/SelectableCard';
 import {Avatar} from '@astryxdesign/core/Avatar';
 import {findVenueOption} from '@/lib/venue-options';
+import {BETA_CITY_NOTE, isBetaCity} from '@/lib/city-picks';
 import {createPlaceSearchSource, type PlaceItem} from '@/lib/place-search';
 import {quizCityArea, type TasteQuizVenue} from '@/lib/taste-quiz';
 import {
@@ -481,6 +482,11 @@ export function OnboardingFlow() {
                 <Text type="supporting" color="secondary">
                   We&apos;ll use your location to base your initial taste profile on. You can still search anywhere.
                 </Text>
+                {isBetaCity(homeAreaInput) && (
+                  <Text type="supporting" color="secondary">
+                    {BETA_CITY_NOTE}
+                  </Text>
+                )}
                 <HStack gap={2} wrap="wrap">
                   <Button label="Continue" onClick={handleBasicsContinue} />
                 </HStack>

@@ -1,5 +1,5 @@
 import {CUISINE_OPTIONS, type CuisineId} from '@/lib/taste-profile';
-import {isAmsterdamMetroHomeArea, venueSuitsDiet} from '@/lib/taste-quiz';
+import {isAmsterdamMetroHomeArea, quizCityArea, venueSuitsDiet} from '@/lib/taste-quiz';
 import {searchRestaurantsPhoton} from '@/lib/venue-search';
 import {paginateVenueOptions, type DietaryNeeds, type VenueOptionCard} from '@/lib/venue-options';
 
@@ -17,6 +17,14 @@ const GENERIC_NAME = /^(?:restaurant|bistro|brasserie|kitchen|cafe|café)(?:\s+\
 export function hasCatalogFor(location: string | undefined): boolean {
   return location == null || location.trim().length === 0 || isAmsterdamMetroHomeArea(location);
 }
+
+/** Amsterdam has the catalog and London is QA'd; anywhere else is beta. */
+export function isBetaCity(location: string | undefined | null): boolean {
+  if (location == null || location.trim().length === 0 || hasCatalogFor(location)) return false;
+  return quizCityArea(location).toLowerCase() !== 'london';
+}
+
+export const BETA_CITY_NOTE = 'Beta: outside Amsterdam and London, results will vary.';
 
 /** As the location card shows it ("London, England"), minus stray punctuation. */
 export function cityLabel(location: string): string {

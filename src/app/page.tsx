@@ -43,7 +43,7 @@ import {
 } from '@/lib/venue-options';
 import {filterExcludedVenues, getUserMemory, type UserMemory} from '@/lib/user-memory';
 import {casualPicksPage} from '@/lib/fallback-response';
-import {cityLabel, hasCatalogFor} from '@/lib/city-picks';
+import {BETA_CITY_NOTE, cityLabel, hasCatalogFor, isBetaCity} from '@/lib/city-picks';
 import {isOnboardingComplete, saveTasteProfile, type TasteProfile} from '@/lib/taste-profile';
 import {mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {resolveFriendFoodProfile} from '@/lib/member-friends';
@@ -1633,6 +1633,11 @@ export default function Home() {
                                     </Text>
                                   </VStack>
                                 </ClickableCard>
+                                {isBetaCity(userLocation) && (
+                                  <Text type="supporting" color="secondary">
+                                    {BETA_CITY_NOTE}
+                                  </Text>
+                                )}
                               </VStack>
                             ) : (
                               <HStack hAlign="start">

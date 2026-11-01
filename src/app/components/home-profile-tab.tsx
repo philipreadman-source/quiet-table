@@ -19,8 +19,11 @@ import {
 } from '@/app/components/profile-taste-quiz';
 import {clerkDisplayName, mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {useMemberFriends} from '@/lib/use-member-friends';
+import {BETA_CITY_NOTE, isBetaCity} from '@/lib/city-picks';
+import {SelectableCard} from '@astryxdesign/core/SelectableCard';
 import {
   buildOnboardingSummaryRows,
+  CUISINE_OPTIONS,
   DIET_OPTIONS,
   DIETARY_NOTES_MAX,
   inviteShareMessage,
@@ -29,6 +32,7 @@ import {
   refreshTasteConfidence,
   saveTasteProfile,
   validateUsername,
+  type CuisineId,
   type TasteProfile,
 } from '@/lib/taste-profile';
 
@@ -80,6 +84,21 @@ export function HomeProfileTabPanel({
 
   const lovedQuizRowLabel = 'Loved in the quiz';
   const friendInvitesRowLabel = 'Friend invites';
+  const cuisinesRowLabel = 'Cuisines you enjoy';
+  // Null when not editing; otherwise the picks being edited.
+  const [cuisineDraft, setCuisineDraft] = useState<CuisineId[] | null>(null);
+
+  const saveCuisines = () => {
+    if (cuisineDraft == null) return;
+    const next = refreshTasteConfidence({
+      ...profile,
+      preferences: {...profile.preferences, cuisineAffinities: cuisineDraft},
+      updatedAt: new Date().toISOString(),
+    });
+    saveTasteProfile(next);
+    onProfileSaved(next);
+    setCuisineDraft(null);
+  };
 
   useEffect(() => {
     setUsernameInput(profile.username);
@@ -201,6 +220,7 @@ export function HomeProfileTabPanel({
             value={homeAreaInput}
             onChange={setHomeAreaInput}
             placeholder="Amsterdam"
+            description={isBetaCity(homeAreaInput) ? BETA_CITY_NOTE : undefined}
           />
           <HStack hAlign="start">
             <Button label="Save" onClick={handleSave} isDisabled={!dirty} />
@@ -280,6 +300,7 @@ export function HomeProfileTabPanel({
             {summaryRows.map((row) => {
               const isLovedQuiz = row.label === lovedQuizRowLabel;
               const isFriendInvites = row.label === friendInvitesRowLabel;
+              const isCuisines = row.label === cuisinesRowLabel;
               return (
                 <VStack key={row.label} gap={0}>
                   <Text type="supporting" color="secondary">
@@ -309,7 +330,48 @@ export function HomeProfileTabPanel({
                         onClick={() => void shareInviteLink()}
                       />
                     )}
+                    {isCuisines && cuisineDraft == null && (
+                      <Button
+                        label="Edit"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setCuisineDraft(profile.preferences.cuisineAffinities ?? [])}
+                      />
+                    )}
                   </HStack>
+                  {isCuisines && cuisineDraft != null && (
+                    <VStack gap={3} align="stretch" style={{marginTop: 'var(--spacing-2)'}}>
+                      <HStack gap={2} wrap="wrap">
+                        {CUISINE_OPTIONS.map((option) => {
+                          const selected = cuisineDraft.includes(option.id);
+                          return (
+                            <SelectableCard
+                              key={option.id}
+                              label={option.label}
+                              isSelected={selected}
+                              onChange={() =>
+                                setCuisineDraft((prev) =>
+                                  prev == null
+                                    ? prev
+                                    : selected
+                                      ? prev.filter((id) => id !== option.id)
+                                      : [...prev, option.id],
+                                )
+                              }
+                              style={{padding: 'var(--spacing-3)'}}>
+                              <Text type="label" weight="semibold">
+                                {option.label}
+                              </Text>
+                            </SelectableCard>
+                          );
+                        })}
+                      </HStack>
+                      <HStack gap={2}>
+                        <Button label="Save" size="sm" onClick={saveCuisines} />
+                        <Button label="Cancel" variant="ghost" size="sm" onClick={() => setCuisineDraft(null)} />
+                      </HStack>
+                    </VStack>
+                  )}
                   {isFriendInvites && inviteShareNote != null && (
                     <Text type="supporting" color="secondary">
                       {inviteShareNote}

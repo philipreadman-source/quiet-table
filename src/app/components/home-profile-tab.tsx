@@ -220,7 +220,7 @@ export function HomeProfileTabPanel({
             Dietary needs
           </Text>
           <Text type="supporting" color="secondary">
-            Quiet Table leaves out places you can&apos;t eat at, for you and for friends booking with you.
+            Quiet Table flags your dietary requirements, for you and your friends.
           </Text>
           <Card padding={4}>
             <VStack gap={4} align="stretch">

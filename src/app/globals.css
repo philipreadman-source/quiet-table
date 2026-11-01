@@ -128,11 +128,11 @@ a {
   width: 100%;
   max-width: 100%;
 }
-/* Light green (the theme's dark-mode accent) — same as the Quiet Table dot.
-   Dark text in both modes, since the fill stays light. */
+/* The Quiet Table dot's light green at 20%. Translucent, so it sits on either
+   mode's background and keeps the normal text colour. */
 .astryx-chat-message-bubble[data-sender='assistant'][data-variant='filled'] {
-  background-color: #a8c29f;
-  color: var(--color-on-light);
+  background-color: color-mix(in srgb, #a8c29f 20%, transparent);
+  color: var(--color-text-primary);
 }
 
 /* Placeholder Quiet Table mark. Centred on the first line of the block

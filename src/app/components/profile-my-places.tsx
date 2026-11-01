@@ -266,7 +266,7 @@ export function ProfileMyPlacesSection({
   };
 
   return (
-    <VStack gap={3} align="stretch" style={{marginTop: 'var(--spacing-8)'}}>
+    <VStack gap={3} align="stretch">
       <HStack hAlign="between" vAlign="center" style={{width: '100%'}}>
         <VStack gap={0}>
           <Text type="label" weight="semibold">

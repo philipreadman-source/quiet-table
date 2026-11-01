@@ -71,6 +71,9 @@ export function OnboardingFlow() {
 
   const [profileReady, setProfileReady] = useState(false);
   const [step, setStep] = useState<OnboardingStepId>('basics');
+  // Intro shown before step 1. Only applies on 'basics', so anyone resuming
+  // partway through onboarding goes straight back to their step.
+  const [showWelcome, setShowWelcome] = useState(true);
   const [profile, setProfile] = useState<TasteProfile | null>(null);
   const [usernameInput, setUsernameInput] = useState('');
   const [homeAreaInput, setHomeAreaInput] = useState('');
@@ -132,6 +135,7 @@ export function OnboardingFlow() {
       setHomeAreaInput('');
       setHomeAreaError(null);
       setStep('basics');
+      setShowWelcome(true);
       setQuizIndex(0);
       setQuizVenues([]);
       setQuizError(null);
@@ -367,17 +371,39 @@ export function OnboardingFlow() {
       content={
         <LayoutContent>
           <VStack gap={4} style={shell}>
+            {step === 'basics' && showWelcome ? (
+              <VStack gap={3}>
+                <HStack gap={2} vAlign="center">
+                  {Q_AVATAR}
+                  <Text type="label" weight="semibold">
+                    Welcome to Quiet Table
+                  </Text>
+                </HStack>
+                <Text>
+                  Quiet Table helps you find great places to eat, based on your taste and your friends&apos;
+                  recommendations.
+                </Text>
+                <Text color="secondary">
+                  Just tell us what you like and rate the restaurants you go to. It takes under a minute to get
+                  started, and your results get better the more you feed it (hehe).
+                </Text>
+                <HStack gap={2} wrap="wrap">
+                  <Button label="Get started" onClick={() => setShowWelcome(false)} />
+                </HStack>
+              </VStack>
+            ) : (
             <HStack gap={2} vAlign="center">
               {Q_AVATAR}
               <Text type="supporting" color="secondary">
                 Step {stepNumber} of {ONBOARDING_STEP_ORDER.length}
               </Text>
             </HStack>
+            )}
 
-            {step === 'basics' && (
+            {step === 'basics' && !showWelcome && (
               <VStack gap={3}>
                 <Text type="label" weight="semibold">
-                  Welcome to Quiet Table
+                  First, the basics
                 </Text>
                 <Text color="secondary">Pick a username — how friends will see your picks.</Text>
                 <TextInput

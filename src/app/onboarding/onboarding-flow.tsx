@@ -9,6 +9,8 @@ import {VStack, Layout, LayoutContent, HStack} from '@astryxdesign/core/Layout';
 import {Text} from '@astryxdesign/core/Text';
 import {Button} from '@astryxdesign/core/Button';
 import {TextInput} from '@astryxdesign/core/TextInput';
+import {TextArea} from '@astryxdesign/core/TextArea';
+import {RadioList, RadioListItem} from '@astryxdesign/core/RadioList';
 import {Typeahead} from '@astryxdesign/core/Typeahead';
 import {SelectableCard} from '@astryxdesign/core/SelectableCard';
 import {Avatar} from '@astryxdesign/core/Avatar';
@@ -19,6 +21,8 @@ import {
   applyVenueReaction,
   createEmptyTasteProfile,
   CUISINE_OPTIONS,
+  DIET_OPTIONS,
+  DIETARY_NOTES_MAX,
   finishOnboarding,
   hasOnboardingUsername,
   isOnboardingComplete,
@@ -38,6 +42,7 @@ import {
   type VenueReaction,
 } from '@/lib/taste-profile';
 import {consumePendingInviteRef} from '@/lib/taste-profile-session';
+import type {DietaryNeeds} from '@/lib/venue-options';
 
 const shell: CSSProperties = {
   minHeight: '100dvh',
@@ -92,6 +97,9 @@ export function OnboardingFlow() {
     homeAreaInput.trim().length > 0
       ? {id: 'selected-city', label: homeAreaInput, auxiliaryData: {location: homeAreaInput}}
       : null;
+  // Null until touched, so the step shows whatever the profile already has.
+  const [dietInput, setDietInput] = useState<DietaryNeeds | null>(null);
+  const [dietNotesInput, setDietNotesInput] = useState<string | null>(null);
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizVenues, setQuizVenues] = useState<TasteQuizVenue[]>([]);
   const [quizLoading, setQuizLoading] = useState(false);
@@ -168,6 +176,7 @@ export function OnboardingFlow() {
 
   const quizHomeArea = profile?.homeArea.trim() ?? '';
   const quizCuisinesKey = (profile?.preferences.cuisineAffinities ?? []).join(',');
+  const quizDiet = profile?.preferences.dietaryLean ?? 'none';
 
   useEffect(() => {
     if (step !== 'venue_quiz') return;
@@ -189,6 +198,7 @@ export function OnboardingFlow() {
 
     const params = new URLSearchParams({area});
     if (quizCuisinesKey.length > 0) params.set('cuisines', quizCuisinesKey);
+    if (quizDiet !== 'none') params.set('diet', quizDiet);
 
     void fetch(`/api/onboarding/quiz-venues?${params.toString()}`)
       .then(async (res) => {
@@ -215,7 +225,7 @@ export function OnboardingFlow() {
     return () => {
       cancelled = true;
     };
-  }, [step, quizHomeArea, quizCuisinesKey]);
+  }, [step, quizHomeArea, quizCuisinesKey, quizDiet]);
 
   const persist = useCallback(
     (next: TasteProfile) => {
@@ -292,6 +302,23 @@ export function OnboardingFlow() {
     persist({...profile, preferences: {...profile.preferences, cuisineAffinities: next}});
   };
 
+  const dietValue: DietaryNeeds = dietInput ?? profile?.preferences.dietaryLean ?? 'none';
+  const dietNotesValue = dietNotesInput ?? profile?.preferences.dietaryNotes ?? '';
+  const dietNotesTooLong = dietNotesValue.trim().length > DIETARY_NOTES_MAX;
+
+  const handleDietContinue = () => {
+    if (profile == null || dietNotesTooLong) return;
+    const notes = dietNotesValue.trim();
+    advanceFrom('dietary', {
+      ...profile,
+      preferences: {
+        ...profile.preferences,
+        dietaryLean: dietValue,
+        dietaryNotes: notes.length > 0 ? notes : undefined,
+      },
+    });
+  };
+
   const handleQuizReaction = (reaction: VenueReaction) => {
     if (profile == null) return;
     const venue = quizVenues[quizIndex];
@@ -322,6 +349,7 @@ export function OnboardingFlow() {
       exclude: quizVenues.map((v) => v.id).join(','),
     });
     if (quizCuisinesKey.length > 0) params.set('cuisines', quizCuisinesKey);
+    if (quizDiet !== 'none') params.set('diet', quizDiet);
     try {
       const res = await fetch(`/api/onboarding/quiz-venues?${params.toString()}`);
       const payload = (await res.json()) as {venues?: TasteQuizVenue[]};
@@ -484,6 +512,51 @@ export function OnboardingFlow() {
                 <HStack gap={2}>
                   <Button label="Continue" onClick={() => advanceFrom('cuisine', profile)} />
                   <Button label="Skip" variant="ghost" onClick={skipStep} />
+                </HStack>
+              </VStack>
+            )}
+
+            {step === 'dietary' && (
+              <VStack gap={3}>
+                <Text type="label" weight="semibold">
+                  Any dietary needs?
+                </Text>
+                <Text color="secondary">
+                  Quiet Table flags your dietary requirements, for you and your friends.
+                </Text>
+                <RadioList
+                  label="Diet"
+                  isLabelHidden
+                  value={dietValue}
+                  onChange={(value) => {
+                    const option = DIET_OPTIONS.find((item) => item.id === value);
+                    if (option != null) setDietInput(option.id);
+                  }}>
+                  {DIET_OPTIONS.map((option) => (
+                    <RadioListItem
+                      key={option.id}
+                      value={option.id}
+                      label={option.label}
+                      description={option.description}
+                    />
+                  ))}
+                </RadioList>
+                <TextArea
+                  label="Allergies and other notes"
+                  value={dietNotesValue}
+                  onChange={setDietNotesInput}
+                  isOptional
+                  placeholder="e.g. nut allergy, no pork, lactose intolerant"
+                  rows={2}
+                  maxLength={DIETARY_NOTES_MAX}
+                  status={
+                    dietNotesTooLong
+                      ? {type: 'error', message: `Keep it under ${DIETARY_NOTES_MAX} characters.`}
+                      : undefined
+                  }
+                />
+                <HStack gap={2}>
+                  <Button label="Continue" onClick={handleDietContinue} isDisabled={dietNotesTooLong} />
                 </HStack>
               </VStack>
             )}

@@ -28,6 +28,7 @@ export type OnboardingStepId =
   | 'last_meal'
   | 'vibe'
   | 'cuisine'
+  | 'dietary'
   | 'venue_quiz'
   | 'invite_friends';
 
@@ -140,6 +141,7 @@ export const CUISINE_OPTIONS: {id: CuisineId; label: string}[] = [
 export const ONBOARDING_STEP_ORDER: OnboardingStepId[] = [
   'basics',
   'cuisine',
+  'dietary',
   'venue_quiz',
   'invite_friends',
 ];
@@ -540,6 +542,7 @@ const ONBOARDING_STEP_LABELS: Record<OnboardingStepId, string> = {
   last_meal: 'Last meal',
   vibe: 'Vibe',
   cuisine: 'Cuisine',
+  dietary: 'Dietary needs',
   venue_quiz: 'Venue quiz',
   invite_friends: 'Invite friends',
 };

@@ -3,6 +3,7 @@ import {CUISINE_OPTIONS} from '@/lib/taste-profile';
 import {
   listUniqueCatalogVenues,
   popularCatalogVenues,
+  type DietaryNeeds,
   type VenueOptionCard,
 } from '@/lib/venue-options';
 import {searchRestaurantsExternal} from '@/lib/venue-search';
@@ -147,6 +148,28 @@ function venueMatchesCuisines(venue: VenueOptionCard, cuisines: CuisineId[]): bo
   return cuisines.some((cuisine) => tags.includes(cuisine));
 }
 
+/** Hard filter: never ask someone to rate a place they can't eat at. */
+export function venueSuitsDiet(venue: VenueOptionCard, diet: DietaryNeeds = 'none'): boolean {
+  if (diet === 'none' || diet === 'mixed') return true;
+  const tags = cuisineTagsForVenue(venue);
+  if (tags.includes('steak-grill')) return false;
+  // Few veg options is fine for a pescatarian if it's a fish place.
+  if (diet === 'pescatarian') {
+    return !venue.dietary_tags?.includes('limited-veg') || tags.includes('seafood');
+  }
+  if (venue.dietary_tags?.includes('limited-veg')) return false;
+  // Vegetarian and vegan: a seafood place only counts if it's tagged veg-friendly.
+  const vegFriendly =
+    venue.dietary_tags?.includes('vegetarian-friendly') ||
+    venue.dietary_tags?.includes('vegan-friendly') ||
+    tags.includes('vegetarian-forward');
+  if (tags.includes('seafood') && !vegFriendly) return false;
+  if (diet === 'vegan' && venue.dietary_tags != null && !venue.dietary_tags.includes('vegan-friendly')) {
+    return false;
+  }
+  return true;
+}
+
 function scoreVenueForQuiz(
   venue: VenueOptionCard,
   cuisines: CuisineId[],
@@ -184,9 +207,10 @@ export function buildCatalogTasteQuizVenues(
   cuisines: CuisineId[],
   limit = TASTE_QUIZ_VENUE_COUNT,
   excludeIds: readonly string[] = [],
+  diet: DietaryNeeds = 'none',
 ): TasteQuizVenue[] {
   const exclude = new Set(excludeIds);
-  const catalog = listUniqueCatalogVenues();
+  const catalog = listUniqueCatalogVenues().filter((venue) => venueSuitsDiet(venue, diet));
   const ranked = [...catalog].sort(
     (a, b) => scoreVenueForQuiz(b, cuisines) - scoreVenueForQuiz(a, cuisines),
   );
@@ -215,6 +239,7 @@ export function buildCatalogTasteQuizVenues(
 
   if (picked.length < limit) {
     for (const venue of popularCatalogVenues(limit * 2)) {
+      if (!venueSuitsDiet(venue, diet)) continue;
       addVenue(venue);
       if (picked.length >= limit) break;
     }
@@ -234,6 +259,7 @@ export async function buildExternalTasteQuizVenues(
   cuisines: CuisineId[],
   limit = TASTE_QUIZ_VENUE_COUNT,
   excludeIds: string[] = [],
+  diet: DietaryNeeds = 'none',
 ): Promise<TasteQuizVenue[]> {
   const exclude = new Set(excludeIds.map((id) => id.trim().toLowerCase()));
   const areaPart = quizCityArea(area);
@@ -244,6 +270,7 @@ export async function buildExternalTasteQuizVenues(
     for (const venue of results) {
       const key = venue.title.trim().toLowerCase();
       if (seen.has(key) || exclude.has(venue.id.toLowerCase()) || exclude.has(key)) continue;
+      if (!venueSuitsDiet(venue, diet)) continue;
       seen.add(key);
       collected.push(venue);
     }
@@ -270,11 +297,12 @@ export async function buildTasteQuizVenues(
   cuisines: CuisineId[] = [],
   limit = TASTE_QUIZ_VENUE_COUNT,
   excludeIds: string[] = [],
+  diet: DietaryNeeds = 'none',
 ): Promise<TasteQuizVenue[]> {
   const cityArea = quizCityArea(area);
 
   if (isAmsterdamMetroHomeArea(area)) {
-    const fromCatalog = buildCatalogTasteQuizVenues(cuisines, limit, excludeIds);
+    const fromCatalog = buildCatalogTasteQuizVenues(cuisines, limit, excludeIds, diet);
     if (fromCatalog.length >= limit) return fromCatalog;
 
     const exclude = [
@@ -286,6 +314,7 @@ export async function buildTasteQuizVenues(
       cuisines,
       limit - fromCatalog.length,
       exclude,
+      diet,
     );
     const merged = dedupeQuizVenues([...fromCatalog, ...fromExternal]);
     if (merged.length > 0) return merged.slice(0, limit);
@@ -293,13 +322,14 @@ export async function buildTasteQuizVenues(
     return fromCatalog;
   }
 
-  let venues = await buildExternalTasteQuizVenues(cityArea, cuisines, limit, excludeIds);
+  let venues = await buildExternalTasteQuizVenues(cityArea, cuisines, limit, excludeIds, diet);
   if (venues.length === 0 && !cityArea.toLowerCase().includes('netherlands')) {
     venues = await buildExternalTasteQuizVenues(
       `${cityArea}, Netherlands`,
       cuisines,
       limit,
       excludeIds,
+      diet,
     );
   }
   return venues;

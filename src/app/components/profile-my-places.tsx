@@ -276,7 +276,7 @@ export function ProfileMyPlacesSection({
       <HStack hAlign="between" vAlign="center" style={{width: '100%'}}>
         <VStack gap={0}>
           <Text type="label" weight="semibold">
-            Places you enjoy
+            Reviews
           </Text>
           <Text type="supporting" color="secondary">
             Only positive picks — drag to rank; top spots weigh more in Find.

@@ -44,6 +44,7 @@ export const ProfileTasteQuizSection = forwardRef<
   const homeArea = profile.homeArea.trim() || 'Amsterdam';
   const quizArea = quizCityArea(homeArea);
   const cuisines = profile.preferences.cuisineAffinities ?? [];
+  const diet = profile.preferences.dietaryLean ?? 'none';
 
   const setActiveSafe = useCallback(
     (next: boolean) => {
@@ -73,6 +74,7 @@ export const ProfileTasteQuizSection = forwardRef<
       exclude: reactedIds.join(','),
     });
     if (cuisines.length > 0) params.set('cuisines', cuisines.join(','));
+    if (diet !== 'none') params.set('diet', diet);
 
     try {
       const res = await fetch(`/api/onboarding/quiz-venues?${params.toString()}`);
@@ -89,7 +91,7 @@ export const ProfileTasteQuizSection = forwardRef<
     } finally {
       setLoading(false);
     }
-  }, [homeArea, quizArea, cuisines, reactedIds]);
+  }, [homeArea, quizArea, cuisines, diet, reactedIds]);
 
   const startQuiz = useCallback(() => {
     setActiveSafe(true);

@@ -407,7 +407,7 @@ export function OnboardingFlow() {
                   }
                 />
                 <Text type="supporting" color="secondary">
-                  Your location is the default for every search. You can change it later in your profile.
+                  We&apos;ll use your location to base your initial taste profile on. You can still search anywhere.
                 </Text>
                 <HStack gap={2} wrap="wrap">
                   <Button label="Continue" onClick={handleBasicsContinue} />

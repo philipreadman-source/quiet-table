@@ -622,6 +622,17 @@ const MICHELIN_OPTIONS: VenueOptionCard[] = [
     dietary_tags: ['limited-veg'],
   },
   {
+    id: 'flore',
+    title: 'Flore',
+    subtitle: "Center · De L'Europe, vegetable-led",
+    description: 'Two stars plus a Green Star — produce-first tasting menu by the Amstel.',
+    image_url: '/venues/rijks.jpg',
+    cta_label: 'Book your table',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/flore',
+    michelin_distinction: '2 Stars',
+    dietary_tags: ['vegetarian-friendly'],
+  },
+  {
     id: 'restaurant-brut172',
     title: 'Brut172',
     subtitle: 'Noord · wine-forward',

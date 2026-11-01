@@ -33,6 +33,7 @@ const VENUE_CUISINE_OVERRIDES: Record<string, CuisineId[]> = {
   'rijks': ['modern-european'],
   'graphite': ['french'],
   'restaurant-gem': ['modern-european'],
+  'flore': ['modern-european', 'vegetarian-forward'],
   'restaurant-brut172': ['modern-european'],
   'restaurant-plantage': ['vegetarian-forward', 'modern-european'],
   'restaurant-wils': ['modern-european'],

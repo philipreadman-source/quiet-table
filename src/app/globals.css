@@ -67,6 +67,51 @@ a {
   box-sizing: border-box;
 }
 
+/* Phones: the page gutter is the only side inset, and the composer is one
+   line with send on the right, growing as the message wraps. */
+@media (max-width: 640px) {
+  .astryx-chat-layout > div:first-child {
+    padding-inline: 0;
+    padding-bottom: calc(56px + 12px + var(--spacing-4));
+  }
+
+  .astryx-chat-message-list > div {
+    padding-inline: 0;
+  }
+
+  .astryx-chat-layout > div:last-child {
+    bottom: 12px;
+  }
+
+  .astryx-chat-layout > div:last-child > div:last-child {
+    padding-inline: 0;
+  }
+
+  .astryx-chat-composer > div {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: var(--spacing-2);
+  }
+
+  .astryx-chat-composer > div > div:first-child {
+    flex: 1;
+    min-width: 0;
+    align-self: center;
+  }
+
+  .astryx-chat-composer > div > div:last-child {
+    margin: 0;
+  }
+
+  /* Placeholder stays on one line rather than growing the box. */
+  .astryx-chat-composer div:has(> [contenteditable]) > div:first-child:not([contenteditable]) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+}
+
 /* Assistant text / tool rows: top-align avatar with the bubble. */
 .astryx-chat-message.assistant.chat-message--inline {
   align-items: flex-start;

@@ -52,6 +52,11 @@ const Q_AVATAR = (
   <Avatar src="/brand/quiet-table-mark.svg" name="Quiet Table" alt="Quiet Table" size="xsmall" />
 );
 
+/** Ratings needed to finish the quiz. "Never been" doesn't count: it moves on
+ * to another place, fetching more when the list runs out. */
+const QUIZ_REQUIRED_RATINGS = 3;
+const QUIZ_FETCH_MORE = 5;
+
 const REACTION_OPTIONS: {id: VenueReaction; label: string}[] = [
   {id: 'love', label: 'Love it'},
   {id: 'fine', label: 'Fine'},
@@ -91,6 +96,10 @@ export function OnboardingFlow() {
   const [quizVenues, setQuizVenues] = useState<TasteQuizVenue[]>([]);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizError, setQuizError] = useState<string | null>(null);
+  const [quizRatedCount, setQuizRatedCount] = useState(0);
+  const [quizFetchingMore, setQuizFetchingMore] = useState(false);
+  // No more places to show: the quiz can't reach 3 ratings, so let them continue.
+  const [quizExhausted, setQuizExhausted] = useState(false);
   const [copyNote, setCopyNote] = useState<string | null>(null);
 
   useEffect(() => {
@@ -175,6 +184,8 @@ export function OnboardingFlow() {
     setQuizLoading(true);
     setQuizError(null);
     setQuizIndex(0);
+    setQuizRatedCount(0);
+    setQuizExhausted(false);
 
     const params = new URLSearchParams({area});
     if (quizCuisinesKey.length > 0) params.set('cuisines', quizCuisinesKey);
@@ -287,12 +298,45 @@ export function OnboardingFlow() {
     if (venue == null) return;
     const next = applyVenueReaction(profile, venue.id, reaction);
     persist(next);
-    if (quizIndex >= quizVenues.length - 1) {
+    const rated = reaction === 'never_been' ? quizRatedCount : quizRatedCount + 1;
+    setQuizRatedCount(rated);
+    if (rated >= QUIZ_REQUIRED_RATINGS) {
       advanceFrom('venue_quiz', next);
       setQuizIndex(0);
+      setQuizRatedCount(0);
       return;
     }
-    setQuizIndex((i) => i + 1);
+    if (quizIndex < quizVenues.length - 1) {
+      setQuizIndex((i) => i + 1);
+      return;
+    }
+    void loadMoreQuizVenues();
+  };
+
+  // Out of places before 3 ratings: fetch more, skipping ones already shown.
+  const loadMoreQuizVenues = async () => {
+    setQuizFetchingMore(true);
+    const params = new URLSearchParams({
+      area: quizHomeArea,
+      limit: String(QUIZ_FETCH_MORE),
+      exclude: quizVenues.map((v) => v.id).join(','),
+    });
+    if (quizCuisinesKey.length > 0) params.set('cuisines', quizCuisinesKey);
+    try {
+      const res = await fetch(`/api/onboarding/quiz-venues?${params.toString()}`);
+      const payload = (await res.json()) as {venues?: TasteQuizVenue[]};
+      const more = res.ok ? (payload.venues ?? []) : [];
+      if (more.length === 0) {
+        setQuizExhausted(true);
+        return;
+      }
+      setQuizVenues((prev) => [...prev, ...more]);
+      setQuizIndex((i) => i + 1);
+    } catch {
+      setQuizExhausted(true);
+    } finally {
+      setQuizFetchingMore(false);
+    }
   };
 
   const recordInviteSent = (channel: 'share_sheet' | 'copy_link') => {
@@ -469,7 +513,7 @@ export function OnboardingFlow() {
                   Have you eaten here?
                 </Text>
                 <Text color="secondary">
-                  {quizIndex + 1} of {quizVenues.length}
+                  {quizRatedCount} of {QUIZ_REQUIRED_RATINGS} rated
                   {(profile.preferences.cuisineAffinities?.length ?? 0) > 0
                     ? ` · picked for your cravings`
                     : ` · popular in ${quizAreaLabel}`}
@@ -490,18 +534,30 @@ export function OnboardingFlow() {
                     )}
                   </VStack>
                 </SelectableCard>
-                <HStack gap={2} wrap="wrap">
-                  {REACTION_OPTIONS.map((option) => (
-                    <Button
-                      key={option.id}
-                      label={option.label}
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleQuizReaction(option.id)}
-                    />
-                  ))}
-                </HStack>
-                <Button label="Skip quiz" variant="ghost" onClick={skipStep} />
+                {quizExhausted ? (
+                  <VStack gap={2}>
+                    <Text color="secondary">
+                      That&apos;s every place we could find near you for now. You can carry on.
+                    </Text>
+                    <HStack gap={2} wrap="wrap">
+                      <Button label="Continue" onClick={() => advanceFrom('venue_quiz', profile)} />
+                    </HStack>
+                  </VStack>
+                ) : (
+                  <HStack gap={2} wrap="wrap">
+                    {REACTION_OPTIONS.map((option) => (
+                      <Button
+                        key={option.id}
+                        label={option.label}
+                        variant="secondary"
+                        size="sm"
+                        isDisabled={quizFetchingMore}
+                        onClick={() => handleQuizReaction(option.id)}
+                      />
+                    ))}
+                  </HStack>
+                )}
+                {quizFetchingMore && <Text color="secondary">Finding another place…</Text>}
               </VStack>
             )}
 

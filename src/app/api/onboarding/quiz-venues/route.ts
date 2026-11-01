@@ -1,19 +1,9 @@
 import {NextResponse} from 'next/server';
-import type {CuisineId} from '@/lib/taste-profile';
+import {CUISINE_OPTIONS, type CuisineId} from '@/lib/taste-profile';
 import {buildTasteQuizVenues} from '@/lib/taste-quiz';
 
-const VALID_CUISINES = new Set<CuisineId>([
-  'italian',
-  'french',
-  'mexican',
-  'seafood',
-  'japanese',
-  'middle-eastern',
-  'modern-european',
-  'steak-grill',
-  'vegetarian-forward',
-  'other',
-]);
+// From the picker's own list, so a new cuisine can't be silently dropped here.
+const VALID_CUISINES = new Set<CuisineId>(CUISINE_OPTIONS.map((option) => option.id));
 
 function parseCuisines(raw: string | null): CuisineId[] {
   if (raw == null || raw.trim().length === 0) return [];

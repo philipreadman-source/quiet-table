@@ -15,6 +15,8 @@ export type FriendFoodProfile = {
   id: string;
   name: string;
   fullName: string;
+  /** Quiet Table username, so "@molly" finds them as well as "Molly". */
+  username?: string;
   relationship: 'close_friend';
   homeArea: string;
   tasteSummary: string;

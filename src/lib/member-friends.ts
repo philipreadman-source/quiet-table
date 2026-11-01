@@ -42,6 +42,7 @@ export function tasteProfileToFriendFoodProfile(profile: TasteProfile): FriendFo
     id: profile.userId,
     name: short,
     fullName: display,
+    username: profile.username.trim().length > 0 ? profile.username.trim() : undefined,
     relationship: 'close_friend',
     homeArea: profile.homeArea.trim().length > 0 ? profile.homeArea.trim() : '—',
     tasteSummary: tasteSummaryFromProfile(profile),

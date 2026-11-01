@@ -8,6 +8,7 @@ import {
   paginateVenueOptions,
   rankVenueOptions,
   TIME_SLOTS,
+  type DietaryNeeds,
   type VenueOptionCard,
 } from '@/lib/venue-options';
 import {
@@ -299,7 +300,6 @@ function buildClarifyResponse(draft: BookingDraft | undefined, message: string):
             {id: 'casual', label: 'Something casual, nothing fussy.'},
             {id: 'date', label: "I'm looking for a date night table."},
             {id: 'group', label: 'I need a table for a group.'},
-            {id: 'business', label: 'I need a table for a business dinner.'},
           ],
         },
       },
@@ -405,6 +405,37 @@ function tryBroadCatalogOptions(
         pagination: {page: 0, has_more: hasMore, total},
       },
     },
+  };
+}
+
+/** Saved casual places, a page at a time, ranked for the user and any friends
+ * along. For when the agent is off and a message gives nothing to go on. */
+export function casualPicksPage(
+  page: number,
+  draft: {goingWithFriendIds?: string[]; dietaryNeeds?: DietaryNeeds; date?: string; time?: string},
+  userMemory: UserMemory,
+  communityMembers: FriendFoodProfile[] = [],
+): {options: VenueOptionCard[]; hasMore: boolean; total: number} {
+  const companionIds = effectiveCommunityCompanionIds(draft.goingWithFriendIds, communityMembers);
+  const communityLookup = createCommunityFriendLookup(communityMembers);
+  const intent = 'Something casual, nothing fussy.';
+  const ranked = rankVenueOptions(
+    filterExcludedVenues(getVenueOptionsForIntent(intent), userMemory),
+    draft.date,
+    draft.time ?? '7:30pm',
+    draft.dietaryNeeds ?? 'none',
+    (venueId) =>
+      memoryRankScore(venueId, userMemory) +
+      friendRankScoreForCompanions(venueId, companionIds, '', intent, communityLookup),
+  );
+  const {options, hasMore, total} = paginateVenueOptions(ranked, page);
+  return {
+    options: options.map((option) => {
+      const proof = memberSocialProofForVenue(option.id, option.title, communityMembers, companionIds);
+      return proof != null ? {...option, social_proof: proof} : option;
+    }),
+    hasMore,
+    total,
   };
 }
 

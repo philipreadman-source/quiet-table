@@ -1,6 +1,14 @@
 'use client';
 
-import {useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent} from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import {useAuth, useUser} from '@clerk/nextjs';
 import {useRouter} from 'next/navigation';
 import {Sparkles} from 'lucide-react';
@@ -34,9 +42,16 @@ import {
   type VenueOptionCard,
 } from '@/lib/venue-options';
 import {filterExcludedVenues, getUserMemory, type UserMemory} from '@/lib/user-memory';
+import {casualPicksPage} from '@/lib/fallback-response';
 import {isOnboardingComplete, saveTasteProfile, type TasteProfile} from '@/lib/taste-profile';
 import {mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {resolveFriendFoodProfile} from '@/lib/member-friends';
+import {
+  friendBrief,
+  friendsMentioned,
+  joinNames,
+  withoutFriendMentions,
+} from '@/lib/friend-mentions';
 import {useMemberFriends} from '@/lib/use-member-friends';
 import {
   DATE_NIGHT_OCCASION_CARDS,
@@ -128,13 +143,6 @@ const INTENT_CARDS = [
     partySizes: MICHELIN_PARTY_SIZES,
   },
   {
-    id: 'business',
-    title: 'Business',
-    subtitle: 'Professional, easy to talk shop',
-    message: 'I need a table for a business dinner.',
-    acknowledgement: 'Business dinner, got it.',
-  },
-  {
     id: 'group',
     title: 'Group',
     subtitle: 'For 6 or more people',
@@ -168,7 +176,6 @@ function intentSummaryLabel(intent: string | undefined): string | null {
   if (lower.includes('date night')) return 'Date night';
   if (lower.includes('casual')) return 'Casual';
   if (lower.includes('michelin')) return 'Michelin star';
-  if (lower.includes('business')) return 'Business';
   if (lower.includes('group')) return 'Group';
   return intent.replace(/\.$/, '');
 }
@@ -457,14 +464,17 @@ function threadToAgentHistory(
 function ComposerThreadMessages({
   items,
   keyPrefix,
+  renderUi,
 }: {
   items: PostSummaryItem[];
   keyPrefix: string;
+  /** Cards that come back mid-wizard; text should never point at cards that aren't shown. */
+  renderUi?: (item: Extract<PostSummaryItem, {type: 'ui'}>, key: string) => ReactNode;
 }) {
   return (
     <>
       {items.map((item, index) => {
-        if (item.type !== 'message') return null;
+        if (item.type === 'ui') return renderUi?.(item, `${keyPrefix}-${index}`) ?? null;
         if (item.role === 'assistant') {
           return (
             <ChatMessage
@@ -861,6 +871,27 @@ function looksLikeLocationText(text: string): boolean {
   return /^[a-zA-ZÀ-ÿ\s'.-]+$/.test(trimmed);
 }
 
+type IntentCard = (typeof INTENT_CARDS)[number];
+
+/** The wizard's intent card a typed message points at, if any. */
+function intentCardFromText(text: string): IntentCard | undefined {
+  const lower = text.toLowerCase();
+  const id = /\bmichelin\b/.test(lower)
+    ? 'michelin'
+    : /\bdate( night)?\b/.test(lower)
+      ? 'date-night'
+      : /\bgroup\b/.test(lower)
+          ? 'group'
+          : /\bcasual\b/.test(lower)
+            ? 'casual'
+            : null;
+  return id != null ? INTENT_CARDS.find((card) => card.id === id) : undefined;
+}
+
+const OFFLINE_NOTHING_PARSED =
+  "Sorry, the agent's off, so I can't chat right now. Here are a few saved casual places, or tap an option to search properly.";
+const OFFLINE_SHOW_MORE = 'Show more restaurants';
+
 function mergeDraftFromText(
   draft: BookingDraft,
   text: string,
@@ -870,7 +901,8 @@ function mergeDraftFromText(
   const lower = text.toLowerCase();
   const next = {...draft};
 
-  const partyMatch = lower.match(/\b(?:party of|for)\s+(\d+)\b/);
+  const partyMatch =
+    lower.match(/\b(?:party of|for)\s+(\d+)\b/) ?? lower.match(/\b(\d+)\s+(?:of us|people|guests)\b/);
   if (partyMatch != null) next.partySize = partyMatch[1];
 
   const parsedLocation = parseLocationFromMessage(text);
@@ -895,7 +927,6 @@ function mergeDraftFromText(
   if (lower.includes('casual')) next.intent = 'Something casual, nothing fussy.';
   if (lower.includes('date night')) next.intent = "I'm looking for a date night table.";
   if (lower.includes('michelin')) next.intent = 'Find me a Michelin star table.';
-  if (lower.includes('business')) next.intent = 'I need a table for a business dinner.';
   if (lower.includes('group')) next.intent = 'I need a table for a group.';
 
   return next;
@@ -1098,6 +1129,146 @@ export default function Home() {
     setStage(dateNightStepsIncluded ? 'occasion' : 'date');
   };
 
+  // Picking an intent restarts the wizard. On the first pick, keep anything
+  // typed before it (a friend, a party size), and the location as always.
+  const selectIntentCard = (card: IntentCard, typedDraft?: BookingDraft) => {
+    const source = typedDraft ?? bookingDraft;
+    const carried: BookingDraft =
+      stage === 'intent' || typedDraft != null
+        ? {
+            goingWithFriendIds: source.goingWithFriendIds,
+            goingWithSkipped: source.goingWithSkipped,
+            partyDietarySummary: source.partyDietarySummary,
+            dietaryNeeds: source.dietaryNeeds,
+            partySize: source.partySize,
+            time: source.time,
+          }
+        : {};
+    const base: BookingDraft = {
+      ...INITIAL_BOOKING_DRAFT,
+      ...carried,
+      location: source.location ?? 'Amsterdam',
+      intent: card.message,
+    };
+    setMessages((prev) => (prev.length > 0 ? [prev[0]!] : []));
+    setPostSummaryThread([]);
+    if (typedDraft == null) setWizardComposerThread([]);
+    if (typedDraft == null) setLocationFromComposer(false);
+    setIntentAcknowledgement(card.acknowledgement);
+    if (card.fixedPartySize != null) {
+      setBookingDraft({...base, partySize: card.fixedPartySize});
+      setSizeStepSkipped(true);
+      setDateNightStepsIncluded(card.id === 'date-night');
+      setStage(stageAfterIntentSelection(card.fixedPartySize));
+      return;
+    }
+    const sizes = card.partySizes ?? DEFAULT_PARTY_SIZES;
+    const typedSize = base.partySize != null && sizes.includes(base.partySize) ? base.partySize : undefined;
+    setBookingDraft({...base, partySize: typedSize});
+    setSizeStepSkipped(false);
+    setDateNightStepsIncluded(false);
+    setActivePartySizes(sizes);
+    if (typedSize == null) setStage('size');
+    else setStage(isSoloPartySize(typedSize) ? stageAfterGoingWith() : 'goingWith');
+  };
+
+  // Agent off: typed text mid-wizard fills in the wizard instead of jumping
+  // to a results list the wizard can't show yet. No request is made.
+  const handleOfflineWizardText = (text: string) => {
+    const friends = friendsMentioned(text, memberFriends);
+    const rest = withoutFriendMentions(text, friends);
+    const parsed =
+      rest.length > 0 ? mergeDraftFromText(bookingDraft, rest, stage, false) : bookingDraft;
+    // Intent only changes through its card, below.
+    let draft: BookingDraft = {...parsed, intent: bookingDraft.intent};
+    const notes: string[] = [];
+
+    if (friends.length > 0) {
+      const ids = [...new Set([...(draft.goingWithFriendIds ?? []), ...friends.map((f) => f.id)])];
+      draft = applyCompanionPartyInfluence(
+        {...draft, goingWithFriendIds: ids, goingWithSkipped: false},
+        memberFriends,
+      );
+      notes.push(`with ${joinNames(friends.map((f) => f.name))}`);
+    }
+    const locationChanged = draft.location != null && draft.location !== bookingDraft.location;
+    if (locationChanged) notes.push(`in ${draft.location}`);
+    const sizeChanged = draft.partySize != null && draft.partySize !== bookingDraft.partySize;
+    if (sizeChanged) notes.push(`for ${draft.partySize}`);
+    if (draft.time != null && draft.time !== bookingDraft.time) notes.push(`around ${draft.time}`);
+
+    const card = intentCardFromText(rest);
+    if (card != null) notes.unshift(card.title);
+
+    const lead =
+      notes.length === 0
+        ? OFFLINE_NOTHING_PARSED
+        : `Got it: ${notes.join(', ')}.${card == null && stage === 'intent' ? ' What kind of table are you after?' : ''}`;
+    // Friends' needs are hard filters later on; say them back so it's clear.
+    const reply =
+      friends.length > 0 ? `${lead}\n\n${friends.map(friendBrief).join('\n')}` : lead;
+    const exchange: PostSummaryItem[] = [
+      {type: 'message', role: 'user', text},
+      {type: 'message', role: 'assistant', text: reply},
+    ];
+    if (notes.length === 0) {
+      const picks = casualPicksPage(0, bookingDraft, userMemory, memberFriends);
+      setBookingDraft((prev) => ({...prev, venueResultsPage: 0}));
+      exchange.push({
+        type: 'ui',
+        ui: {
+          interactive: {
+            type: 'options',
+            title: 'Saved casual places',
+            options: picks.options,
+            pagination: {page: 0, has_more: picks.hasMore, total: picks.total},
+          },
+        },
+        venueOptions: picks.options,
+      });
+    }
+
+    if (card != null) {
+      selectIntentCard(card, draft);
+      setWizardComposerThread(exchange);
+      if (locationChanged) setLocationFromComposer(true);
+      return;
+    }
+
+    setBookingDraft(draft);
+    setWizardComposerThread((prev) => [...prev, ...exchange]);
+    if (locationChanged) setLocationFromComposer(true);
+    if (stage === 'size' && sizeChanged) {
+      setStage(isSoloPartySize(draft.partySize) ? stageAfterGoingWith() : 'goingWith');
+    } else if (stage === 'goingWith' && friends.length > 0) {
+      setStage(stageAfterGoingWith());
+    } else if (stage === 'location' && locationChanged) {
+      setStage(dateNightStepsIncluded ? 'occasion' : 'date');
+    }
+  };
+
+  // Show more on the offline casual picks: next 3, added to the same list.
+  const showMoreOfflinePicks = () => {
+    const page = (bookingDraft.venueResultsPage ?? 0) + 1;
+    const picks = casualPicksPage(page, bookingDraft, userMemory, memberFriends);
+    setBookingDraft((prev) => ({...prev, venueResultsPage: page}));
+    setWizardComposerThread((prev) =>
+      appendAgentResponseToThread(
+        prev,
+        '',
+        {
+          interactive: {
+            type: 'options',
+            title: 'Saved casual places',
+            options: picks.options,
+            pagination: {page, has_more: picks.hasMore, total: picks.total},
+          },
+        },
+        true,
+      ),
+    );
+  };
+
   const restartFindFlow = () => {
     setMessages((prev) => (prev.length > 0 && prev[0]?.role === 'assistant' ? [prev[0]!] : prev));
     setPostSummaryThread([]);
@@ -1140,6 +1311,10 @@ export default function Home() {
     if (text.trim().length === 0 || isLoading) return;
     const summaryExists = messages.some((m) => m.kind === 'summary');
     const isSummaryTurn = options?.displayAsSummary === true;
+    if (agentFallback && !summaryExists && !isSummaryTurn && draftOverride == null) {
+      handleOfflineWizardText(text);
+      return;
+    }
 
     const activeComposerThread = summaryExists ? postSummaryThread : wizardComposerThread;
 
@@ -1316,33 +1491,7 @@ export default function Home() {
                                 style={{padding: 'var(--spacing-4)'}}
                                 isSelected={false}
                                 onChange={(isSelected) => {
-                                  if (!isSelected) return;
-                                  setMessages((prev) => (prev.length > 0 ? [prev[0]!] : []));
-                                  setPostSummaryThread([]);
-                                  setWizardComposerThread([]);
-                                  setLocationFromComposer(false);
-                                  setDateNightStepsIncluded(false);
-                                  setBookingDraft((prev) => ({
-                                    ...INITIAL_BOOKING_DRAFT,
-                                    location: prev.location ?? 'Amsterdam',
-                                  }));
-                                  setIntentAcknowledgement(card.acknowledgement);
-                                  if (card.fixedPartySize != null) {
-                                    setBookingDraft((prev) => ({
-                                      ...prev,
-                                      intent: card.message,
-                                      partySize: card.fixedPartySize,
-                                    }));
-                                    setSizeStepSkipped(true);
-                                    setDateNightStepsIncluded(card.id === 'date-night');
-                                    setStage(stageAfterIntentSelection(card.fixedPartySize));
-                                  } else {
-                                    setBookingDraft((prev) => ({...prev, intent: card.message, partySize: undefined}));
-                                    setSizeStepSkipped(false);
-                                    setDateNightStepsIncluded(false);
-                                    setActivePartySizes(card.partySizes ?? DEFAULT_PARTY_SIZES);
-                                    setStage('size');
-                                  }
+                                  if (isSelected) selectIntentCard(card);
                                 }}>
                                 <VStack gap={0}>
                                   <Text type="label" weight="semibold">
@@ -1488,7 +1637,34 @@ export default function Home() {
                       </ChatMessage>
                     )}
 
-                    <ComposerThreadMessages items={wizardComposerThread} keyPrefix="wizard" />
+                    <ComposerThreadMessages
+                      items={wizardComposerThread}
+                      keyPrefix="wizard"
+                      renderUi={(item, key) =>
+                        uiBlockIsVisible(item.ui) ? (
+                          <ChatMessage key={key} sender="assistant" avatar={QUIET_TABLE_AVATAR}>
+                            <ChatMessageBubble variant="ghost" className="wizard-block--wide" style={wizardBubblePadding}>
+                              <AgentUiBlock
+                                ui={item.ui}
+                                venueOptions={item.venueOptions}
+                                bookingDraft={bookingDraft}
+                                onSend={(text, draft, sendOptions) =>
+                                  agentFallback && text === OFFLINE_SHOW_MORE
+                                    ? showMoreOfflinePicks()
+                                    : send(text, draft, sendOptions)
+                                }
+                                onSelectVenue={(title) =>
+                                  setBookingDraft((prev) => withDraftField(prev, 'venue', title))
+                                }
+                                showMoreEnabled
+                                userMemory={userMemory}
+                                communityMembers={memberFriends}
+                              />
+                            </ChatMessageBubble>
+                          </ChatMessage>
+                        ) : null
+                      }
+                    />
 
                     {visibleStages.includes('occasion') && (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>

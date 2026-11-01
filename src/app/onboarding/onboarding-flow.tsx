@@ -296,7 +296,7 @@ export function OnboardingFlow() {
     if (profile == null) return;
     const venue = quizVenues[quizIndex];
     if (venue == null) return;
-    const next = applyVenueReaction(profile, venue.id, reaction);
+    const next = applyVenueReaction(profile, venue.id, reaction, venue);
     persist(next);
     const rated = reaction === 'never_been' ? quizRatedCount : quizRatedCount + 1;
     setQuizRatedCount(rated);

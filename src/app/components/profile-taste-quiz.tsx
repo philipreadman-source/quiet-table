@@ -101,7 +101,7 @@ export const ProfileTasteQuizSection = forwardRef<
   const handleReaction = (reaction: VenueReaction) => {
     const venue = venues[index];
     if (venue == null) return;
-    persist(applyVenueReaction(profile, venue.id, reaction));
+    persist(applyVenueReaction(profile, venue.id, reaction, venue));
     if (index >= venues.length - 1) {
       setActiveSafe(false);
       setVenues([]);

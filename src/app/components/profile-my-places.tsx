@@ -32,6 +32,12 @@ const row: CSSProperties = {
   borderBottom: '1px solid var(--color-border-subtle)',
 };
 
+// Places rated outside the catalog before names were saved only have an
+// osm-* id; say so rather than show the id or guess a name.
+function placeLabel(place: {venueId: string; title: string}): string {
+  return place.title === place.venueId && place.venueId.startsWith('osm-') ? 'Name not saved' : place.title;
+}
+
 function ratingLabel(rating: 'loved' | 'liked' | 'fine'): string {
   if (rating === 'loved') return 'Loved';
   if (rating === 'fine') return 'Fine';
@@ -136,7 +142,7 @@ function ReorderablePlaceRow({
         <button
           type="button"
           draggable
-          aria-label={`Reorder ${place.title}`}
+          aria-label={`Reorder ${placeLabel(place)}`}
           onDragStart={(event) => {
             event.dataTransfer.effectAllowed = 'move';
             event.dataTransfer.setData('text/plain', place.venueId);
@@ -407,11 +413,11 @@ export function ProfileMyPlacesSection({
                 onDragEnd={handleDragEnd}>
                 <HStack hAlign="between" vAlign="center" style={{width: '100%'}}>
                   <Text type="label" weight="semibold">
-                    {place.title}
+                    {placeLabel(place)}
                   </Text>
                   <PlaceRatingMenu
                     rating={place.rating}
-                    venueTitle={place.title}
+                    venueTitle={placeLabel(place)}
                     onLoved={() =>
                       saveProfile(addPositiveRestaurantToProfile(profile, place.venueId, 'loved'))
                     }

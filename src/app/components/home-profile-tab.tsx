@@ -187,10 +187,7 @@ export function HomeProfileTabPanel({
         <ProfileAccountMenu />
       </HStack>
 
-      {/* First on the page: a "review a restaurant" action will live here. */}
-      <ProfileMyPlacesSection profile={profile} onProfileSaved={onProfileSaved} />
-
-      <VStack gap={0} align="stretch" style={{marginTop: 'var(--spacing-8)'}}>
+      <VStack gap={0} align="stretch">
         <VStack gap={3} align="stretch" style={{maxWidth: FIELD_MAX_WIDTH}}>
           <TextInput
             label="Username"
@@ -211,6 +208,11 @@ export function HomeProfileTabPanel({
           {saveNote != null && (
             <Banner status="success" title={saveNote} />
           )}
+        </VStack>
+
+        {/* First section after your details: a "review a restaurant" action will live here. */}
+        <VStack gap={0} align="stretch" style={{marginTop: 'var(--spacing-8)'}}>
+          <ProfileMyPlacesSection profile={profile} onProfileSaved={onProfileSaved} />
         </VStack>
 
         <VStack gap={2} align="stretch" style={{marginTop: 'var(--spacing-8)'}}>

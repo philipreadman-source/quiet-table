@@ -287,23 +287,34 @@ export function applyVenueReaction(
   profile: TasteProfile,
   venueId: string,
   reaction: VenueReaction,
+  /** Name and area to save with the visit. Needed for places outside the
+   * catalog (osm-* ids), which the app can't look up by id later. */
+  venue?: {title?: string; subtitle?: string},
 ): TasteProfile {
   const venueReactions = {...profile.venueReactions, [venueId]: reaction};
   let anchorVenueIds = [...profile.anchorVenueIds];
   let excludedVenueIds = [...profile.excludedVenueIds];
   let recentVisits = [...profile.recentVisits.filter((v) => v.venueId !== venueId)];
   const now = new Date().toISOString().slice(0, 10);
+  // Keep a name saved earlier (e.g. re-rating from My places passes none).
+  const previous = profile.recentVisits.find((v) => v.venueId === venueId);
+  const title = venue?.title ?? previous?.title;
+  const subtitle = venue?.subtitle ?? previous?.subtitle;
+  const named = {
+    ...(title != null ? {title} : {}),
+    ...(subtitle != null ? {subtitle} : {}),
+  };
 
   if (reaction === 'love') {
     if (!anchorVenueIds.includes(venueId)) anchorVenueIds.push(venueId);
     excludedVenueIds = excludedVenueIds.filter((id) => id !== venueId);
-    recentVisits.push({venueId, visitedAt: now, rating: 'liked', source: 'quiz'});
+    recentVisits.push({venueId, visitedAt: now, rating: 'liked', source: 'quiz', ...named});
   } else if (reaction === 'not_for_me') {
     anchorVenueIds = anchorVenueIds.filter((id) => id !== venueId);
     if (!excludedVenueIds.includes(venueId)) excludedVenueIds.push(venueId);
-    recentVisits.push({venueId, visitedAt: now, rating: 'disliked', source: 'quiz'});
+    recentVisits.push({venueId, visitedAt: now, rating: 'disliked', source: 'quiz', ...named});
   } else if (reaction === 'fine') {
-    recentVisits.push({venueId, visitedAt: now, rating: 'liked', source: 'quiz'});
+    recentVisits.push({venueId, visitedAt: now, rating: 'liked', source: 'quiz', ...named});
   }
 
   return refreshTasteConfidence({

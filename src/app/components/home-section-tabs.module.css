@@ -18,7 +18,7 @@
   padding: 2px;
   border-radius: 6px;
   background: transparent;
-  color: #a8c29f;
+  color: var(--qt-accent-soft);
   cursor: pointer;
   transform: translateY(-50%);
   animation: findRestartIn 0.35s ease;
@@ -37,11 +37,11 @@
 }
 
 .findRestart:hover {
-  color: #bdd4b6;
-  background-color: rgba(168, 194, 159, 0.12);
+  color: color-mix(in srgb, var(--qt-accent-soft) 75%, white);
+  background-color: color-mix(in srgb, var(--qt-accent-soft) 12%, transparent);
 }
 
 .findRestart:focus-visible {
-  outline: 2px solid #a8c29f;
+  outline: 2px solid var(--qt-accent-soft);
   outline-offset: 1px;
 }

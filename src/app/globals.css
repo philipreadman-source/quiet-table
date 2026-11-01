@@ -1,6 +1,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* App token: light sage, the same in both modes (the theme's dark-mode
+     accent). Astryx themes only take their own token names, so it lives here. */
+  --qt-accent-soft: #a8c29f;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -128,10 +131,10 @@ a {
   width: 100%;
   max-width: 100%;
 }
-/* The Quiet Table dot's light green at 20%. Translucent, so it sits on either
-   mode's background and keeps the normal text colour. */
+/* The Quiet Table dot's light green at 20%. Translucent, so it sits on
+   either mode's background and keeps the normal text colour. */
 .astryx-chat-message-bubble[data-sender='assistant'][data-variant='filled'] {
-  background-color: color-mix(in srgb, #a8c29f 20%, transparent);
+  background-color: color-mix(in srgb, var(--qt-accent-soft) 20%, transparent);
   color: var(--color-text-primary);
 }
 
@@ -143,7 +146,7 @@ a {
   height: 8px;
   margin-top: 22px;
   border-radius: var(--radius-full);
-  background-color: #a8c29f;
+  background-color: var(--qt-accent-soft);
 }
 
 /* ...while unpadded wizard blocks that open with a line of text put it ~10px down. */

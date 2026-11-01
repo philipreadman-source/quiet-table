@@ -113,7 +113,7 @@
   flex-shrink: 0;
   width: 16px;
   height: 16px;
-  color: #a8c29f;
+  color: var(--qt-accent-soft);
 }
 
 /* Expandable band under header — room for more icon+text rows */

@@ -18,6 +18,7 @@ import {
   type ProfileTasteQuizHandle,
 } from '@/app/components/profile-taste-quiz';
 import {clerkDisplayName, mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
+import {useMemberFriends} from '@/lib/use-member-friends';
 import {
   buildOnboardingSummaryRows,
   DIET_OPTIONS,
@@ -30,6 +31,9 @@ import {
   validateUsername,
   type TasteProfile,
 } from '@/lib/taste-profile';
+
+// Same field width as onboarding: its 480px column minus 16px padding each side.
+const FIELD_MAX_WIDTH = 448;
 
 const panel: CSSProperties = {
   flex: 1,
@@ -48,7 +52,15 @@ export function HomeProfileTabPanel({
   onProfileSaved: (next: TasteProfile) => void;
 }) {
   const {user} = useUser();
-  const summaryRows = useMemo(() => buildOnboardingSummaryRows(profile), [profile]);
+  const {members, loading: membersLoading} = useMemberFriends(user?.id);
+  const summaryRows = useMemo(
+    () =>
+      buildOnboardingSummaryRows(
+        profile,
+        membersLoading ? undefined : members.map((member) => member.reviewCount ?? 0),
+      ),
+    [profile, members, membersLoading],
+  );
   const emailLabel =
     user?.primaryEmailAddress?.emailAddress ??
     user?.emailAddresses[0]?.emailAddress ??
@@ -176,7 +188,7 @@ export function HomeProfileTabPanel({
       </HStack>
 
       <VStack gap={0} align="stretch">
-        <VStack gap={3} align="stretch">
+        <VStack gap={3} align="stretch" style={{maxWidth: FIELD_MAX_WIDTH}}>
           <TextInput
             label="Username"
             value={usernameInput}

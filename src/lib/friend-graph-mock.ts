@@ -23,6 +23,8 @@ export type FriendFoodProfile = {
   dietaryNotes?: string;
   /** Public URL under /personas — deployed with the app on Vercel. */
   avatarSrc?: string;
+  /** Places this member has rated — ranks taste feedback across members. */
+  reviewCount?: number;
   topPicks: FriendPick[];
   /** Cuisine-tailored suggestions — not visits yet. */
   suggestedPicks?: FriendPick[];

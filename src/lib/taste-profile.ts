@@ -562,22 +562,46 @@ function formatProfileDate(iso: string): string {
 }
 
 /** Read-only lines for Profile — mirrors what onboarding captured. */
-export function buildOnboardingSummaryRows(profile: TasteProfile): OnboardingSummaryRow[] {
+/** Places the user has rated, in the quiz or My places. "Never been" doesn't count. */
+export function countReviewedPlaces(profile: TasteProfile): number {
+  const ids = new Set(profile.recentVisits.map((visit) => visit.venueId));
+  for (const [venueId, reaction] of Object.entries(profile.venueReactions)) {
+    if (reaction !== 'never_been') ids.add(venueId);
+  }
+  return ids.size;
+}
+
+/** Where a review count ranks among all members, as "top X%" (lower is better).
+ * The user counts in the pool. Null when there's no one to compare with. */
+export function reviewTopPercent(count: number, otherMemberCounts: number[]): number | null {
+  if (otherMemberCounts.length === 0) return null;
+  const ahead = otherMemberCounts.filter((other) => other > count).length;
+  return Math.ceil(((ahead + 1) / (otherMemberCounts.length + 1)) * 100);
+}
+
+export function buildOnboardingSummaryRows(
+  profile: TasteProfile,
+  /** Other members' review counts; omit while they're still loading. */
+  otherMemberReviewCounts?: number[],
+): OnboardingSummaryRow[] {
   const rows: OnboardingSummaryRow[] = [];
 
-  const confidence =
-    profile.onboarding.tasteConfidence.charAt(0).toUpperCase() +
-    profile.onboarding.tasteConfidence.slice(1);
-  rows.push({label: 'Taste confidence', value: confidence});
+  const reviewed = countReviewedPlaces(profile);
+  const topPercent =
+    otherMemberReviewCounts != null ? reviewTopPercent(reviewed, otherMemberReviewCounts) : null;
+  rows.push({
+    label: 'Taste feedback',
+    value: topPercent != null ? `${reviewed}, top ${topPercent}% on Quiet Table` : String(reviewed),
+  });
 
   const cuisineIds = profile.preferences.cuisineAffinities ?? [];
   if (cuisineIds.length > 0) {
     const labels = cuisineIds
       .map((id) => CUISINE_OPTIONS.find((option) => option.id === id)?.label ?? id)
       .join(', ');
-    rows.push({label: 'Cuisines you picked', value: labels});
+    rows.push({label: 'Cuisines you enjoy', value: labels});
   } else if (!profile.onboarding.skippedSteps.includes('cuisine')) {
-    rows.push({label: 'Cuisines you picked', value: 'None — skipped or open to anything'});
+    rows.push({label: 'Cuisines you enjoy', value: 'None — skipped or open to anything'});
   }
 
   const lovedSummary = formatLovedQuizVenueSummary(profile);

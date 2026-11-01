@@ -4,7 +4,7 @@ import {
   positivePicksFromTasteProfile,
   suggestedPicksFromTasteProfile,
 } from '@/lib/member-friend-picks';
-import {CUISINE_OPTIONS, type TasteProfile} from '@/lib/taste-profile';
+import {countReviewedPlaces, CUISINE_OPTIONS, type TasteProfile} from '@/lib/taste-profile';
 
 // The diet word leads so friendDietaryLean reads it before any free-text note.
 const DIET_NOTE: Partial<Record<string, string>> = {
@@ -48,6 +48,7 @@ export function tasteProfileToFriendFoodProfile(profile: TasteProfile): FriendFo
     cuisineAffinities: profile.preferences.cuisineAffinities ?? [],
     dietaryNotes: dietaryNotesFromProfile(profile),
     avatarSrc: profile.clerk?.imageUrl ?? profile.avatarSrc,
+    reviewCount: countReviewedPlaces(profile),
     topPicks: positivePicksFromTasteProfile(profile),
     suggestedPicks: suggestedPicksFromTasteProfile(profile).map(
       (pick): FriendPick => ({

@@ -123,6 +123,47 @@ export function isAmsterdamMetroHomeArea(homeArea: string): boolean {
   );
 }
 
+// Saved locations read "City, Country" (or "City, England" / "City, Texas"),
+// while chat areas can read "Neighbourhood, City". Dropping countries and
+// regions first means the city is what's left either way.
+const REGION_NAMES = new Set(
+  [
+    'netherlands', 'the netherlands', 'nederland', 'nl', 'uk', 'usa', 'us',
+    'england', 'scotland', 'wales', 'northern ireland',
+    'alabama', 'alaska', 'arizona', 'arkansas', 'california', 'colorado', 'connecticut',
+    'delaware', 'florida', 'georgia', 'hawaii', 'idaho', 'illinois', 'indiana', 'iowa',
+    'kansas', 'kentucky', 'louisiana', 'maine', 'maryland', 'massachusetts', 'michigan',
+    'minnesota', 'mississippi', 'missouri', 'montana', 'nebraska', 'nevada',
+    'new hampshire', 'new jersey', 'new mexico', 'north carolina', 'north dakota', 'ohio',
+    'oklahoma', 'oregon', 'pennsylvania', 'rhode island', 'south carolina', 'south dakota',
+    'tennessee', 'texas', 'utah', 'vermont', 'virginia', 'washington', 'west virginia',
+    'wisconsin', 'wyoming',
+  ],
+);
+
+let countryNames: Set<string> | null = null;
+
+function isCountryOrRegion(part: string): boolean {
+  const lower = part.trim().toLowerCase();
+  if (REGION_NAMES.has(lower)) return true;
+  if (countryNames == null) {
+    countryNames = new Set();
+    const display = new Intl.DisplayNames(['en'], {type: 'region'});
+    for (let a = 65; a <= 90; a++) {
+      for (let b = 65; b <= 90; b++) {
+        const code = String.fromCharCode(a, b);
+        try {
+          const name = display.of(code);
+          if (name != null && name !== code) countryNames.add(name.toLowerCase());
+        } catch {
+          // Not a region code.
+        }
+      }
+    }
+  }
+  return countryNames.has(lower);
+}
+
 /** Quiz searches at city granularity — not tight neighborhood OSM. */
 export function quizCityArea(homeArea: string): string {
   const trimmed = homeArea.trim();
@@ -134,9 +175,7 @@ export function quizCityArea(homeArea: string): string {
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
   if (parts.length >= 2) {
-    const countryPattern =
-      /^(netherlands|the netherlands|nederland|nl|uk|united kingdom|usa|united states)$/i;
-    const localities = parts.filter((part) => !countryPattern.test(part));
+    const localities = parts.filter((part) => !isCountryOrRegion(part));
     if (localities.length >= 2) {
       return localities[localities.length - 1]!;
     }

@@ -85,8 +85,8 @@ type FallbackArgs = Parameters<typeof buildFallbackResponse>;
 
 // Answers from the catalog with a short note, for when live search can't
 // finish inside the turn budget. Keeps the chat from waiting on a dead request.
-function fallbackWithNote(note: string, ...args: FallbackArgs) {
-  const fallback = buildFallbackResponse(...args);
+async function fallbackWithNote(note: string, ...args: FallbackArgs) {
+  const fallback = await buildFallbackResponse(...args);
   return NextResponse.json({
     ...fallback,
     text: [note, fallback.text].filter(Boolean).join('\n\n'),
@@ -361,7 +361,7 @@ export async function POST(request: Request) {
 
   if (USE_LOCAL_FALLBACK) {
     return NextResponse.json({
-      ...buildFallbackResponse(message, draft, tasteProfile, communityMembers),
+      ...(await buildFallbackResponse(message, draft, tasteProfile, communityMembers)),
       fallback: true,
     });
   }
@@ -438,7 +438,7 @@ export async function POST(request: Request) {
       }
       if (USE_LOCAL_FALLBACK) {
         return NextResponse.json({
-          ...buildFallbackResponse(message, draft, tasteProfile, communityMembers),
+          ...(await buildFallbackResponse(message, draft, tasteProfile, communityMembers)),
           fallback: true,
         });
       }

@@ -43,6 +43,7 @@ import {
 } from '@/lib/venue-options';
 import {filterExcludedVenues, getUserMemory, type UserMemory} from '@/lib/user-memory';
 import {casualPicksPage} from '@/lib/fallback-response';
+import {cityLabel, hasCatalogFor} from '@/lib/city-picks';
 import {isOnboardingComplete, saveTasteProfile, type TasteProfile} from '@/lib/taste-profile';
 import {mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
 import {resolveFriendFoodProfile} from '@/lib/member-friends';
@@ -888,8 +889,10 @@ function intentCardFromText(text: string): IntentCard | undefined {
   return id != null ? INTENT_CARDS.find((card) => card.id === id) : undefined;
 }
 
-const OFFLINE_NOTHING_PARSED =
-  "Sorry, the agent's off, so I can't chat right now. Here are a few saved casual places, or tap an option to search properly.";
+function offlineNothingParsed(location: string | undefined): string {
+  const where = hasCatalogFor(location) ? 'a few saved casual places' : `a few places in ${cityLabel(location!)}`;
+  return `Sorry, the agent's off, so I can't chat right now. Here are ${where}, or tap an option to search properly.`;
+}
 const OFFLINE_SHOW_MORE = 'Show more restaurants';
 
 function mergeDraftFromText(
@@ -1202,7 +1205,7 @@ export default function Home() {
 
     const lead =
       notes.length === 0
-        ? OFFLINE_NOTHING_PARSED
+        ? offlineNothingParsed(bookingDraft.location)
         : `Got it: ${notes.join(', ')}.${card == null && stage === 'intent' ? ' What kind of table are you after?' : ''}`;
     // Friends' needs are hard filters later on; say them back so it's clear.
     const reply =
@@ -1212,20 +1215,9 @@ export default function Home() {
       {type: 'message', role: 'assistant', text: reply},
     ];
     if (notes.length === 0) {
-      const picks = casualPicksPage(0, bookingDraft, userMemory, memberFriends);
-      setBookingDraft((prev) => ({...prev, venueResultsPage: 0}));
-      exchange.push({
-        type: 'ui',
-        ui: {
-          interactive: {
-            type: 'options',
-            title: 'Saved casual places',
-            options: picks.options,
-            pagination: {page: 0, has_more: picks.hasMore, total: picks.total},
-          },
-        },
-        venueOptions: picks.options,
-      });
+      setWizardComposerThread((prev) => [...prev, ...exchange]);
+      void addOfflinePicks(0);
+      return;
     }
 
     if (card != null) {
@@ -1247,26 +1239,53 @@ export default function Home() {
     }
   };
 
-  // Show more on the offline casual picks: next 3, added to the same list.
-  const showMoreOfflinePicks = () => {
-    const page = (bookingDraft.venueResultsPage ?? 0) + 1;
-    const picks = casualPicksPage(page, bookingDraft, userMemory, memberFriends);
+  // Agent off and nothing to go on: a page of places for the chosen city.
+  // Amsterdam comes from the saved catalog; anywhere else from OpenStreetMap.
+  const addOfflinePicks = async (page: number) => {
+    const location = bookingDraft.location;
+    let picks: {options: VenueOptionCard[]; hasMore: boolean; total: number};
+    let title = 'Saved casual places';
+    if (hasCatalogFor(location)) {
+      picks = casualPicksPage(page, bookingDraft, userMemory, memberFriends);
+    } else {
+      title = `Places in ${cityLabel(location!)}`;
+      const params = new URLSearchParams({area: location!, page: String(page)});
+      const cuisines = tasteProfile?.preferences.cuisineAffinities ?? [];
+      if (cuisines.length > 0) params.set('cuisines', cuisines.join(','));
+      const diet = bookingDraft.dietaryNeeds ?? tasteProfile?.preferences.dietaryLean;
+      if (diet != null && diet !== 'none') params.set('diet', diet);
+      setIsLoading(true);
+      try {
+        const res = await fetch(`/api/fallback-places?${params}`);
+        picks = res.ok ? await res.json() : {options: [], hasMore: false, total: 0};
+      } catch {
+        picks = {options: [], hasMore: false, total: 0};
+      } finally {
+        setIsLoading(false);
+      }
+    }
     setBookingDraft((prev) => ({...prev, venueResultsPage: page}));
     setWizardComposerThread((prev) =>
-      appendAgentResponseToThread(
-        prev,
-        '',
-        {
-          interactive: {
-            type: 'options',
-            title: 'Saved casual places',
-            options: picks.options,
-            pagination: {page, has_more: picks.hasMore, total: picks.total},
-          },
-        },
-        true,
-      ),
+      picks.total === 0 && page === 0
+        ? [...prev, {type: 'message', role: 'assistant', text: "Couldn't load places just now. Tap an option above to keep going."}]
+        : appendAgentResponseToThread(
+            prev,
+            '',
+            {
+              interactive: {
+                type: 'options',
+                title,
+                options: picks.options,
+                pagination: {page, has_more: picks.hasMore, total: picks.total},
+              },
+            },
+            page > 0,
+          ),
     );
+  };
+
+  const showMoreOfflinePicks = () => {
+    void addOfflinePicks((bookingDraft.venueResultsPage ?? 0) + 1);
   };
 
   const restartFindFlow = () => {

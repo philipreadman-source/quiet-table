@@ -28,6 +28,7 @@ import {
 } from '@/lib/member-taste-discovery';
 import type {TasteProfile} from '@/lib/taste-profile';
 import {parseLocationFromMessage} from '@/lib/parse-location';
+import {cityLabel, cityPicksPage, hasCatalogFor} from '@/lib/city-picks';
 
 export const FALLBACK_ASLEEP_MESSAGE =
   'The agent is currently asleep, you can browse the UX in fallback mode.';
@@ -439,7 +440,43 @@ export function casualPicksPage(
   };
 }
 
-export function buildFallbackResponse(
+/** Results for a city the catalog doesn't cover: real places from OpenStreetMap. */
+async function buildCityPicksResponse(
+  draft: BookingDraft,
+  message: string,
+  tasteProfile: TasteProfile | null | undefined,
+): Promise<{text: string; ui: FallbackUi}> {
+  const location = draft.location!;
+  const city = cityLabel(location);
+  const showMore = /\bshow more\b/i.test(message);
+  const page = showMore ? (draft.venueResultsPage ?? 1) : 0;
+  const picks = await cityPicksPage(location, page, {
+    cuisines: tasteProfile?.preferences.cuisineAffinities ?? [],
+    diet: draft.dietaryNeeds ?? tasteProfile?.preferences.dietaryLean ?? 'none',
+  });
+  const michelin = draft.intent?.toLowerCase().includes('michelin') === true;
+  const text =
+    page > 0
+      ? ''
+      : picks.total === 0
+        ? `I couldn't find places in ${city} without the agent. Try again in a moment, or pick Amsterdam.`
+        : michelin
+          ? `Michelin picks outside Amsterdam need the agent, which is off. Here are restaurants in ${city} instead.`
+          : `Restaurants in ${city}, leaning on the cuisines you like. The agent's off, so these are from OpenStreetMap.`;
+  return {
+    text,
+    ui: {
+      interactive: {
+        type: 'options',
+        title: `Places in ${city}`,
+        options: picks.options,
+        pagination: {page, has_more: picks.hasMore, total: picks.total},
+      },
+    },
+  };
+}
+
+export async function buildFallbackResponse(
   message: string,
   draft?: BookingDraft,
   tasteProfile?: TasteProfile | null,
@@ -501,6 +538,9 @@ export function buildFallbackResponse(
   }
 
   if (isDraftReadyForVenues(effectiveDraft) && effectiveDraft!.dietaryNeeds != null) {
+    if (!hasCatalogFor(effectiveDraft!.location)) {
+      return buildCityPicksResponse(effectiveDraft!, message, tasteProfile);
+    }
     return buildVenueOptionsFallbackResponse(
       effectiveDraft!,
       message,
@@ -513,6 +553,9 @@ export function buildFallbackResponse(
   const clarify = buildClarifyResponse(effectiveDraft, message);
   if (clarify != null) return clarify;
 
+  if (effectiveDraft != null && !hasCatalogFor(effectiveDraft.location)) {
+    return buildCityPicksResponse(effectiveDraft, message, tasteProfile);
+  }
   const broad = tryBroadCatalogOptions(effectiveDraft, message, userMemory, communityMembers);
   if (broad != null) return broad;
 

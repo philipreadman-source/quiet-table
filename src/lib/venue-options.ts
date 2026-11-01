@@ -294,7 +294,67 @@ export type VenueOptionCard = {
   michelin_distinction?: string;
   social_proof?: SocialProof;
   dietary_tags?: DietaryTag[];
+  /** When set, a day that's missing is a closed day. */
+  opening_hours?: OpeningHours;
 };
+
+/** Day (0 = Sunday … 6 = Saturday, as Date#getDay) → 24h ['HH:MM', 'HH:MM']
+ * ranges. A close at or before the open time runs past midnight. */
+export type OpeningHours = Partial<Record<0 | 1 | 2 | 3 | 4 | 5 | 6, [string, string][]>>;
+
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+function minutesFromClock(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})\s*(am|pm)?$/i.exec(value.trim());
+  if (match == null) return null;
+  let hours = Number(match[1]) % 24;
+  const meridiem = match[3]?.toLowerCase();
+  if (meridiem === 'pm' && hours < 12) hours += 12;
+  if (meridiem === 'am' && hours === 12) hours = 0;
+  return hours * 60 + Number(match[2]);
+}
+
+/** Open at that date and time? True when we don't know (no hours, no date). */
+export function isVenueOpenAt(
+  venue: VenueOptionCard,
+  dateIso: string | undefined,
+  time: string | undefined,
+): boolean {
+  const hours = venue.opening_hours;
+  if (hours == null || dateIso == null) return true;
+  const date = new Date(`${dateIso}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return true;
+  const day = date.getDay() as keyof OpeningHours;
+  const ranges = hours[day] ?? [];
+  const at = time != null ? minutesFromClock(time) : null;
+  if (at == null) return ranges.length > 0;
+  const previous = ((day + 6) % 7) as keyof OpeningHours;
+  const inRange = ([open, close]: [string, string], offset: number) => {
+    const start = minutesFromClock(open);
+    let end = minutesFromClock(close);
+    if (start == null || end == null) return true;
+    if (end <= start) end += 24 * 60;
+    return at + offset >= start && at + offset < end;
+  };
+  return (
+    ranges.some((range) => inRange(range, 0)) ||
+    // Last night's late opening, for early-hours times.
+    (hours[previous] ?? []).some((range) => inRange(range, 24 * 60))
+  );
+}
+
+/** "Wed 19:00–01:00, Sun 13:00–16:00; closed Mon, Tue" — short, for the agent. */
+export function formatOpeningHours(hours: OpeningHours | undefined): string | undefined {
+  if (hours == null) return undefined;
+  const open: string[] = [];
+  const closed: string[] = [];
+  for (const day of [1, 2, 3, 4, 5, 6, 0] as const) {
+    const ranges = hours[day];
+    if (ranges == null || ranges.length === 0) closed.push(DAY_SHORT[day]);
+    else open.push(`${DAY_SHORT[day]} ${ranges.map(([a, b]) => `${a}–${b}`).join(', ')}`);
+  }
+  return closed.length > 0 ? `${open.join(', ')}; closed ${closed.join(', ')}` : open.join(', ');
+}
 
 /** Shown whenever menu content is agent/AI-synthesized rather than an exact menu link. */
 export const AI_MENU_OVERVIEW_CAVEAT =
@@ -633,18 +693,23 @@ const MICHELIN_OPTIONS: VenueOptionCard[] = [
     dietary_tags: ['vegetarian-friendly'],
   },
   {
-    id: 'restaurant-brut172',
-    title: 'Brut172',
-    subtitle: 'Noord · wine-forward',
-    description: 'Small, chef-driven, and deeply wine-focused — a hidden gem.',
+    id: 'cue',
+    title: 'CUE',
+    subtitle: 'Canal Belt · creative, market-led',
+    description:
+      'Bold, smoky, fermented flavours over a short or long menu, natural wines, then a cellar bar downstairs.',
     image_url: '/venues/graphite.jpg',
     cta_label: 'Book your table',
-    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/brut172',
+    menu_url: 'https://www.cue-amsterdam.com/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/cue',
     michelin_distinction: '1 Star',
-    google_rating: 4.7,
-    tripadvisor_rating: 4.6,
-    review_count: 180,
-    dietary_tags: ['vegetarian-friendly'],
+    opening_hours: {
+      3: [['19:00', '01:00']],
+      4: [['19:00', '01:00']],
+      5: [['19:00', '02:00']],
+      6: [['19:00', '02:00']],
+      0: [['13:00', '16:00']],
+    },
   },
   {
     id: 'restaurant-plantage',
@@ -871,13 +936,14 @@ function dietaryRankScore(tags: DietaryTag[] | undefined, needs: DietaryNeeds | 
  * Callers should filter with filterVenuesByAimedTime first. */
 export function rankVenueOptions(
   options: VenueOptionCard[],
-  _dateIso: string | undefined,
-  _time: string,
+  dateIso: string | undefined,
+  time: string,
   dietaryNeeds?: DietaryNeeds,
   memoryRank?: (venueId: string) => number,
 ): VenueOptionCard[] {
-  // Ranked on taste and diet only: there's no real availability to sort by.
-  return [...options].sort((a, b) => {
+  // No real availability, but places known to be closed then are dropped.
+  // Ranked on taste and diet only.
+  return options.filter((venue) => isVenueOpenAt(venue, dateIso, time)).sort((a, b) => {
     if (memoryRank != null) {
       const memA = memoryRank(a.id);
       const memB = memoryRank(b.id);
@@ -1147,6 +1213,7 @@ export function summarizeVenueForAgentCatalog(venue: VenueOptionCard) {
         ? `${enriched.description.slice(0, 217)}…`
         : enriched.description,
     dietary_tags: enriched.dietary_tags,
+    hours: formatOpeningHours(enriched.opening_hours),
     friend_social:
       proof?.source === 'contact'
         ? {name: proof.name, action: proof.action, when: proof.when}

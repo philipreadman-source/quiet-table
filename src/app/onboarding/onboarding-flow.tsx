@@ -420,7 +420,6 @@ export function OnboardingFlow() {
                 <Text type="label" weight="semibold">
                   What do you crave?
                 </Text>
-                <Text color="secondary">Pick any that fit — optional.</Text>
                 <HStack gap={2} wrap="wrap">
                   {CUISINE_OPTIONS.map((option) => {
                     const selected = profile.preferences.cuisineAffinities?.includes(option.id) ?? false;

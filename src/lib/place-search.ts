@@ -8,11 +8,32 @@ type PhotonFeature = {
     osm_id?: number;
     name?: string;
     type?: string;
+    osm_value?: string;
     city?: string;
     state?: string;
     country?: string;
   };
 };
+
+/** 'city' for a home city (onboarding); 'area' also allows neighbourhoods (chat). */
+export type PlaceScope = 'city' | 'area';
+
+// UK and US cities read better, and stay unambiguous, with their region:
+// "London, England", "Paris, Texas". Elsewhere the country: "Amsterdam, Netherlands".
+const REGION_COUNTRIES = new Set(['United Kingdom', 'United States']);
+
+function toCityItem(feature: PhotonFeature): PlaceItem | null {
+  const {osm_id, name, state, country} = feature.properties;
+  if (name == null || name.trim().length === 0) return null;
+  const context = country != null && REGION_COUNTRIES.has(country) ? (state ?? country) : country;
+  const location = context != null && context !== name ? `${name}, ${context}` : name;
+  const detail = [state, country].filter((part) => part != null && part !== name).join(', ');
+  return {
+    id: `${osm_id ?? name}-city`,
+    label: detail.length > 0 ? `${name} — ${detail}` : name,
+    auxiliaryData: {location},
+  };
+}
 
 const PHOTON_URL = 'https://photon.komoot.io/api/';
 
@@ -33,7 +54,9 @@ function toPlaceItem(feature: PhotonFeature): PlaceItem | null {
 
 /** Typeahead source for cities and neighbourhoods, via Photon (OpenStreetMap
  * data; free, and unlike Nominatim it allows search-as-you-type). */
-export function createPlaceSearchSource(): SearchSource<PlaceItem> & {cancel: () => void} {
+export function createPlaceSearchSource(
+  scope: PlaceScope = 'area',
+): SearchSource<PlaceItem> & {cancel: () => void} {
   let controller: AbortController | null = null;
   return {
     cancel() {
@@ -45,12 +68,19 @@ export function createPlaceSearchSource(): SearchSource<PlaceItem> & {cancel: ()
       controller?.abort();
       controller = new AbortController();
       const params = new URLSearchParams({q: trimmed, limit: '6', lang: 'en'});
-      for (const layer of ['city', 'district', 'locality']) params.append('layer', layer);
+      if (scope === 'city') {
+        // OSM place tags, not Photon's "city" layer: that layer files London,
+        // England as a district and misses it.
+        for (const tag of ['place:city', 'place:town']) params.append('osm_tag', tag);
+      } else {
+        for (const layer of ['city', 'district', 'locality']) params.append('layer', layer);
+      }
       try {
         const res = await fetch(`${PHOTON_URL}?${params}`, {signal: controller.signal});
         if (!res.ok) return [];
         const data = (await res.json()) as {features?: PhotonFeature[]};
-        const items = (data.features ?? []).map(toPlaceItem).filter((item): item is PlaceItem => item != null);
+        const toItem = scope === 'city' ? toCityItem : toPlaceItem;
+        const items = (data.features ?? []).map(toItem).filter((item): item is PlaceItem => item != null);
         const seen = new Set<string>();
         return items.filter((item) => !seen.has(item.label) && seen.add(item.label) != null);
       } catch {

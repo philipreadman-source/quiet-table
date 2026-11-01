@@ -9,10 +9,11 @@ import {VStack, Layout, LayoutContent, HStack} from '@astryxdesign/core/Layout';
 import {Text} from '@astryxdesign/core/Text';
 import {Button} from '@astryxdesign/core/Button';
 import {TextInput} from '@astryxdesign/core/TextInput';
+import {Typeahead} from '@astryxdesign/core/Typeahead';
 import {SelectableCard} from '@astryxdesign/core/SelectableCard';
 import {Avatar} from '@astryxdesign/core/Avatar';
 import {findVenueOption} from '@/lib/venue-options';
-import {reverseGeocode} from '@/lib/reverse-geocode';
+import {createPlaceSearchSource, type PlaceItem} from '@/lib/place-search';
 import {quizCityArea, type TasteQuizVenue} from '@/lib/taste-quiz';
 import {
   applyVenueReaction,
@@ -79,37 +80,13 @@ export function OnboardingFlow() {
   const [homeAreaInput, setHomeAreaInput] = useState('');
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [homeAreaError, setHomeAreaError] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
-  const [locateError, setLocateError] = useState<string | null>(null);
-
-  // Home area is the base for the whole app, so ask for it here. This runs on
-  // a tap, which browsers need before they'll show the location prompt.
-  const useMyLocation = () => {
-    if (typeof navigator === 'undefined' || navigator.geolocation == null) {
-      setLocateError("This browser can't share location. Type your area instead.");
-      return;
-    }
-    setLocating(true);
-    setLocateError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        reverseGeocode(position.coords.latitude, position.coords.longitude).then((place) => {
-          setLocating(false);
-          if (place == null) {
-            setLocateError("Couldn't name that spot. Type your area instead.");
-          } else {
-            setHomeAreaInput(place);
-            setHomeAreaError(null);
-          }
-        });
-      },
-      () => {
-        setLocating(false);
-        setLocateError('Location was blocked. Type your area instead.');
-      },
-      {timeout: 8000},
-    );
-  };
+  // Location is the base for every search, so it's picked from real cities
+  // as you type ("London, England", "Amsterdam, Netherlands"), not free text.
+  const citySearchSource = useMemo(() => createPlaceSearchSource('city'), []);
+  const selectedCity: PlaceItem | null =
+    homeAreaInput.trim().length > 0
+      ? {id: 'selected-city', label: homeAreaInput, auxiliaryData: {location: homeAreaInput}}
+      : null;
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizVenues, setQuizVenues] = useState<TasteQuizVenue[]>([]);
   const [quizLoading, setQuizLoading] = useState(false);
@@ -414,11 +391,17 @@ export function OnboardingFlow() {
                     usernameError != null ? {type: 'error', message: usernameError} : undefined
                   }
                 />
-                <TextInput
+                <Typeahead
                   label="Location"
-                  value={homeAreaInput}
-                  onChange={setHomeAreaInput}
-                  placeholder="City or neighborhood"
+                  placeholder="Start typing a city"
+                  searchSource={citySearchSource}
+                  value={selectedCity}
+                  onChange={(item) => {
+                    setHomeAreaInput(item?.auxiliaryData?.location ?? '');
+                    setHomeAreaError(null);
+                  }}
+                  debounceMs={300}
+                  emptySearchResultsText="No cities found"
                   status={
                     homeAreaError != null ? {type: 'error', message: homeAreaError} : undefined
                   }
@@ -426,20 +409,6 @@ export function OnboardingFlow() {
                 <Text type="supporting" color="secondary">
                   Your location is the default for every search. You can change it later in your profile.
                 </Text>
-                <HStack gap={2} wrap="wrap">
-                  <Button
-                    label={locating ? 'Finding you…' : 'Use my location'}
-                    variant="ghost"
-                    size="sm"
-                    isDisabled={locating}
-                    onClick={useMyLocation}
-                  />
-                </HStack>
-                {locateError != null && (
-                  <Text type="supporting" color="secondary">
-                    {locateError}
-                  </Text>
-                )}
                 <HStack gap={2} wrap="wrap">
                   <Button label="Continue" onClick={handleBasicsContinue} />
                 </HStack>

@@ -334,7 +334,8 @@ export function isVenueOpenAt(
     let end = minutesFromClock(close);
     if (start == null || end == null) return true;
     if (end <= start) end += 24 * 60;
-    return at + offset >= start && at + offset < end;
+    // Inclusive: Michelin often lists seating windows ("18:30–20:00").
+    return at + offset >= start && at + offset <= end;
   };
   return (
     ranges.some((range) => inRange(range, 0)) ||
@@ -411,6 +412,72 @@ export function formatSocialProof(proof: SocialProof | undefined): string | null
 }
 
 const CASUAL_OPTIONS: VenueOptionCard[] = [
+  {
+    id: 'cafe-caron',
+    title: 'Café Caron',
+    subtitle: 'De Pijp · French bistro',
+    description: 'Buzzy French bistro: classics with a modern twist, open late.',
+    cta_label: 'Book your table',
+    menu_url: 'https://cafecaron.nl/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/cafe-caron',
+    michelin_distinction: 'Selected',
+    opening_hours: {
+      1: [['18:00', '00:00']],
+      2: [['18:00', '00:00']],
+      3: [['18:00', '00:00']],
+      4: [['18:00', '00:00']],
+      5: [['18:00', '01:00']],
+      6: [['12:00', '14:00'], ['18:00', '01:00']],
+      0: [['12:00', '14:00'], ['18:00', '00:00']],
+    },
+  },
+  {
+    id: 'auberge-cuisine-francaise',
+    title: 'Auberge',
+    subtitle: 'De Pijp · French',
+    description: 'Generous French bistro cooking, a well-priced set menu, French wines.',
+    cta_label: 'Book your table',
+    menu_url: 'https://www.aubergeamsterdam.nl/auberge',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/auberge-cuisine-francaise',
+    michelin_distinction: 'Bib Gourmand',
+    opening_hours: {
+      1: [['12:00', '14:30'], ['17:30', '22:30']],
+      2: [['12:00', '14:30'], ['17:30', '22:30']],
+      3: [['12:00', '14:30'], ['17:30', '22:30']],
+      4: [['12:00', '14:30'], ['17:30', '22:30']],
+      5: [['12:00', '14:30'], ['17:30', '22:30']],
+      6: [['12:00', '14:30'], ['17:30', '22:30']],
+      0: [['12:00', '22:30']],
+    },
+  },
+  {
+    id: 'utage-sake-bar',
+    title: 'Utage Sake Bar',
+    subtitle: 'Rivierenbuurt · izakaya',
+    description: 'Easygoing izakaya: small plates to share and a long sake list.',
+    cta_label: 'Book your table',
+    menu_url: 'https://www.utage-sakebar.nl/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/utage-sake-bar',
+    michelin_distinction: 'Selected',
+    opening_hours: {
+      1: [['17:30', '23:00']],
+      2: [['17:30', '23:00']],
+      3: [['17:30', '23:00']],
+      4: [['17:30', '23:00']],
+      5: [['17:30', '23:00']],
+      6: [['17:30', '23:00']],
+    },
+  },
+  {
+    id: 'toet-amsterdam',
+    title: 'Toet',
+    subtitle: 'Zuid · modern Mediterranean',
+    description: 'Relaxed open-kitchen spot by the RAI, modern Mediterranean plates.',
+    cta_label: 'Book your table',
+    menu_url: 'https://www.toetamsterdam.nl/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/toet-amsterdam',
+    michelin_distinction: 'Selected',
+  },
   {
     id: 'bar-fisk',
     title: 'Bar Fisk',
@@ -523,6 +590,30 @@ const CASUAL_OPTIONS: VenueOptionCard[] = [
   },
 ];
 
+// Two stars, and a date-night pick too, so it's listed under both.
+const RESTAURANT_212: VenueOptionCard = {
+  id: 'restaurant-212',
+  title: 'Restaurant 212',
+  subtitle: "Canal Belt · creative, chef's counter",
+  description: 'Counter seats around an open kitchen on the Amstel; precise cooking, strong wines.',
+  image_url: '/venues/graphite.jpg',
+  cta_label: 'Book your table',
+  menu_url: 'https://212.amsterdam/',
+  michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/restaurant-212',
+  michelin_distinction: '2 Stars',
+  google_rating: 4.7,
+  tripadvisor_rating: 4.6,
+  review_count: 380,
+  dietary_tags: ['limited-veg'],
+  opening_hours: {
+    2: [['18:30', '21:00']],
+    3: [['12:00', '13:30'], ['18:30', '21:00']],
+    4: [['12:00', '13:30'], ['18:30', '21:00']],
+    5: [['12:00', '13:30'], ['18:30', '21:00']],
+    6: [['12:00', '13:30'], ['18:30', '21:00']],
+  },
+};
+
 const DATE_NIGHT_OPTIONS: VenueOptionCard[] = [
   {
     id: 'de-kas',
@@ -622,21 +713,173 @@ const DATE_NIGHT_OPTIONS: VenueOptionCard[] = [
     review_count: 2800,
     dietary_tags: ['vegetarian-friendly', 'vegan-friendly'],
   },
+  RESTAURANT_212,
   {
-    id: 'restaurant-212',
-    title: 'Restaurant 212',
-    subtitle: 'Center · chef\'s counter',
-    description: 'Counter seating, tasting-menu energy — special without being stiff.',
-    image_url: '/venues/graphite.jpg',
+    id: 'de-juwelier',
+    title: 'De Juwelier',
+    subtitle: 'Canal Belt · modern French bistro',
+    description: 'Vintage-feel bistro with an open kitchen; French classics at fair prices.',
     cta_label: 'Book your table',
-    google_rating: 4.7,
-    tripadvisor_rating: 4.6,
-    review_count: 380,
-    dietary_tags: ['limited-veg'],
+    menu_url: 'https://www.restaurant-dejuwelier.nl',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/de-juwelier',
+    michelin_distinction: 'Selected',
+    opening_hours: {
+      1: [['12:00', '14:30'], ['17:30', '22:00']],
+      2: [['12:00', '14:30'], ['17:30', '22:00']],
+      3: [['12:00', '14:30'], ['17:30', '22:00']],
+      4: [['12:00', '14:30'], ['17:30', '22:00']],
+      5: [['12:00', '14:30'], ['17:30', '22:00']],
+      6: [['12:00', '14:30'], ['17:30', '22:00']],
+      0: [['12:00', '22:00']],
+    },
+  },
+  {
+    id: 'veneur',
+    title: 'Veneur',
+    subtitle: 'Weteringbuurt · classic French',
+    description: 'Old-school French bistro with open-fire cooking and a terrace.',
+    cta_label: 'Book your table',
+    menu_url: 'https://veneur.nl/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/veneur',
+    michelin_distinction: 'Selected',
+    opening_hours: {
+      1: [['17:30', '22:00']],
+      2: [['17:30', '22:00']],
+      3: [['17:30', '22:00']],
+      4: [['12:00', '14:00'], ['18:00', '22:00']],
+      5: [['12:00', '14:00'], ['18:00', '22:00']],
+      6: [['12:00', '14:00'], ['18:00', '22:00']],
+      0: [['12:00', '14:00'], ['18:00', '21:00']],
+    },
+  },
+  {
+    id: 'en-amsterdam',
+    title: 'EN',
+    subtitle: 'De Pijp · Japanese',
+    description: 'Lively Japanese, traditional and creative plates, with a deep sake list.',
+    cta_label: 'Book your table',
+    menu_url: 'https://en-amsterdam.nl/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/en',
+    michelin_distinction: 'Selected',
+    opening_hours: {
+      2: [['18:00', '23:00']],
+      3: [['18:00', '23:00']],
+      4: [['18:00', '23:00']],
+      5: [['18:00', '23:00']],
+      6: [['18:00', '23:00']],
+    },
+  },
+  {
+    id: 'visaandeschelde',
+    title: 'Visaandeschelde',
+    subtitle: 'Zuid · seafood brasserie',
+    description: 'Long-running seafood brasserie: oysters, fish classics, nautical room.',
+    cta_label: 'Book your table',
+    menu_url: 'https://visaandeschelde.nl/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/visaandeschelde',
+    michelin_distinction: 'Selected',
+    opening_hours: {
+      1: [['12:00', '14:30'], ['17:30', '22:00']],
+      2: [['12:00', '14:30'], ['17:30', '22:00']],
+      3: [['12:00', '14:30'], ['17:30', '22:00']],
+      4: [['12:00', '14:30'], ['17:30', '22:00']],
+      5: [['12:00', '14:30'], ['17:30', '22:00']],
+      6: [['17:30', '22:00']],
+      0: [['12:00', '20:00']],
+    },
   },
 ];
 
 const MICHELIN_OPTIONS: VenueOptionCard[] = [
+  RESTAURANT_212,
+  {
+    id: 'ciel-bleu',
+    title: 'Ciel Bleu',
+    subtitle: 'De Pijp · creative, Hotel Okura',
+    description: "Creative tasting menus on the hotel's top floor, with views over the city.",
+    cta_label: 'Book your table',
+    menu_url: 'https://www.cielbleu.nl/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/ciel-bleu',
+    michelin_distinction: '2 Stars',
+    opening_hours: {
+      2: [['18:30', '20:00']],
+      3: [['18:30', '20:00']],
+      4: [['18:30', '20:00']],
+      5: [['18:30', '20:00']],
+      6: [['18:30', '20:00']],
+    },
+  },
+  {
+    id: 'bistro-de-la-mer',
+    title: 'Bistro de la Mer',
+    subtitle: 'Canal Belt · seafood bistro',
+    description: 'Parisian-style bistro bringing back old fish recipes, with a serious wine list.',
+    cta_label: 'Book your table',
+    menu_url: 'https://www.bistrodelamer.com',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/bistro-de-la-mer',
+    michelin_distinction: '1 Star',
+    opening_hours: {
+      1: [['12:00', '14:30'], ['18:00', '22:00']],
+      2: [['12:00', '14:30'], ['18:00', '22:00']],
+      3: [['12:00', '14:30'], ['18:00', '22:00']],
+      4: [['12:00', '14:30'], ['18:00', '22:00']],
+      5: [['12:00', '14:30'], ['18:00', '22:00']],
+      6: [['12:00', '14:30'], ['18:00', '22:00']],
+      0: [['12:00', '14:30'], ['18:00', '22:00']],
+    },
+  },
+  {
+    id: 'zoldering',
+    title: 'Zoldering',
+    subtitle: 'Canal Belt · modern French',
+    description: 'Lively neighbourhood bistro: bold French flavours and standout wine service.',
+    cta_label: 'Book your table',
+    menu_url: 'https://www.zoldering.nl/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/zoldering',
+    michelin_distinction: '1 Star',
+    opening_hours: {
+      1: [['17:30', '22:00']],
+      2: [['17:30', '22:00']],
+      3: [['17:30', '22:00']],
+      4: [['17:30', '22:00']],
+      5: [['17:30', '22:00']],
+      6: [['16:00', '22:00']],
+    },
+  },
+  {
+    id: 'yamazato',
+    title: 'Yamazato',
+    subtitle: 'De Pijp · Japanese kaiseki, Hotel Okura',
+    description: 'Traditional kaiseki with ingredients flown in from Japan.',
+    cta_label: 'Book your table',
+    menu_url: 'https://www.okura.nl/dine-and-drink/yamazato-restaurant/',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/yamazato115431',
+    michelin_distinction: '1 Star',
+    opening_hours: {
+      1: [['18:30', '20:00']],
+      4: [['18:30', '20:00']],
+      5: [['18:30', '20:00']],
+      6: [['18:30', '20:00']],
+      0: [['18:30', '20:00']],
+    },
+  },
+  {
+    id: 'showw',
+    title: 'Showw',
+    subtitle: 'Rivierenbuurt · modern',
+    description: 'Elegant, lounge-like room with modern cooking and sommelier-led wines.',
+    cta_label: 'Book your table',
+    menu_url: 'https://www.restaurantshoww.com',
+    michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/restaurant-showw',
+    michelin_distinction: '1 Star',
+    opening_hours: {
+      1: [['12:00', '13:30'], ['18:30', '20:30']],
+      4: [['18:30', '20:30']],
+      5: [['18:30', '20:30']],
+      6: [['18:30', '20:30']],
+      0: [['12:00', '13:30'], ['18:30', '20:30']],
+    },
+  },
   {
     id: 'rijks',
     title: 'RIJKS',
@@ -756,8 +999,9 @@ const MICHELIN_OPTIONS: VenueOptionCard[] = [
   {
     id: 'restaurant-sinne',
     title: 'Sinne',
-    subtitle: 'Oud-West · neighbourhood star',
-    description: 'Relaxed Michelin energy — seasonal, local, and unpretentious.',
+    subtitle: 'De Pijp · modern, East-meets-West',
+    description: 'Relaxed open-kitchen room; Asian flavours through modern European cooking.',
+    menu_url: 'https://www.restaurantsinne.nl/',
     image_url: '/venues/de-kas.jpg',
     cta_label: 'Book your table',
     michelin_guide_url: 'https://guide.michelin.com/en/noord-holland/amsterdam/restaurant/sinne',
@@ -766,6 +1010,12 @@ const MICHELIN_OPTIONS: VenueOptionCard[] = [
     tripadvisor_rating: 4.5,
     review_count: 650,
     dietary_tags: ['vegetarian-friendly'],
+    opening_hours: {
+      4: [['18:00', '22:00']],
+      5: [['18:00', '22:00']],
+      6: [['12:00', '16:00'], ['18:00', '22:00']],
+      0: [['12:00', '16:00'], ['18:00', '22:00']],
+    },
   },
 ];
 
@@ -910,7 +1160,8 @@ const ALL_VENUE_OPTIONS: VenueOptionCard[] = [
 export function getVenueOptionsForIntent(intent: string): VenueOptionCard[] {
   const lower = intent.toLowerCase();
   if (lower.includes('date')) return mergeEditorialAmsterdamVenues(DATE_NIGHT_OPTIONS);
-  if (lower.includes('michelin')) return mergeEditorialAmsterdamVenues(MICHELIN_OPTIONS);
+  // Michelin is a hard ask: only guide-listed places, no editorial mix-ins.
+  if (lower.includes('michelin')) return MICHELIN_OPTIONS;
   if (lower.includes('group')) return mergeEditorialAmsterdamVenues(GROUP_OPTIONS);
   return mergeEditorialAmsterdamVenues(CASUAL_OPTIONS);
 }

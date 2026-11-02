@@ -16,7 +16,8 @@
     "Genki",
     "Llama",
     "La Paz",
-    "Rouge"
+    "Rouge",
+    "Brut172"
   ],
   "updates": {
     "Weinlokal Stern": {
@@ -304,7 +305,8 @@
             "23:00"
           ]
         ]
-      }
+      },
+      "website": "https://cafedeklos.nl/"
     },
     "MOMO Restaurant": {
       "opening_hours": {

@@ -1127,11 +1127,117 @@ import {
   AMSTERDAM_ABSOLUTE_YES_VENUES,
 } from '@/lib/amsterdam-absolute-yes';
 import {AMSTERDAM_NEW_OPENINGS_VENUES} from '@/lib/amsterdam-new-openings';
+import catalogSync from '@/lib/catalog-sync.json';
 
-const EDITORIAL_AMSTERDAM_VENUES: VenueOptionCard[] = [
-  ...AMSTERDAM_ABSOLUTE_YES_VENUES,
-  ...AMSTERDAM_NEW_OPENINGS_VENUES,
+// The catalog as the iOS app keeps it (iOS is the main app now): closed places
+// drop out, renames, hours and Michelin corrections apply, and places iOS
+// added join the tables they suit. catalog-sync.json is written by
+// quiet-table-ios/scripts/export-web-catalog.ts; don't edit it by hand.
+type CatalogKind = 'casual' | 'date-night' | 'michelin' | 'group';
+type CatalogUpdate = {
+  title?: string;
+  area?: string | null;
+  opening_hours?: OpeningHours | null;
+  michelin?: string | null;
+  website?: string | null;
+  kinds?: CatalogKind[];
+};
+type CatalogAddition = {
+  id: string;
+  title: string;
+  area: string | null;
+  cuisine: string | null;
+  description: string | null;
+  website: string | null;
+  michelin: string | null;
+  opening_hours: OpeningHours | null;
+  dietary_tags: DietaryTag[];
+  kinds: CatalogKind[];
+};
+const CATALOG_SYNC = catalogSync as unknown as {
+  closed: string[];
+  updates: Record<string, CatalogUpdate>;
+  added: CatalogAddition[];
+};
+const CLOSED_TITLES = new Set(CATALOG_SYNC.closed.map(normalizeVenueTitle));
+const CATALOG_UPDATES = new Map(
+  Object.entries(CATALOG_SYNC.updates).map(([title, update]) => [normalizeVenueTitle(title), update]),
+);
+
+function updatedVenue(venue: VenueOptionCard): VenueOptionCard {
+  const update = CATALOG_UPDATES.get(normalizeVenueTitle(venue.title));
+  if (update == null) return venue;
+  const next: VenueOptionCard = {...venue};
+  if (update.title != null) next.title = update.title;
+  if (update.area != null) {
+    // "De Pijp · seafood": the area is the part before the dot.
+    const separator = venue.subtitle?.indexOf(' · ') ?? -1;
+    next.subtitle = `${update.area}${separator >= 0 ? venue.subtitle!.slice(separator) : ''}`;
+  }
+  if (update.opening_hours !== undefined) next.opening_hours = update.opening_hours ?? undefined;
+  if (update.michelin !== undefined) next.michelin_distinction = update.michelin ?? undefined;
+  if (update.website != null) next.menu_url = update.website;
+  return next;
+}
+
+function addedVenue(place: CatalogAddition): VenueOptionCard {
+  return {
+    id: place.id,
+    title: place.title,
+    subtitle: [place.area, place.cuisine].filter(Boolean).join(' · ') || undefined,
+    description: place.description ?? undefined,
+    menu_url: place.website ?? undefined,
+    michelin_distinction: place.michelin ?? undefined,
+    opening_hours: place.opening_hours ?? undefined,
+    dietary_tags: place.dietary_tags,
+  };
+}
+
+const LISTED_OPTIONS: VenueOptionCard[] = [
+  ...CASUAL_OPTIONS,
+  ...DATE_NIGHT_OPTIONS,
+  ...MICHELIN_OPTIONS,
+  ...GROUP_OPTIONS,
 ];
+
+/** A table's list as iOS has it: no closed places or tables a place no longer
+ * suits, updates applied, and the places now suited to it (moved or added).
+ * With no kind (the editorial lists), only closures and updates apply. */
+function syncedOptions(options: VenueOptionCard[], kind: CatalogKind | null): VenueOptionCard[] {
+  const kept = options
+    .filter((venue) => !CLOSED_TITLES.has(normalizeVenueTitle(venue.title)))
+    .filter((venue) => {
+      const kinds = CATALOG_UPDATES.get(normalizeVenueTitle(venue.title))?.kinds;
+      return kind == null || kinds == null || kinds.includes(kind);
+    })
+    .map(updatedVenue);
+  if (kind == null) return kept;
+  const titles = new Set(kept.map((venue) => normalizeVenueTitle(venue.title)));
+  const moved = LISTED_OPTIONS.filter(
+    (venue) => CATALOG_UPDATES.get(normalizeVenueTitle(venue.title))?.kinds?.includes(kind) === true,
+  )
+    .map(updatedVenue)
+    .filter((venue) => {
+      const key = normalizeVenueTitle(venue.title);
+      if (titles.has(key)) return false;
+      titles.add(key);
+      return true;
+    });
+  const added = CATALOG_SYNC.added
+    .filter((place) => place.kinds.includes(kind) && !titles.has(normalizeVenueTitle(place.title)))
+    .map(addedVenue);
+  return [...kept, ...moved, ...added];
+}
+
+const CASUAL_VENUES = syncedOptions(CASUAL_OPTIONS, 'casual');
+const DATE_NIGHT_VENUES = syncedOptions(DATE_NIGHT_OPTIONS, 'date-night');
+const MICHELIN_VENUES = syncedOptions(MICHELIN_OPTIONS, 'michelin');
+const GROUP_VENUES = syncedOptions(GROUP_OPTIONS, 'group');
+
+const EDITORIAL_AMSTERDAM_VENUES: VenueOptionCard[] = syncedOptions(
+  [...AMSTERDAM_ABSOLUTE_YES_VENUES, ...AMSTERDAM_NEW_OPENINGS_VENUES],
+  null,
+);
 
 function mergeEditorialAmsterdamVenues(base: VenueOptionCard[]): VenueOptionCard[] {
   const seen = new Set(base.map((venue) => venue.id));
@@ -1140,20 +1246,20 @@ function mergeEditorialAmsterdamVenues(base: VenueOptionCard[]): VenueOptionCard
 }
 
 const ALL_VENUE_OPTIONS: VenueOptionCard[] = [
-  ...CASUAL_OPTIONS,
-  ...DATE_NIGHT_OPTIONS,
-  ...MICHELIN_OPTIONS,
-  ...GROUP_OPTIONS,
+  ...CASUAL_VENUES,
+  ...DATE_NIGHT_VENUES,
+  ...MICHELIN_VENUES,
+  ...GROUP_VENUES,
   ...EDITORIAL_AMSTERDAM_VENUES,
 ];
 
 export function getVenueOptionsForIntent(intent: string): VenueOptionCard[] {
   const lower = intent.toLowerCase();
-  if (lower.includes('date')) return mergeEditorialAmsterdamVenues(DATE_NIGHT_OPTIONS);
+  if (lower.includes('date')) return mergeEditorialAmsterdamVenues(DATE_NIGHT_VENUES);
   // Michelin is a hard ask: only guide-listed places, no editorial mix-ins.
-  if (lower.includes('michelin')) return MICHELIN_OPTIONS;
-  if (lower.includes('group')) return mergeEditorialAmsterdamVenues(GROUP_OPTIONS);
-  return mergeEditorialAmsterdamVenues(CASUAL_OPTIONS);
+  if (lower.includes('michelin')) return MICHELIN_VENUES;
+  if (lower.includes('group')) return mergeEditorialAmsterdamVenues(GROUP_VENUES);
+  return mergeEditorialAmsterdamVenues(CASUAL_VENUES);
 }
 
 function dietaryRankScore(tags: DietaryTag[] | undefined, needs: DietaryNeeds | undefined): number {

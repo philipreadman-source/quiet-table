@@ -17,6 +17,7 @@ export type CuisineId =
   | 'vegetarian-forward'
   | 'korean'
   | 'chinese'
+  | 'thai'
   | 'southeast-asian'
   | 'indian'
   | 'indonesian'
@@ -125,6 +126,7 @@ export const CUISINE_OPTIONS: {id: CuisineId; label: string}[] = [
   {id: 'japanese', label: 'Japanese'},
   {id: 'korean', label: 'Korean'},
   {id: 'chinese', label: 'Chinese'},
+  {id: 'thai', label: 'Thai'},
   {id: 'southeast-asian', label: 'Southeast Asian'},
   {id: 'indian', label: 'Indian'},
   {id: 'indonesian', label: 'Indonesian'},

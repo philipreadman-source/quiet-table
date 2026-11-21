@@ -75,6 +75,7 @@ const CUISINE_KEYWORDS: {id: CuisineId; pattern: RegExp}[] = [
   {id: 'japanese', pattern: /\bjapanese|sushi|ramen|izakaya\b/i},
   {id: 'korean', pattern: /\b(?:korean|kimchi|bibimbap)\b/i},
   {id: 'chinese', pattern: /\b(?:chinese|dim sum|dumplings?|cantonese|sichuan|szechuan)\b/i},
+  {id: 'thai', pattern: /\bthai\b/i},
   {id: 'southeast-asian', pattern: /\b(?:thai|vietnamese|pho|banh mi|malaysian|southeast asian)\b/i},
   {id: 'indian', pattern: /\b(?:indian|tandoori|biryani|masala)\b/i},
   {id: 'indonesian', pattern: /\b(?:indonesian|rijsttafel|nasi|rendang)\b/i},

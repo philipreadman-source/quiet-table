@@ -216,7 +216,12 @@
           ]
         ]
       },
-      "website": "https://restaurantdekas.com/"
+      "michelin": "1 Star",
+      "website": "https://restaurantdekas.com/",
+      "kinds": [
+        "michelin",
+        "date-night"
+      ]
     },
     "Vermouth": {
       "title": "Vermut",
@@ -493,7 +498,12 @@
           ]
         ]
       },
-      "website": "https://bolenius-rembrandtpark.nl/"
+      "michelin": "1 Star",
+      "website": "https://bolenius-rembrandtpark.nl/",
+      "kinds": [
+        "michelin",
+        "date-night"
+      ]
     },
     "Restaurant 212": {
       "website": "https://www.212.amsterdam/"
@@ -3437,6 +3447,2239 @@
       ],
       "kinds": [
         "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "singel-404",
+      "title": "Singel 404",
+      "area": "Canal Belt",
+      "cuisine": "other",
+      "description": "Small canal-side lunch café, here since 1996. Order the tuna melt on sourdough or the Singel club.",
+      "website": "https://singel404.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "08:00",
+            "18:00"
+          ]
+        ],
+        "1": [
+          [
+            "08:00",
+            "18:00"
+          ]
+        ],
+        "2": [
+          [
+            "08:00",
+            "18:00"
+          ]
+        ],
+        "3": [
+          [
+            "08:00",
+            "18:00"
+          ]
+        ],
+        "4": [
+          [
+            "08:00",
+            "18:00"
+          ]
+        ],
+        "5": [
+          [
+            "08:00",
+            "18:00"
+          ]
+        ],
+        "6": [
+          [
+            "08:00",
+            "18:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "brasserie-zuiderbad",
+      "title": "Brasserie Zuiderbad",
+      "area": "Oud-Zuid",
+      "cuisine": "other",
+      "description": "Simple café inside the 1912 Zuiderbad pool building near the Rijksmuseum. Sandwiches, bitterballen and fries.",
+      "website": null,
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "11:00",
+            "16:00"
+          ]
+        ],
+        "1": [
+          [
+            "11:00",
+            "16:00"
+          ]
+        ],
+        "2": [
+          [
+            "11:00",
+            "16:00"
+          ]
+        ],
+        "3": [
+          [
+            "11:00",
+            "16:00"
+          ]
+        ],
+        "4": [
+          [
+            "11:00",
+            "16:00"
+          ]
+        ],
+        "5": [
+          [
+            "11:00",
+            "16:00"
+          ]
+        ],
+        "6": [
+          [
+            "11:00",
+            "16:00"
+          ]
+        ]
+      },
+      "dietary_tags": [],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "groot-melkhuis",
+      "title": "Groot Melkhuis",
+      "area": "Vondelpark",
+      "cuisine": "other",
+      "description": "Self-service park café by the water with a big playground. Get a baguette, the pea soup or the cheeseburger.",
+      "website": "https://grootmelkhuis.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "10:00",
+            "17:00"
+          ]
+        ],
+        "1": [
+          [
+            "10:00",
+            "17:00"
+          ]
+        ],
+        "2": [
+          [
+            "10:00",
+            "17:00"
+          ]
+        ],
+        "3": [
+          [
+            "10:00",
+            "17:00"
+          ]
+        ],
+        "4": [
+          [
+            "10:00",
+            "17:00"
+          ]
+        ],
+        "5": [
+          [
+            "10:00",
+            "17:00"
+          ]
+        ],
+        "6": [
+          [
+            "10:00",
+            "17:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "cafe-restaurant-hesp",
+      "title": "Café-Restaurant Hesp",
+      "area": "Oost",
+      "cuisine": "modern european",
+      "description": "Old brown café on the Amstel with a big terrace. Desembrood sandwiches at lunch, chicken saté or bavette at dinner.",
+      "website": "https://www.caferestauranthesp.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "09:00",
+            "21:30"
+          ]
+        ],
+        "1": [
+          [
+            "09:00",
+            "21:30"
+          ]
+        ],
+        "2": [
+          [
+            "09:00",
+            "21:30"
+          ]
+        ],
+        "3": [
+          [
+            "09:00",
+            "21:30"
+          ]
+        ],
+        "4": [
+          [
+            "09:00",
+            "21:30"
+          ]
+        ],
+        "5": [
+          [
+            "09:00",
+            "21:30"
+          ]
+        ],
+        "6": [
+          [
+            "09:00",
+            "21:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "cafe-de-schreierstoren",
+      "title": "Café de Schreierstoren",
+      "area": "Centrum",
+      "cuisine": "other",
+      "description": "Café in the 15th-century city-wall tower by Centraal. Dutch pancakes, a croquette sandwich or chicken saté.",
+      "website": "https://www.schreierstoren.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "09:00",
+            "20:00"
+          ]
+        ],
+        "1": [
+          [
+            "09:00",
+            "20:00"
+          ]
+        ],
+        "2": [
+          [
+            "09:00",
+            "20:00"
+          ]
+        ],
+        "3": [
+          [
+            "09:00",
+            "20:00"
+          ]
+        ],
+        "4": [
+          [
+            "09:00",
+            "20:00"
+          ]
+        ],
+        "5": [
+          [
+            "09:00",
+            "20:00"
+          ]
+        ],
+        "6": [
+          [
+            "09:00",
+            "20:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "landmarkt",
+      "title": "Landmarkt",
+      "area": "Noord",
+      "cuisine": "modern european",
+      "description": "Farm-shop restaurant in Schellingwoude using market produce. Eggs Benedict, the soup of the week or the swordfish Niçoise.",
+      "website": "https://www.landmarkt.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "17:00"
+          ]
+        ],
+        "1": [
+          [
+            "12:00",
+            "17:00"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "17:00"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "17:00"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "17:00"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "17:00"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "17:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "tashi-deleg",
+      "title": "Tashi Deleg",
+      "area": "Canal Belt",
+      "cuisine": "indonesian",
+      "description": "Tibetan and Indonesian kitchen on the Utrechtsestraat. Order the rijsttafel or Tibetan momos.",
+      "website": "https://tashideleg.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "14:00",
+            "23:00"
+          ]
+        ],
+        "1": [
+          [
+            "14:00",
+            "23:00"
+          ]
+        ],
+        "2": [
+          [
+            "14:00",
+            "23:00"
+          ]
+        ],
+        "3": [
+          [
+            "14:00",
+            "23:00"
+          ]
+        ],
+        "4": [
+          [
+            "14:00",
+            "23:00"
+          ]
+        ],
+        "5": [
+          [
+            "14:00",
+            "23:00"
+          ]
+        ],
+        "6": [
+          [
+            "14:00",
+            "23:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "sampurna",
+      "title": "Sampurna",
+      "area": "Canal Belt",
+      "cuisine": "indonesian",
+      "description": "Long-running Indonesian on the Singel by the Flower Market. Share a rijsttafel or try the goat saté and rendang.",
+      "website": "https://www.sampurna.com/sampurna-singel/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "21:45"
+          ]
+        ],
+        "1": [
+          [
+            "12:00",
+            "21:45"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "21:45"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "21:45"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "21:45"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "21:45"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "21:45"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "cafe-jakarta",
+      "title": "Café Jakarta",
+      "area": "Eastern Docklands",
+      "cuisine": "indonesian",
+      "description": "Hotel restaurant at the tip of Java-eiland with IJ views. Order the Tafel Jakarta tasting or the beef rendang.",
+      "website": "https://hoteljakarta.amsterdam/eten-drinken/cafe-jakarta/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "07:00",
+            "11:00"
+          ],
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "1": [
+          [
+            "07:00",
+            "10:30"
+          ],
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "2": [
+          [
+            "07:00",
+            "10:30"
+          ],
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "3": [
+          [
+            "07:00",
+            "10:30"
+          ],
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "4": [
+          [
+            "07:00",
+            "10:30"
+          ],
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "5": [
+          [
+            "07:00",
+            "10:30"
+          ],
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "6": [
+          [
+            "07:00",
+            "11:00"
+          ],
+          [
+            "12:00",
+            "22:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "blue-pepper",
+      "title": "Blue Pepper",
+      "area": "Oud-West",
+      "cuisine": "indonesian",
+      "description": "Modern Indonesian with a coursed rijsttafel. Go for 'The Sultan and I' menu or the beef rendang.",
+      "website": "https://restaurantbluepepper.com/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "17:30",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "date-night"
+      ]
+    },
+    {
+      "id": "waterkant",
+      "title": "Waterkant",
+      "area": "Centrum",
+      "cuisine": "other",
+      "description": "Busy Surinamese spot on the canal by the Marnixstraat garage. Chicken roti roll, heri heri or a bakkeljauw bun.",
+      "website": "https://www.waterkantamsterdam.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "16:00"
+          ],
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "12:00",
+            "16:00"
+          ],
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "16:00"
+          ],
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "16:00"
+          ],
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "16:00"
+          ],
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "16:00"
+          ],
+          [
+            "17:30",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "16:00"
+          ],
+          [
+            "17:30",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "roopram-roti",
+      "title": "Roopram Roti",
+      "area": "Oost",
+      "cuisine": "other",
+      "description": "No-frills Surinamese roti shop in the Dapperbuurt. Get roti kip or roti lam.",
+      "website": "https://www.roopramroti.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "14:00",
+            "21:00"
+          ]
+        ],
+        "2": [
+          [
+            "14:00",
+            "21:00"
+          ]
+        ],
+        "3": [
+          [
+            "14:00",
+            "21:00"
+          ]
+        ],
+        "4": [
+          [
+            "14:00",
+            "21:00"
+          ]
+        ],
+        "5": [
+          [
+            "14:00",
+            "21:00"
+          ]
+        ],
+        "6": [
+          [
+            "14:00",
+            "21:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "haven-van-texel",
+      "title": "Haven van Texel",
+      "area": "Centrum",
+      "cuisine": "other",
+      "description": "Dutch eetcafé with a terrace on the canal at the Zeedijk end. Order the pea soup and the stamppot.",
+      "website": "https://havenvantexel.org/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "5": [
+          [
+            "11:30",
+            "21:30"
+          ]
+        ],
+        "6": [
+          [
+            "11:30",
+            "21:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "cafe-de-blaffende-vis",
+      "title": "Café de Blaffende Vis",
+      "area": "Jordaan",
+      "cuisine": "other",
+      "description": "Brown café near the Noordermarkt since around 1916. Uitsmijter at lunch, chicken saté or the burger at dinner.",
+      "website": "https://blaffendevis.nl/",
+      "michelin": null,
+      "opening_hours": null,
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "de-oceaan",
+      "title": "De Oceaan",
+      "area": "Eastern Docklands",
+      "cuisine": "other",
+      "description": "Small harbourside eetcafé in the Eastern Docklands with a waterside terrace and SUP rental.",
+      "website": "https://oceaan.amsterdam/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "21:15"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "21:15"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "21:15"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "21:15"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "21:15"
+          ]
+        ]
+      },
+      "dietary_tags": [],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "captein-co",
+      "title": "Captein & Co",
+      "area": "Centrum",
+      "cuisine": "modern european",
+      "description": "Eetcafé on the Oudeschans with a canal terrace. Bitterballen to start, then chicken saté or trout.",
+      "website": "https://www.capteinenco.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "chez-van-rijn",
+      "title": "Chez van Rijn",
+      "area": "Centrum",
+      "cuisine": "french",
+      "description": "Parisian-style brasserie on Rembrandtplein with live jazz. Onion soup, then steak frites or coq au vin.",
+      "website": "https://www.vanrijnamsterdam.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "1": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "limited-veg"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "spanjer-en-van-twist",
+      "title": "Spanjer en van Twist",
+      "area": "Canal Belt",
+      "cuisine": "other",
+      "description": "Canal-side restobar on the Leliegracht now cooking Chilean food. Try the empanada, pastel de choclo or costillar.",
+      "website": "https://www.spanjerenvantwist.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "12:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "pension-homeland",
+      "title": "Pension Homeland",
+      "area": "Marineterrein",
+      "cuisine": "modern european",
+      "description": "Hotel, brewery and restaurant in the old officers' mess on the Marineterrein. Crab bisque, then steak with béarnaise.",
+      "website": "https://www.pensionhomeland.com/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "07:00",
+            "11:30"
+          ],
+          [
+            "12:00",
+            "17:00"
+          ],
+          [
+            "18:00",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "07:00",
+            "11:30"
+          ],
+          [
+            "12:00",
+            "17:00"
+          ],
+          [
+            "18:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "07:00",
+            "11:30"
+          ],
+          [
+            "12:00",
+            "17:00"
+          ],
+          [
+            "18:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "07:00",
+            "11:30"
+          ],
+          [
+            "12:00",
+            "17:00"
+          ],
+          [
+            "18:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "07:00",
+            "11:30"
+          ],
+          [
+            "12:00",
+            "17:00"
+          ],
+          [
+            "18:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "07:00",
+            "11:30"
+          ],
+          [
+            "12:00",
+            "17:00"
+          ],
+          [
+            "18:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "07:00",
+            "11:30"
+          ],
+          [
+            "12:00",
+            "17:00"
+          ],
+          [
+            "18:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "limited-veg"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "khorat-top-thai",
+      "title": "Khorat Top Thai",
+      "area": "Oud-West",
+      "cuisine": "thai",
+      "description": "Long-standing neighbourhood Thai near Vondelpark. Tom kha kai, fish cakes and a curry.",
+      "website": "https://www.khorat-topthai.nl/",
+      "michelin": null,
+      "opening_hours": null,
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "ron-gastrobar",
+      "title": "Ron Gastrobar",
+      "area": "Oud-Zuid",
+      "cuisine": "french",
+      "description": "Ron Blaauw's lively starred gastrobar in Zuid with small and large plates. Order the beef Wellington and the boneless spareribs. Closing February 2027.",
+      "website": "https://www.rongastrobar.nl/restaurants/ron-gastrobar/",
+      "michelin": "1 Star",
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "1": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "michelin",
+        "date-night"
+      ]
+    },
+    {
+      "id": "siam-bowl",
+      "title": "Siam Bowl",
+      "area": "Canal Belt",
+      "cuisine": "thai",
+      "description": "Thai street-food noodle bar with plastic stools. Order the khao soi, or tom yum noodles if you like it hot and sour.",
+      "website": "https://siambowl.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "bird",
+      "title": "Bird",
+      "area": "Chinatown",
+      "cuisine": "thai",
+      "description": "Busy Chinatown Thai with a long menu, open since 1998. Go for a green or red curry and expect a short wait at the bar.",
+      "website": "https://thai-bird.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "1": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "22:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "songkran",
+      "title": "Songkran",
+      "area": "Jordaan",
+      "cuisine": "thai",
+      "description": "Small family-run Thai with 28 wines. Try the Thai fish cakes and the chef's dorade specials.",
+      "website": "https://www.songkran.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "1": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "4": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "5": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "6": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ]
+      },
+      "dietary_tags": [],
+      "kinds": [
+        "casual",
+        "date-night"
+      ]
+    },
+    {
+      "id": "maenaam-thai",
+      "title": "Maenaam Thai",
+      "area": "Centrum",
+      "cuisine": "thai",
+      "description": "Simple, low-priced Thai near Spui. Order the pad thai or the massaman curry.",
+      "website": "https://www.maenaamthai.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "warie-s-thai-food",
+      "title": "Warie's Thai Food",
+      "area": "Jordaan",
+      "cuisine": "thai",
+      "description": "Small Thai with an open kitchen and a terrace, opposite the fire station. Order the green curry or pla sam rod.",
+      "website": "https://wariethaifood.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "1": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "16:00",
+            "22:30"
+          ]
+        ],
+        "6": [
+          [
+            "16:00",
+            "22:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "bangkok",
+      "title": "Bangkok",
+      "area": "Centrum",
+      "cuisine": "thai",
+      "description": "Family-run Thai behind Tuschinski, open late. Start with the mixed starter, then pad thai or a curry.",
+      "website": "https://www.restaurant-bangkok.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "16:30",
+            "23:00"
+          ]
+        ],
+        "1": [
+          [
+            "16:30",
+            "23:00"
+          ]
+        ],
+        "2": [
+          [
+            "16:30",
+            "23:00"
+          ]
+        ],
+        "3": [
+          [
+            "16:30",
+            "23:00"
+          ]
+        ],
+        "4": [
+          [
+            "16:30",
+            "23:00"
+          ]
+        ],
+        "5": [
+          [
+            "16:30",
+            "23:00"
+          ]
+        ],
+        "6": [
+          [
+            "16:30",
+            "23:00"
+          ]
+        ]
+      },
+      "dietary_tags": [],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "ocha",
+      "title": "Ocha",
+      "area": "Centrum",
+      "cuisine": "thai",
+      "description": "Tiny Thai room near Nieuwmarkt run by the same two cooks for years. Order the red curry with bamboo.",
+      "website": null,
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "3": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "4": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "5": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "6": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ]
+      },
+      "dietary_tags": [],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "boi-boi",
+      "title": "Boi Boi",
+      "area": "Oost",
+      "cuisine": "southeast asian",
+      "description": "Lao and Thai cooking by a chef who learned from his grandmother. Try the zin tod beef jerky and the laab.",
+      "website": "https://boiboi.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "16:00",
+            "23:00"
+          ]
+        ],
+        "1": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "16:00",
+            "23:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "little-thai-prince",
+      "title": "Little Thai Prince",
+      "area": "Chinatown",
+      "cuisine": "thai",
+      "description": "Small, plain Thai on the Zeedijk. Reviewers rate the tom yum soup, red curry and fried noodles.",
+      "website": null,
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "krua-buppha",
+      "title": "Krua Buppha",
+      "area": "De Pijp",
+      "cuisine": "thai",
+      "description": "Neighbourhood Thai on lower Van Woustraat with dishes that aren't too sweet. Book ahead, it fills up.",
+      "website": "https://krua-buppha.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "17:00",
+            "21:30"
+          ]
+        ],
+        "1": [
+          [
+            "17:00",
+            "21:30"
+          ]
+        ],
+        "4": [
+          [
+            "17:00",
+            "21:30"
+          ]
+        ],
+        "5": [
+          [
+            "17:00",
+            "21:30"
+          ]
+        ],
+        "6": [
+          [
+            "17:00",
+            "21:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "cookkai",
+      "title": "Cookkai",
+      "area": "Jordaan",
+      "cuisine": "thai",
+      "description": "Tiny Thai snackbar and takeaway in the Jordaan since 2001. Order the keang karrie kai or the pad thai.",
+      "website": "https://www.cookkai.net/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "kinnaree",
+      "title": "Kinnaree",
+      "area": "Jordaan",
+      "cuisine": "thai",
+      "description": "Steady Jordaan Thai with a broad menu of soups, curries and wok dishes.",
+      "website": "https://www.restaurantkinnaree.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "krua-thai-classic",
+      "title": "Krua Thai Classic",
+      "area": "Centrum",
+      "cuisine": "thai",
+      "description": "Family-run Thai near Waterlooplein since 1991, one of the city's first. Order the green curry or panang.",
+      "website": "https://kruathai.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "date-night"
+      ]
+    },
+    {
+      "id": "sawaddee-ka",
+      "title": "Sawaddee Ka",
+      "area": "Oud-West",
+      "cuisine": "thai",
+      "description": "Thai on Overtoom with more than 100 dishes on the menu. Order a red curry or the house pad thai with beef.",
+      "website": "https://sawaddeeka.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "16:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "phu-thai",
+      "title": "Phu Thai",
+      "area": "Centrum",
+      "cuisine": "thai",
+      "description": "Isaan family cooking, mostly takeaway with a few tables. Order the beef laab or the beef noodle soup.",
+      "website": "https://phuthai.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "1": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "2": [
+          [
+            "16:00",
+            "21:30"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ]
+      },
+      "dietary_tags": [],
+      "kinds": [
+        "casual"
+      ]
+    },
+    {
+      "id": "royal-thai",
+      "title": "Royal Thai",
+      "area": "Centrum",
+      "cuisine": "thai",
+      "description": "Long-running Thai off Leidseplein, open late, with its own vegetarian starters and mains.",
+      "website": "https://royal-thai.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "12:00",
+            "00:00"
+          ]
+        ],
+        "1": [
+          [
+            "12:00",
+            "00:00"
+          ]
+        ],
+        "2": [
+          [
+            "15:00",
+            "00:00"
+          ]
+        ],
+        "3": [
+          [
+            "15:00",
+            "00:00"
+          ]
+        ],
+        "4": [
+          [
+            "15:00",
+            "00:00"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "00:00"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "00:00"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "group"
+      ]
+    },
+    {
+      "id": "baibua",
+      "title": "Baibua",
+      "area": "Canal Belt",
+      "cuisine": "thai",
+      "description": "Small family-run Thai eethuis off Vijzelstraat. Try the green papaya salad and the curries.",
+      "website": "https://www.baibuathaiseethuis.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "13:00",
+            "21:30"
+          ]
+        ],
+        "2": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "3": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "4": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "5": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ],
+        "6": [
+          [
+            "12:00",
+            "21:30"
+          ]
+        ]
+      },
+      "dietary_tags": [
+        "vegetarian-friendly",
+        "vegan-friendly"
+      ],
+      "kinds": [
+        "casual",
+        "date-night"
+      ]
+    },
+    {
+      "id": "rakang",
+      "title": "Rakang",
+      "area": "Jordaan",
+      "cuisine": "thai",
+      "description": "Bangkok-style dishes for sharing in the Jordaan since 1994. Order a few plates, like panang beef and chicken in pandan leaf.",
+      "website": "https://www.rakang.nl/",
+      "michelin": null,
+      "opening_hours": {
+        "0": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "1": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "2": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "3": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "4": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "5": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ],
+        "6": [
+          [
+            "17:00",
+            "22:00"
+          ]
+        ]
+      },
+      "dietary_tags": [],
+      "kinds": [
+        "date-night",
         "group"
       ]
     }

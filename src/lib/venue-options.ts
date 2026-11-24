@@ -214,7 +214,8 @@ export function getVenueOptionsForIntent(intent: string, location?: string | nul
   const area = catalogArea(location)?.toLowerCase() ?? null;
   const score = (place: CatalogPlace) =>
     (area != null && place.area != null && place.area.toLowerCase().includes(area) ? 10 : 0) +
-    (kind === 'michelin' ? (STAR_WEIGHT[place.michelin ?? ''] ?? 0) - (place.near != null ? 3 : 0) : 0) +
+    // In a Michelin search each star outweighs the guides, as on iOS.
+    (kind === 'michelin' ? (STAR_WEIGHT[place.michelin ?? ''] ?? 0) * 4 - (place.near != null ? 6 : 0) : 0) +
     Math.min(place.mentions, 4);
   return placesFor(city, kind)
     .map((place) => ({place, score: score(place)}))

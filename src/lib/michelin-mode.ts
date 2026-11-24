@@ -1,4 +1,5 @@
-/** Michelin mode — only surface venues backed by a guide.michelin.com URL from search. */
+/** Michelin mode — only places the guide lists: catalog places with a Michelin
+ * distinction, or (live agent) a guide.michelin.com URL from search. */
 
 export function isMichelinIntent(intent: string | undefined): boolean {
   return intent?.toLowerCase().includes('michelin') ?? false;
@@ -15,14 +16,15 @@ export function isMichelinGuideUrl(url: string): boolean {
 
 type MichelinOption = {
   michelin_guide_url?: string;
+  michelin_distinction?: string;
   [key: string]: unknown;
 };
 
 export function filterMichelinVerifiedOptions<T extends MichelinOption>(options: T[]): T[] {
   return options.filter(
     (option) =>
-      typeof option.michelin_guide_url === 'string' &&
-      isMichelinGuideUrl(option.michelin_guide_url),
+      (typeof option.michelin_distinction === 'string' && option.michelin_distinction.length > 0) ||
+      (typeof option.michelin_guide_url === 'string' && isMichelinGuideUrl(option.michelin_guide_url)),
   );
 }
 
@@ -61,6 +63,9 @@ export function applyMichelinModeToUi(
       },
     };
   }
+
+  // All of them guide-listed (catalog results): keep the paging as it is.
+  if (verified.length === allOptions.length) return {text: textOut, ui: uiOut};
 
   const pagination = interactive.pagination as Record<string, unknown> | undefined;
   return {

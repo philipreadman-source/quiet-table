@@ -53,6 +53,8 @@ import {
 import {BookOnMapsIcon} from '@/app/components/book-on-maps-icon';
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
 import {HomeHeader} from '@/app/components/home-section-tabs';
+import {RestaurantPanelProvider} from '@/app/components/restaurant-panel';
+import {bookingUrl, catalogPlace, type Table} from '@/lib/catalog';
 import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
 import {reverseGeocode} from '@/lib/reverse-geocode';
 import {parseLocationFromMessage} from '@/lib/parse-location';
@@ -265,6 +267,13 @@ type BookingDraft = {
   spend?: DateNightSpend;
   occasionNotes?: string;
 };
+
+/** The table so far, for booking links: needs a date and time. */
+function findTable(draft: BookingDraft): Table | null {
+  if (draft.date == null || draft.time == null) return null;
+  const party = Number.parseInt(draft.partySize ?? '2', 10);
+  return {date: draft.date, time: draft.time, party: Number.isNaN(party) ? 2 : party};
+}
 
 /** No accounts on the web, so no members' picks to rank by (yet). */
 const NO_MEMBERS: FriendFoodProfile[] = [];
@@ -577,6 +586,12 @@ function AgentUiBlock({
   const bookVenueOnMaps = (venue: VenueOptionCard) => {
     const enriched = enrichVenueOption(venue);
     onSelectVenue(enriched.title);
+    // Catalog places book where they take bookings, as on iOS.
+    const place = catalogPlace(enriched.id);
+    if (place != null) {
+      window.open(bookingUrl(place, findTable(bookingDraft)), '_blank', 'noopener,noreferrer');
+      return;
+    }
     handoffVenueBooking(enriched, {
       date: bookingDraft.date,
       time: bookingDraft.time,
@@ -1252,6 +1267,7 @@ export default function Home() {
             <HStack height="100%">
               <VStack style={chatShell} hAlign="center" gap={2}>
                 <HomeHeader restartVisible={hasVenueResults && !isLoading} onRestart={restartFindFlow} />
+                <RestaurantPanelProvider table={findTable(bookingDraft)}>
                 <ChatLayout
                   ref={chatLayoutScrollRef}
                   style={chatLayout}
@@ -1619,6 +1635,7 @@ export default function Home() {
                     )}
                   </ChatMessageList>
                 </ChatLayout>
+                </RestaurantPanelProvider>
               </VStack>
             </HStack>
           </LayoutContent>

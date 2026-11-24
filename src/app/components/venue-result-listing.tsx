@@ -11,7 +11,6 @@ import {
   formatMichelinLine,
   formatRatingsLine,
   formatSocialProof,
-  resolveMenuAction,
   venueAiWriteUps,
   type DietaryNeeds,
   type VenueOptionCard,
@@ -20,16 +19,16 @@ import {formatPersonalizationBadge, getUserMemory, type UserMemory} from '@/lib/
 import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
 import {membersWhoLikedVenue} from '@/lib/member-taste-discovery';
 import {PersonaAvatar, PrincipalAvatar} from '@/app/components/persona-avatar';
+import {ExternalLink} from 'lucide-react';
 import {BookOnMapsIcon} from '@/app/components/book-on-maps-icon';
+import {useRestaurantPanel} from '@/app/components/restaurant-panel';
+import {catalogPlace} from '@/lib/catalog';
 import styles from './venue-result-listing.module.css';
 
 function stopCardSelect(event: MouseEvent) {
   event.stopPropagation();
 }
 
-function openExternalLink(url: string) {
-  window.open(url, '_blank', 'noopener,noreferrer');
-}
 
 function IconCheck({className}: {className?: string}) {
   return (
@@ -145,29 +144,40 @@ function ExpandableAiBlurb({text}: {text: string}) {
 
 function VenueListActions({
   onBookTable,
-  onViewMenu,
-  hasMenuLink,
+  onViewRestaurant,
+  isCatalogPlace,
 }: {
   onBookTable: () => void;
-  onViewMenu: () => void;
-  hasMenuLink: boolean;
+  /** Opens the restaurant panel; only for catalog places. */
+  onViewRestaurant: (() => void) | null;
+  isCatalogPlace: boolean;
 }) {
   const grow: CSSProperties = {width: '100%'};
 
   return (
     <div className={styles.actions} onClick={stopCardSelect}>
       <div className={styles.actionGrow}>
-        <Button
-          label="Book on Maps"
-          variant="primary"
-          style={grow}
-          icon={<BookOnMapsIcon />}
-          onClick={onBookTable}
-        />
+        {isCatalogPlace ? (
+          <Button
+            label="Book"
+            variant="primary"
+            style={grow}
+            endContent={<ExternalLink size={14} aria-hidden />}
+            onClick={onBookTable}
+          />
+        ) : (
+          <Button
+            label="Book on Maps"
+            variant="primary"
+            style={grow}
+            icon={<BookOnMapsIcon />}
+            onClick={onBookTable}
+          />
+        )}
       </div>
-      {hasMenuLink && (
+      {onViewRestaurant != null && (
         <div className={styles.actionGrow}>
-          <Button label="View menu" variant="secondary" style={grow} onClick={onViewMenu} />
+          <Button label="View restaurant" variant="secondary" style={grow} onClick={onViewRestaurant} />
         </div>
       )}
       <div className={styles.shareButton}>
@@ -218,7 +228,8 @@ export function VenueResultListingContent({
   const dietaryBadge = formatDietaryBadge(enriched, dietaryNeeds);
   const memory = userMemory ?? getUserMemory();
   const personalizationBadge = formatPersonalizationBadge(enriched.id, memory);
-  const menuAction = resolveMenuAction(enriched);
+  const place = catalogPlace(enriched.id);
+  const panel = useRestaurantPanel();
   const aiWriteUps = venueAiWriteUps(enriched).slice(0, 1);
   // Everyone in the stack liked or loved it; newest visit first.
   const fans = membersWhoLikedVenue(enriched.id, enriched.title, communityMembers ?? []);
@@ -227,12 +238,6 @@ export function VenueResultListingContent({
   // No real availability source: the Google Maps button is where a table gets
   // checked, so cards don't show invented open times.
   const availabilityLine = enriched.meta ?? null;
-
-  const handleViewMenu = () => {
-    if (menuAction?.mode === 'exact') {
-      openExternalLink(menuAction.url);
-    }
-  };
 
   const metaRows: {key: string; icon?: ReactNode; avatar?: ReactNode; text: string}[] = [];
   // The avatar stack already shows friends, so skip the single-friend line then.
@@ -330,8 +335,8 @@ export function VenueResultListingContent({
 
       <VenueListActions
         onBookTable={onBookTable}
-        onViewMenu={handleViewMenu}
-        hasMenuLink={menuAction != null}
+        onViewRestaurant={place != null && panel != null ? () => panel.open(place.id) : null}
+        isCatalogPlace={place != null}
       />
     </div>
   );

@@ -1,47 +1,6 @@
-.tabBarWrap {
-  position: relative;
+.header {
   width: 100%;
   max-width: 800px;
   flex-shrink: 0;
-  padding-block: 32px;
-}
-
-/* Overlay on the Find tab (first column of fill layout) — not inside Tab’s <button>. */
-.findRestart {
-  position: absolute;
-  left: calc(100% / 3 - 34px);
-  top: 50%;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--qt-accent-soft);
-  cursor: pointer;
-  transform: translateY(-50%);
-  animation: findRestartIn 0.35s ease;
-}
-
-@keyframes findRestartIn {
-  from {
-    opacity: 0;
-    transform: translateY(-50%) scale(0.92);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(-50%) scale(1);
-  }
-}
-
-.findRestart:hover {
-  color: color-mix(in srgb, var(--qt-accent-soft) 75%, white);
-  background-color: color-mix(in srgb, var(--qt-accent-soft) 12%, transparent);
-}
-
-.findRestart:focus-visible {
-  outline: 2px solid var(--qt-accent-soft);
-  outline-offset: 1px;
+  padding-block: var(--spacing-8);
 }

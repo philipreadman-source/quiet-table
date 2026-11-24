@@ -9,8 +9,6 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
-import {useAuth, useUser} from '@clerk/nextjs';
-import {useRouter} from 'next/navigation';
 import {Sparkles} from 'lucide-react';
 import {HStack, VStack, Layout, LayoutContent} from '@astryxdesign/core/Layout';
 import {
@@ -44,16 +42,6 @@ import {
 import {filterExcludedVenues, getUserMemory, type UserMemory} from '@/lib/user-memory';
 import {casualPicksPage} from '@/lib/fallback-response';
 import {BETA_CITY_NOTE, cityLabel, hasCatalogFor, isBetaCity} from '@/lib/city-picks';
-import {isOnboardingComplete, saveTasteProfile, type TasteProfile} from '@/lib/taste-profile';
-import {mergeClerkUserIntoProfile} from '@/lib/clerk-profile';
-import {resolveFriendFoodProfile} from '@/lib/member-friends';
-import {
-  friendBrief,
-  friendsMentioned,
-  joinNames,
-  withoutFriendMentions,
-} from '@/lib/friend-mentions';
-import {useMemberFriends} from '@/lib/use-member-friends';
 import {
   DATE_NIGHT_OCCASION_CARDS,
   type DateNightOccasion,
@@ -64,14 +52,8 @@ import {
 } from '@/lib/date-night-spend';
 import {BookOnMapsIcon} from '@/app/components/book-on-maps-icon';
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
-import {HomeFriendsTabPanel} from '@/app/components/home-friends-tab';
-import {HomeProfileTabPanel} from '@/app/components/home-profile-tab';
-import {HomeSectionTabBar, type HomeMainSection} from '@/app/components/home-section-tabs';
-import {WizardGoingWithStep} from '@/app/components/wizard-going-with-step';
-import {
-  derivePartyDietaryFromCompanions,
-  type FriendFoodProfile,
-} from '@/lib/friend-graph-mock';
+import {HomeHeader} from '@/app/components/home-section-tabs';
+import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
 import {reverseGeocode} from '@/lib/reverse-geocode';
 import {parseLocationFromMessage} from '@/lib/parse-location';
 import {createPlaceSearchSource} from '@/lib/place-search';
@@ -166,10 +148,6 @@ function partySizeSummaryPhrase(value: string): string {
     : `for a party of ${value}`;
 }
 
-function isSoloPartySize(size: string | undefined): boolean {
-  return size === '1';
-}
-
 /** Short intent label for the summary bubble — not the full chip message. */
 function intentSummaryLabel(intent: string | undefined): string | null {
   if (intent == null) return null;
@@ -181,29 +159,16 @@ function intentSummaryLabel(intent: string | undefined): string | null {
   return intent.replace(/\.$/, '');
 }
 
-function goingWithSummaryPhrase(draft: BookingDraft, members: readonly FriendFoodProfile[]): string | null {
-  const ids = draft.goingWithFriendIds;
-  if (ids == null || ids.length === 0 || draft.goingWithSkipped === true) return null;
-  const names = ids
-    .map((id) => resolveFriendFoodProfile(id, members)?.name)
-    .filter((name): name is string => name != null && name.length > 0);
-  if (names.length === 0) return null;
-  if (names.length === 1) return `with ${names[0]}`;
-  if (names.length === 2) return `with ${names[0]} and ${names[1]}`;
-  return `with ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
-function formatDraftSummary(draft: BookingDraft, members: readonly FriendFoodProfile[]): string {
+function formatDraftSummary(draft: BookingDraft): string {
   const intent = intentSummaryLabel(draft.intent);
   const party = draft.partySize != null ? partySizeSummaryPhrase(draft.partySize) : null;
-  const companions = goingWithSummaryPhrase(draft, members);
   const place = draft.location != null ? `in ${draft.location}` : null;
   const when =
     draft.date != null && draft.time != null
       ? `${formatDateForMessage(draft.date)} around ${draft.time}`
       : null;
 
-  const lead = [intent, party, companions, place].filter(Boolean).join(', ');
+  const lead = [intent, party, place].filter(Boolean).join(', ');
   if (lead.length === 0) return when != null ? `${when}.` : '';
   if (when == null) return `${lead}.`;
   return `${lead}. ${when}.`;
@@ -213,14 +178,13 @@ const GROUP_INTENT_MESSAGE = 'I need a table for a group.';
 const CASUAL_INTENT_MESSAGE = 'Something casual, nothing fussy.';
 const GROUP_INTENT_ACKNOWLEDGEMENT = 'Group dinner, nice.';
 
-type WizardStage = 'intent' | 'size' | 'goingWith' | 'location' | 'occasion' | 'spend' | 'date' | 'time';
+type WizardStage = 'intent' | 'size' | 'location' | 'occasion' | 'spend' | 'date' | 'time';
 
 // Composer teaser updates with the flow — typing is always a valid escape hatch.
 // Wizard steps are set; post-summary phases (dietary, etc.) can be re-specced later.
 const STAGE_PLACEHOLDERS: Record<WizardStage, string> = {
   intent: "Or just tell me what you're after...",
   size: 'Or tell me how many...',
-  goingWith: 'Or say who is joining...',
   location: 'Or specify a location...',
   occasion: 'Or describe the occasion...',
   spend: 'Or say what you want to spend...',
@@ -234,7 +198,7 @@ const POST_WIZARD_PLACEHOLDERS = {
   default: 'Or tell me anything else...',
 } as const;
 
-const FALLBACK_MODE_PLACEHOLDER = 'Agent off — working from fallback data';
+const FALLBACK_MODE_PLACEHOLDER = "Or tell me what you're after...";
 
 const TODAY_ISO = new Date().toISOString().slice(0, 10) as ISODateString;
 
@@ -260,23 +224,16 @@ function resolveComposerPlaceholder(args: {
   return STAGE_PLACEHOLDERS[args.stage];
 }
 
-function wizardStageOrder(
-  sizeStepSkipped: boolean,
-  dateNightStepsIncluded: boolean,
-  skipGoingWith: boolean,
-): WizardStage[] {
-  const goingWith: WizardStage[] = skipGoingWith ? [] : ['goingWith'];
+function wizardStageOrder(sizeStepSkipped: boolean, dateNightStepsIncluded: boolean): WizardStage[] {
   if (sizeStepSkipped && dateNightStepsIncluded) {
-    return ['intent', ...goingWith, 'location', 'occasion', 'spend', 'date', 'time'];
+    return ['intent', 'location', 'occasion', 'spend', 'date', 'time'];
   }
-  if (sizeStepSkipped) return ['intent', ...goingWith, 'location', 'date', 'time'];
-  return ['intent', 'size', ...goingWith, 'location', 'date', 'time'];
+  if (sizeStepSkipped) return ['intent', 'location', 'date', 'time'];
+  return ['intent', 'size', 'location', 'date', 'time'];
 }
 
 function stageAfterIntentSelection(fixedPartySize: string | undefined): WizardStage {
-  if (fixedPartySize != null && isSoloPartySize(fixedPartySize)) return 'location';
-  if (fixedPartySize != null) return 'goingWith';
-  return 'size';
+  return fixedPartySize != null ? 'location' : 'size';
 }
 
 function visibleWizardStages(
@@ -284,9 +241,8 @@ function visibleWizardStages(
   wizardComplete: boolean,
   sizeStepSkipped: boolean,
   dateNightStepsIncluded: boolean,
-  skipGoingWith: boolean,
 ): WizardStage[] {
-  const order = wizardStageOrder(sizeStepSkipped, dateNightStepsIncluded, skipGoingWith);
+  const order = wizardStageOrder(sizeStepSkipped, dateNightStepsIncluded);
   if (wizardComplete) return order;
   const idx = order.indexOf(stage);
   return order.slice(0, Math.max(0, idx + 1));
@@ -310,51 +266,10 @@ type BookingDraft = {
   occasion?: DateNightOccasion;
   spend?: DateNightSpend;
   occasionNotes?: string;
-  goingWithFriendIds?: string[];
-  goingWithSkipped?: boolean;
-  /** Set from companion dietary leans (e.g. a pescatarian friend). */
-  partyDietarySummary?: string;
 };
 
-function stageAfterGoingWith(): WizardStage {
-  return 'location';
-}
-
-function toggleGoingWithFriend(
-  draft: BookingDraft,
-  friendId: string,
-  selected: boolean,
-  members: readonly FriendFoodProfile[],
-): BookingDraft {
-  const current = draft.goingWithFriendIds ?? [];
-  const next = selected ? [...current, friendId] : current.filter((id) => id !== friendId);
-  const withIds: BookingDraft = {
-    ...draft,
-    goingWithFriendIds: next.length > 0 ? next : undefined,
-    goingWithSkipped: false,
-  };
-  return applyCompanionPartyInfluence(withIds, members);
-}
-
-function applyCompanionPartyInfluence(
-  draft: BookingDraft,
-  members: readonly FriendFoodProfile[],
-): BookingDraft {
-  const ids = draft.goingWithFriendIds;
-  if (ids == null || ids.length === 0 || draft.goingWithSkipped === true) {
-    return {...draft, partyDietarySummary: undefined};
-  }
-  const lookup = (id: string) => resolveFriendFoodProfile(id, members);
-  const derived = derivePartyDietaryFromCompanions(ids, lookup);
-  if (derived == null) {
-    return {...draft, partyDietarySummary: undefined};
-  }
-  return {
-    ...draft,
-    dietaryNeeds: derived.dietaryNeeds,
-    partyDietarySummary: derived.summary,
-  };
-}
+/** No accounts on the web, so no members' picks to rank by (yet). */
+const NO_MEMBERS: FriendFoodProfile[] = [];
 
 const DIETARY_CHOICES: {label: string; value: DietaryNeeds}[] = [
   {label: 'No restrictions', value: 'none'},
@@ -940,12 +855,11 @@ async function callAgent(
   message: string,
   location: string | null,
   draft: BookingDraft,
-  tasteProfile: TasteProfile | null,
 ): Promise<{text: string; ui: UiDirective | null; fallback?: boolean}> {
   const res = await fetch('/api/agent', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({history, message, location, draft, tasteProfile}),
+    body: JSON.stringify({history, message, location, draft, tasteProfile: null}),
   });
   const body = (await res.json()) as {
     text: string;
@@ -960,25 +874,16 @@ async function callAgent(
 }
 
 export default function Home() {
-  const router = useRouter();
-  const {userId: clerkUserId, isLoaded: isAuthLoaded} = useAuth();
-  const {user: clerkUser} = useUser();
-  const {members: memberFriends, loading: memberFriendsLoading} = useMemberFriends(clerkUserId);
   // Hooks must run before the loading early return below, on every render.
   const placeSearchSource = useMemo(() => createPlaceSearchSource(), []);
-  const wizardCompanionFriends = useMemo(
-    () => (memberFriends.length > 0 ? memberFriends.slice(0, 8) : []),
-    [memberFriends],
-  );
-  const [tasteProfile, setTasteProfile] = useState<TasteProfile | null>(null);
-  const [ready, setReady] = useState(false);
-  const [messages, setMessages] = useState<ChatTurn[]>([]);
+  const [messages, setMessages] = useState<ChatTurn[]>([
+    {role: 'assistant', text: "Let's find your table."},
+  ]);
   const [postSummaryThread, setPostSummaryThread] = useState<PostSummaryItem[]>([]);
   const [wizardComposerThread, setWizardComposerThread] = useState<PostSummaryItem[]>([]);
   const [locationFromComposer, setLocationFromComposer] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [agentFallback, setAgentFallback] = useState(false);
-  const [mainSection, setMainSection] = useState<HomeMainSection>('find');
   // Fixed pre-agent wizard: intent -> party size -> location -> date -> time.
   const [stage, setStage] = useState<WizardStage>('intent');
   const [bookingDraft, setBookingDraft] = useState<BookingDraft>(INITIAL_BOOKING_DRAFT);
@@ -997,7 +902,6 @@ export default function Home() {
   // A real deployment would start this at null and rely on requestLocation.
   const userLocation = bookingDraft.location ?? null;
   const wizardComplete = messages.some((m) => m.kind === 'summary');
-  const skipGoingWithStep = isSoloPartySize(bookingDraft.partySize);
   const visibleStages = useMemo(
     () =>
       visibleWizardStages(
@@ -1005,9 +909,8 @@ export default function Home() {
         wizardComplete,
         sizeStepSkipped,
         dateNightStepsIncluded,
-        skipGoingWithStep,
       ),
-    [stage, wizardComplete, sizeStepSkipped, dateNightStepsIncluded, skipGoingWithStep],
+    [stage, wizardComplete, sizeStepSkipped, dateNightStepsIncluded],
   );
   const summaryIndex = messages.findIndex((m) => m.kind === 'summary');
   const messagesBeforeSummary = summaryIndex >= 0 ? messages.slice(0, summaryIndex) : messages;
@@ -1045,57 +948,8 @@ export default function Home() {
     );
   };
 
-  const userMemory = useMemo(() => getUserMemory(tasteProfile), [tasteProfile]);
-
-  useEffect(() => {
-    if (!isAuthLoaded) return;
-    if (clerkUserId == null) {
-      router.replace('/sign-in');
-      return;
-    }
-    let cancelled = false;
-    void import('@/lib/profile-sync').then(({hydrateTasteProfileWithServer}) =>
-      hydrateTasteProfileWithServer(clerkUserId),
-    ).then((profile) => {
-      if (cancelled) return;
-      if (!isOnboardingComplete(profile)) {
-        router.replace('/onboarding');
-        return;
-      }
-      const withClerk = mergeClerkUserIntoProfile(profile, clerkUser);
-      if (withClerk !== profile) {
-        saveTasteProfile(withClerk);
-      }
-      setTasteProfile(withClerk);
-      // Home area is the base location for every search. Only ask the device
-      // for a position when no home area was saved during onboarding.
-      const home = profile.homeArea.trim();
-      if (home.length > 0) {
-        setBookingDraft((prev) => withDraftField(prev, 'location', home));
-      } else {
-        requestLocation();
-      }
-      const name = profile.username.trim();
-      setMessages([
-        {
-          role: 'assistant',
-          text: name.length > 0 ? `Welcome, ${name}. Let's find your table.` : `Welcome. Let's find your table.`,
-        },
-      ]);
-      setReady(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [router, isAuthLoaded, clerkUserId, clerkUser]);
-
-  useEffect(() => {
-    if (tasteProfile == null || clerkUser == null) return;
-    const merged = mergeClerkUserIntoProfile(tasteProfile, clerkUser);
-    if (merged === tasteProfile) return;
-    saveTasteProfile(merged);
-    setTasteProfile(merged);
-  }, [clerkUser, tasteProfile]);
+  // No accounts on the web: no saved taste, so Find runs on what's asked.
+  const userMemory = useMemo(() => getUserMemory(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1110,20 +964,6 @@ export default function Home() {
     };
   }, []);
 
-  if (!isAuthLoaded || clerkUserId == null || !ready) {
-    return (
-      <Layout
-        height="fill"
-        content={
-          <LayoutContent>
-            <VStack hAlign="center" vAlign="center" style={{minHeight: '60dvh'}}>
-              <Text color="secondary">Loading your table…</Text>
-            </VStack>
-          </LayoutContent>
-        }
-      />
-    );
-  }
 
   // Location step: the saved-location card and the place search both land here.
   const pickWizardLocation = (location: string) => {
@@ -1139,9 +979,6 @@ export default function Home() {
     const carried: BookingDraft =
       stage === 'intent' || typedDraft != null
         ? {
-            goingWithFriendIds: source.goingWithFriendIds,
-            goingWithSkipped: source.goingWithSkipped,
-            partyDietarySummary: source.partyDietarySummary,
             dietaryNeeds: source.dietaryNeeds,
             partySize: source.partySize,
             time: source.time,
@@ -1172,28 +1009,18 @@ export default function Home() {
     setDateNightStepsIncluded(false);
     setActivePartySizes(sizes);
     if (typedSize == null) setStage('size');
-    else setStage(isSoloPartySize(typedSize) ? stageAfterGoingWith() : 'goingWith');
+    else setStage('location');
   };
 
   // Agent off: typed text mid-wizard fills in the wizard instead of jumping
   // to a results list the wizard can't show yet. No request is made.
   const handleOfflineWizardText = (text: string) => {
-    const friends = friendsMentioned(text, memberFriends);
-    const rest = withoutFriendMentions(text, friends);
+    const rest = text.trim();
     const parsed =
       rest.length > 0 ? mergeDraftFromText(bookingDraft, rest, stage, false) : bookingDraft;
     // Intent only changes through its card, below.
-    let draft: BookingDraft = {...parsed, intent: bookingDraft.intent};
+    const draft: BookingDraft = {...parsed, intent: bookingDraft.intent};
     const notes: string[] = [];
-
-    if (friends.length > 0) {
-      const ids = [...new Set([...(draft.goingWithFriendIds ?? []), ...friends.map((f) => f.id)])];
-      draft = applyCompanionPartyInfluence(
-        {...draft, goingWithFriendIds: ids, goingWithSkipped: false},
-        memberFriends,
-      );
-      notes.push(`with ${joinNames(friends.map((f) => f.name))}`);
-    }
     const locationChanged = draft.location != null && draft.location !== bookingDraft.location;
     if (locationChanged) notes.push(`in ${draft.location}`);
     const sizeChanged = draft.partySize != null && draft.partySize !== bookingDraft.partySize;
@@ -1207,9 +1034,7 @@ export default function Home() {
       notes.length === 0
         ? offlineNothingParsed(bookingDraft.location)
         : `Got it: ${notes.join(', ')}.${card == null && stage === 'intent' ? ' What kind of table are you after?' : ''}`;
-    // Friends' needs are hard filters later on; say them back so it's clear.
-    const reply =
-      friends.length > 0 ? `${lead}\n\n${friends.map(friendBrief).join('\n')}` : lead;
+    const reply = lead;
     const exchange: PostSummaryItem[] = [
       {type: 'message', role: 'user', text},
       {type: 'message', role: 'assistant', text: reply},
@@ -1231,9 +1056,7 @@ export default function Home() {
     setWizardComposerThread((prev) => [...prev, ...exchange]);
     if (locationChanged) setLocationFromComposer(true);
     if (stage === 'size' && sizeChanged) {
-      setStage(isSoloPartySize(draft.partySize) ? stageAfterGoingWith() : 'goingWith');
-    } else if (stage === 'goingWith' && friends.length > 0) {
-      setStage(stageAfterGoingWith());
+      setStage('location');
     } else if (stage === 'location' && locationChanged) {
       setStage(dateNightStepsIncluded ? 'occasion' : 'date');
     }
@@ -1246,13 +1069,11 @@ export default function Home() {
     let picks: {options: VenueOptionCard[]; hasMore: boolean; total: number};
     let title = 'Saved casual places';
     if (hasCatalogFor(location)) {
-      picks = casualPicksPage(page, bookingDraft, userMemory, memberFriends);
+      picks = casualPicksPage(page, bookingDraft, userMemory, NO_MEMBERS);
     } else {
       title = `Places in ${cityLabel(location!)}`;
       const params = new URLSearchParams({area: location!, page: String(page)});
-      const cuisines = tasteProfile?.preferences.cuisineAffinities ?? [];
-      if (cuisines.length > 0) params.set('cuisines', cuisines.join(','));
-      const diet = bookingDraft.dietaryNeeds ?? tasteProfile?.preferences.dietaryLean;
+      const diet = bookingDraft.dietaryNeeds;
       if (diet != null && diet !== 'none') params.set('diet', diet);
       setIsLoading(true);
       try {
@@ -1308,23 +1129,6 @@ export default function Home() {
     });
   };
 
-  const demoResetAvatar = (
-    <button
-      type="button"
-      onClick={() => router.push('/onboarding?reset=1')}
-      aria-label="Restart onboarding demo"
-      title="Restart onboarding demo"
-      style={{
-        background: 'none',
-        border: 'none',
-        padding: 0,
-        cursor: 'pointer',
-        display: 'block',
-        lineHeight: 0,
-      }}>
-      {QUIET_TABLE_AVATAR}
-    </button>
-  );
 
   const send = async (text: string, draftOverride?: BookingDraft, options?: SendOptions) => {
     if (text.trim().length === 0 || isLoading) return;
@@ -1372,7 +1176,7 @@ export default function Home() {
       setMessages((prev) => {
         const summaryIdx = prev.findIndex((m) => m.kind === 'summary');
         if (summaryIdx < 0) return prev;
-        const updatedSummary = formatDraftSummary(nextDraft, memberFriends);
+        const updatedSummary = formatDraftSummary(nextDraft);
         return prev.map((m, i) => (i === summaryIdx ? {...m, text: updatedSummary} : m));
       });
       setLocationFromComposer(true);
@@ -1424,7 +1228,6 @@ export default function Home() {
         text,
         nextDraft.location ?? userLocation,
         nextDraft,
-        tasteProfile,
       );
       setAgentFallback(fallback === true);
       const appendResponse = (prev: PostSummaryItem[]) =>
@@ -1460,13 +1263,7 @@ export default function Home() {
           <LayoutContent>
             <HStack height="100%">
               <VStack style={chatShell} hAlign="center" gap={2}>
-                <HomeSectionTabBar
-                  value={mainSection}
-                  onChange={setMainSection}
-                  findRestartVisible={hasVenueResults && !isLoading}
-                  onFindRestart={restartFindFlow}
-                />
-                {mainSection === 'find' ? (
+                <HomeHeader restartVisible={hasVenueResults && !isLoading} onRestart={restartFindFlow} />
                 <ChatLayout
                   ref={chatLayoutScrollRef}
                   style={chatLayout}
@@ -1485,7 +1282,7 @@ export default function Home() {
                         <ChatMessage
                           key={index}
                           sender="assistant"
-                          avatar={index === 0 ? demoResetAvatar : QUIET_TABLE_AVATAR}
+                          avatar={QUIET_TABLE_AVATAR}
                           className="chat-message--inline"
                           style={chatMessageInlineStyle}>
                           <ChatMessageBubble style={chatBubblePadding}>
@@ -1549,20 +1346,8 @@ export default function Home() {
                                     if (isGroupHandoffFromCasual(bookingDraft, size)) {
                                       setIntentAcknowledgement(GROUP_INTENT_ACKNOWLEDGEMENT);
                                     }
-                                    const solo = isSoloPartySize(size);
-                                    setBookingDraft((prev) => {
-                                      const next = applyPartySizeSelection(prev, size);
-                                      if (!solo) return next;
-                                      return {
-                                        ...next,
-                                        goingWithFriendIds: undefined,
-                                        goingWithSkipped: true,
-                                        partyDietarySummary: undefined,
-                                        dietaryNeeds:
-                                          next.partyDietarySummary != null ? undefined : next.dietaryNeeds,
-                                      };
-                                    });
-                                    setStage(solo ? stageAfterGoingWith() : 'goingWith');
+                                    setBookingDraft((prev) => applyPartySizeSelection(prev, size));
+                                    setStage('location');
                                   }}>
                                   <Text type="label" weight="semibold" justify="center">
                                     {size}
@@ -1571,38 +1356,6 @@ export default function Home() {
                               ))}
                             </HStack>
                           </VStack>
-                        </ChatMessageBubble>
-                      </ChatMessage>
-                    )}
-
-                    {visibleStages.includes('goingWith') && (
-                      <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
-                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
-                          <WizardGoingWithStep
-                            intentLead={intentAcknowledgement}
-                            friends={wizardCompanionFriends}
-                            loading={memberFriendsLoading}
-                            selectedFriendIds={bookingDraft.goingWithFriendIds ?? []}
-                            onToggleFriend={(friendId, selected) => {
-                              setBookingDraft((prev) =>
-                                toggleGoingWithFriend(prev, friendId, selected, memberFriends),
-                              );
-                            }}
-                            onSkip={() => {
-                              setBookingDraft((prev) => ({
-                                ...prev,
-                                goingWithFriendIds: undefined,
-                                goingWithSkipped: true,
-                                partyDietarySummary: undefined,
-                                ...(prev.partyDietarySummary != null ? {dietaryNeeds: undefined} : {}),
-                              }));
-                              setStage(stageAfterGoingWith());
-                            }}
-                            onContinue={() => {
-                              setBookingDraft((prev) => applyCompanionPartyInfluence(prev, memberFriends));
-                              setStage(stageAfterGoingWith());
-                            }}
-                          />
                         </ChatMessageBubble>
                       </ChatMessage>
                     )}
@@ -1682,7 +1435,7 @@ export default function Home() {
                                 }
                                 showMoreEnabled
                                 userMemory={userMemory}
-                                communityMembers={memberFriends}
+                                communityMembers={NO_MEMBERS}
                               />
                             </ChatMessageBubble>
                           </ChatMessage>
@@ -1793,7 +1546,7 @@ export default function Home() {
                                       const nextDraft = withDraftField(bookingDraft, 'time', slot);
                                       setBookingDraft(nextDraft);
                                       requestAnimationFrame(() => {
-                                        send(formatDraftSummary(nextDraft, memberFriends), nextDraft, {
+                                        send(formatDraftSummary(nextDraft), nextDraft, {
                                           displayAsSummary: true,
                                         });
                                       });
@@ -1858,7 +1611,7 @@ export default function Home() {
                                 }
                                 showMoreEnabled={index === lastOptionsUiIndex}
                                 userMemory={userMemory}
-                                communityMembers={memberFriends}
+                                communityMembers={NO_MEMBERS}
                               />
                             </ChatMessageBubble>
                           </ChatMessage>
@@ -1881,26 +1634,6 @@ export default function Home() {
                     )}
                   </ChatMessageList>
                 </ChatLayout>
-                ) : mainSection === 'friends' ? (
-                  <HomeFriendsTabPanel />
-                ) : (
-                  <HomeProfileTabPanel
-                    profile={tasteProfile!}
-                    onProfileSaved={(next) => {
-                      setTasteProfile(next);
-                      setBookingDraft((prev) => ({...prev, location: next.homeArea}));
-                      setMessages((prev) => {
-                        if (prev.length === 0 || prev[0]?.role !== 'assistant') return prev;
-                        const name = next.username.trim();
-                        const welcome =
-                          name.length > 0
-                            ? `Welcome, ${name}. Let's find your table.`
-                            : `Welcome. Let's find your table.`;
-                        return [{...prev[0]!, text: welcome}, ...prev.slice(1)];
-                      });
-                    }}
-                  />
-                )}
               </VStack>
             </HStack>
           </LayoutContent>

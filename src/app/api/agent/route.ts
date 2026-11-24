@@ -10,8 +10,6 @@ import {
 } from '@/lib/user-memory';
 import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
 import {summarizeFriendForAgent} from '@/lib/friend-graph-mock';
-import {tasteProfileToFriendFoodProfile} from '@/lib/member-friends';
-import {listMemberProfilesForSession} from '@/lib/member-registry-server';
 import {summarizeCommunityTasteForAgent} from '@/lib/member-taste-discovery';
 import type {TasteProfile} from '@/lib/taste-profile';
 import {buildFallbackResponse} from '@/lib/fallback-response';
@@ -19,21 +17,21 @@ import {catalogAgentContextLine} from '@/lib/venue-options';
 
 /**
  * Fallback → buildFallbackResponse only (response includes fallback: true). No Anthropic credits.
- * Live agent → Claude + web_search + catalog tools when USE_LIVE_AGENT=true on Vercel production,
- * or USE_LOCAL_FALLBACK=false, or unset locally/preview with ANTHROPIC_API_KEY.
+ * The site has no sign-in, so anyone can reach this route: the live agent
+ * (Claude + web_search + catalog tools) only runs when USE_LIVE_AGENT=true or
+ * USE_LOCAL_FALLBACK=false is set, on purpose. Everywhere else, fallback.
  */
-function useLocalFallback(): boolean {
+function shouldUseLocalFallback(): boolean {
   const flag = process.env.USE_LOCAL_FALLBACK;
   if (flag === 'true' || flag === '1') return true;
   if (flag === 'false' || flag === '0') return false;
   if (process.env.USE_LIVE_AGENT === 'true' || process.env.USE_LIVE_AGENT === '1') {
     return false;
   }
-  if (process.env.VERCEL_ENV === 'production') return true;
-  return false;
+  return true;
 }
 
-const USE_LOCAL_FALLBACK = useLocalFallback();
+const USE_LOCAL_FALLBACK = shouldUseLocalFallback();
 
 const client = new Anthropic();
 
@@ -334,16 +332,6 @@ function executeDomainTool(
   }
 }
 
-async function loadCommunityMembers(sessionUserId: string | undefined): Promise<
-  ReturnType<typeof tasteProfileToFriendFoodProfile>[]
-> {
-  const id = sessionUserId?.trim();
-  if (id == null || id.length === 0) return [];
-  const listed = await listMemberProfilesForSession(id);
-  if (!listed.ok) return [];
-  return listed.profiles.map(tasteProfileToFriendFoodProfile);
-}
-
 export function GET() {
   return NextResponse.json({fallback: USE_LOCAL_FALLBACK});
 }
@@ -357,7 +345,8 @@ export async function POST(request: Request) {
     tasteProfile?: TasteProfile | null;
   };
 
-  const communityMembers = await loadCommunityMembers(tasteProfile?.userId);
+  // No accounts on the web, so no members' taste to draw on.
+  const communityMembers: FriendFoodProfile[] = [];
 
   if (USE_LOCAL_FALLBACK) {
     return NextResponse.json({

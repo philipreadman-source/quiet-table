@@ -298,7 +298,7 @@ export function applyVenueReaction(
   const venueReactions = {...profile.venueReactions, [venueId]: reaction};
   let anchorVenueIds = [...profile.anchorVenueIds];
   let excludedVenueIds = [...profile.excludedVenueIds];
-  let recentVisits = [...profile.recentVisits.filter((v) => v.venueId !== venueId)];
+  const recentVisits = [...profile.recentVisits.filter((v) => v.venueId !== venueId)];
   const now = new Date().toISOString().slice(0, 10);
   // Keep a name saved earlier (e.g. re-rating from My places passes none).
   const previous = profile.recentVisits.find((v) => v.venueId === venueId);
@@ -402,7 +402,7 @@ export function addPositiveRestaurantToProfile(
 
   const venueReactions = {...profile.venueReactions};
   delete venueReactions[venueId];
-  let recentVisits = profile.recentVisits.filter((visit) => visit.venueId !== venueId);
+  const recentVisits = profile.recentVisits.filter((visit) => visit.venueId !== venueId);
   recentVisits.push({
     venueId,
     visitedAt: now,
@@ -495,24 +495,9 @@ export function loadTasteProfile(): TasteProfile | null {
   }
 }
 
-/** Persists locally; syncs to Upstash when username is set (see profile-sync). */
-export function saveTasteProfile(profile: TasteProfile, options?: {remote?: boolean}): void {
+/** Persists in this browser only (the site has no accounts). */
+export function saveTasteProfile(profile: TasteProfile): void {
   saveTasteProfileToLocalStorage(profile);
-  if (options?.remote === false || typeof window === 'undefined') return;
-  void import('@/lib/profile-sync').then(({pushTasteProfileToServer}) =>
-    pushTasteProfileToServer(profile),
-  );
-}
-
-export function inviteShareUrl(userId: string, origin?: string): string {
-  const base =
-    origin ??
-    (typeof window !== 'undefined' ? window.location.origin : 'https://quiet-table-1.vercel.app');
-  return `${base}/join?ref=${encodeURIComponent(userId)}`;
-}
-
-export function inviteShareMessage(username: string, url: string): string {
-  return `${username} invited you to Quiet Table — see where friends actually eat and book a table. ${url}`;
 }
 
 export function formatInviteSentSummary(sentCount: number): string {

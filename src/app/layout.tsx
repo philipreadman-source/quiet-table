@@ -1,8 +1,6 @@
-import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
-import { clerkAppearance, clerkLocalization } from "@/lib/clerk-appearance";
 import "@astryxdesign/core/reset.css";
 import "@astryxdesign/core/astryx.css";
 import "./globals.css";
@@ -19,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Quiet Table",
-  description: "Agentic dinner booking, powered by Astryx",
+  description: "Find a table in Amsterdam or London, picked by people who've eaten there.",
 };
 
 export default function RootLayout({
@@ -30,16 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
-        <ClerkProvider
-          appearance={clerkAppearance}
-          localization={clerkLocalization}
-          signInFallbackRedirectUrl="/"
-          signUpFallbackRedirectUrl="/"
-          signInForceRedirectUrl="/"
-          signUpForceRedirectUrl="/"
-          afterSignOutUrl="/sign-in">
-          <Providers>{children}</Providers>
-        </ClerkProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

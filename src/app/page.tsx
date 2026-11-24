@@ -62,6 +62,15 @@ import {handoffVenueBooking} from '@/lib/venue-booking-handoff';
 // Placeholder mark until there's a real logo: a small light-green dot,
 // styled and aligned in globals.css (.qt-dot).
 const QUIET_TABLE_AVATAR = <span role="img" aria-label="Quiet Table" className="qt-dot" />;
+// The dot marks Quiet Table speaking. Blocks that are only options (the
+// kind-of-night cards, result lists) get an invisible one, to stay aligned.
+const OPTIONS_SPACER = <span aria-hidden className="qt-dot" style={{visibility: 'hidden'}} />;
+
+/** The dot for a question or message; the spacer for a block of options. */
+function avatarForUi(ui: UiDirective) {
+  const type = ui.interactive?.type;
+  return type === 'options' || type === 'detail' ? OPTIONS_SPACER : QUIET_TABLE_AVATAR;
+}
 
 
 const root: CSSProperties = {height: '100dvh', width: '100%'};
@@ -1276,7 +1285,7 @@ export default function Home() {
                     )}
 
                     {visibleStages.includes('intent') && (
-                      <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
+                      <ChatMessage sender="assistant" avatar={OPTIONS_SPACER}>
                         <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <VStack gap={2} align="start">
                             {INTENT_CARDS.map((card) => (
@@ -1395,7 +1404,7 @@ export default function Home() {
                       keyPrefix="wizard"
                       renderUi={(item, key) =>
                         uiBlockIsVisible(item.ui) ? (
-                          <ChatMessage key={key} sender="assistant" avatar={QUIET_TABLE_AVATAR}>
+                          <ChatMessage key={key} sender="assistant" avatar={avatarForUi(item.ui)}>
                             <ChatMessageBubble variant="ghost" className="wizard-block--wide" style={wizardBubblePadding}>
                               <AgentUiBlock
                                 ui={item.ui}
@@ -1575,7 +1584,7 @@ export default function Home() {
                           <ChatMessage
                             key={`thread-${index}`}
                             sender="assistant"
-                            avatar={QUIET_TABLE_AVATAR}>
+                            avatar={avatarForUi(item.ui)}>
                             <ChatMessageBubble variant="ghost" className="wizard-block--wide" style={wizardBubblePadding}>
                               <AgentUiBlock
                                 ui={item.ui}

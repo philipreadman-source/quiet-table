@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import {NextResponse} from 'next/server';
 import {searchTables} from '@/lib/booking-data';
+import {allowAnswer, chargeAnswer, creditsRemaining, networkKey, usageCents} from '@/lib/ai-budget';
 import type {DietaryNeeds} from '@/lib/venue-options';
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
 import {
@@ -83,13 +84,23 @@ type FallbackArgs = Parameters<typeof buildFallbackResponse>;
 
 // Answers from the catalog with a short note, for when live search can't
 // finish inside the turn budget. Keeps the chat from waiting on a dead request.
-async function fallbackWithNote(note: string, ...args: FallbackArgs) {
+async function fallbackWithNote(note: string, credits: Credits, ...args: FallbackArgs) {
   const fallback = await buildFallbackResponse(...args);
   return NextResponse.json({
     ...fallback,
     text: [note, fallback.text].filter(Boolean).join('\n\n'),
     fallback: true,
+    credits,
   });
+}
+
+/** The day's AI budget, for the line under the prompt: the share left (0 to
+ * 1), and why this answer came from the catalog, if it did. */
+type Credits = {remaining: number | null; limited: 'budget' | 'device' | 'secret' | 'unavailable' | null};
+
+/** The browser's random id, as sent; anything odd counts as one shared device. */
+function cleanDevice(device: unknown): string {
+  return typeof device === 'string' && /^[a-z0-9-]{8,64}$/i.test(device) ? device : 'unknown-device';
 }
 
 function agentErrorResponse(error: unknown) {
@@ -332,17 +343,20 @@ function executeDomainTool(
   }
 }
 
-export function GET() {
-  return NextResponse.json({fallback: USE_LOCAL_FALLBACK});
+export async function GET() {
+  if (USE_LOCAL_FALLBACK) return NextResponse.json({fallback: true});
+  return NextResponse.json({fallback: false, credits: {remaining: await creditsRemaining(), limited: null}});
 }
 
 export async function POST(request: Request) {
-  const {history, message, location, draft, tasteProfile} = (await request.json()) as {
+  const {history, message, location, draft, tasteProfile, device} = (await request.json()) as {
     history: ChatTurn[];
     message: string;
     location?: string | null;
     draft?: BookingDraft;
     tasteProfile?: TasteProfile | null;
+    /** A random id the browser keeps, for the per-device daily answers. */
+    device?: string;
   };
 
   // No accounts on the web, so no members' taste to draw on.
@@ -354,6 +368,20 @@ export async function POST(request: Request) {
       fallback: true,
     });
   }
+
+  // The day's budget and this device's answers (supabase/web_ai_budget.sql).
+  // None left: answer from the catalog, free.
+  const allowance = await allowAnswer(cleanDevice(device), networkKey(request));
+  if (!allowance.allowed) {
+    return NextResponse.json({
+      ...(await buildFallbackResponse(message, draft, tasteProfile, communityMembers)),
+      fallback: true,
+      credits: {remaining: allowance.remaining, limited: allowance.reason} satisfies Credits,
+    });
+  }
+  // What this answer costs, call by call; recorded however the turn ends.
+  let spentCents = 0;
+  const settle = async (): Promise<Credits> => ({remaining: await chargeAnswer(spentCents), limited: null});
 
   const memory = getUserMemory(tasteProfile);
   const contextLines = [
@@ -405,7 +433,7 @@ export async function POST(request: Request) {
   for (let iteration = 0; iteration < 4; iteration++) {
     const remainingMs = TURN_BUDGET_MS - (Date.now() - turnStartedAt);
     if (remainingMs <= 0) {
-      return fallbackWithNote(TIMED_OUT_NOTE, message, draft, tasteProfile, communityMembers);
+      return fallbackWithNote(TIMED_OUT_NOTE, await settle(), message, draft, tasteProfile, communityMembers);
     }
     let response: Anthropic.Beta.BetaMessage;
     try {
@@ -423,18 +451,21 @@ export async function POST(request: Request) {
       }, {timeout: remainingMs, maxRetries: 0});
     } catch (error) {
       if (error instanceof Anthropic.APIConnectionTimeoutError) {
-        return fallbackWithNote(TIMED_OUT_NOTE, message, draft, tasteProfile, communityMembers);
+        return fallbackWithNote(TIMED_OUT_NOTE, await settle(), message, draft, tasteProfile, communityMembers);
       }
-      if (USE_LOCAL_FALLBACK) {
-        return NextResponse.json({
-          ...(await buildFallbackResponse(message, draft, tasteProfile, communityMembers)),
-          fallback: true,
-        });
-      }
+      await settle();
       return agentErrorResponse(error);
     }
 
     logUsage(iteration, response, system.length);
+    spentCents += usageCents({
+      model: response.model,
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+      cache_creation_input_tokens: response.usage.cache_creation_input_tokens ?? 0,
+      cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
+      web_search_requests: response.usage.server_tool_use?.web_search_requests ?? 0,
+    });
     containerId = response.container?.id ?? containerId;
     messages.push({role: 'assistant', content: response.content});
 
@@ -491,7 +522,7 @@ export async function POST(request: Request) {
   }
 
   const michelinApplied = applyMichelinModeToUi(textOut, uiOut, draft?.intent);
-  return NextResponse.json({text: michelinApplied.text, ui: michelinApplied.ui});
+  return NextResponse.json({text: michelinApplied.text, ui: michelinApplied.ui, credits: await settle()});
 }
 
 function dedupeExecutedCalls(calls: {name: string; target: string; status: 'complete'}[]) {

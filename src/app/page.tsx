@@ -853,21 +853,52 @@ function mergeDraftFromText(
   return next;
 }
 
+/** The day's AI budget from /api/agent: the share left, and why an answer
+ * came from the catalog if it did ('device': this device's answers are used). */
+type Credits = {remaining: number | null; limited: string | null};
+
+/** A random id this browser keeps, for the per-device daily AI answers. */
+function deviceId(): string {
+  try {
+    const saved = window.localStorage.getItem('qt-device');
+    if (saved != null) return saved;
+    const made = crypto.randomUUID();
+    window.localStorage.setItem('qt-device', made);
+    return made;
+  } catch {
+    return 'no-storage';
+  }
+}
+
+/** The line under the prompt; null when the live AI is off. */
+function creditsLine(credits: Credits | null): string | null {
+  if (credits == null) return null;
+  if (credits.limited === 'device') {
+    return 'You’ve had today’s AI answers, so picks come from Quiet Table’s places until tomorrow.';
+  }
+  if (credits.limited === 'budget' || (credits.remaining != null && credits.remaining <= 0)) {
+    return 'Community credits are used up for today, so picks come from Quiet Table’s places until tomorrow.';
+  }
+  if (credits.remaining == null) return null;
+  return `${Math.max(0, Math.round(credits.remaining * 100))}% of community credits remaining today`;
+}
+
 async function callAgent(
   history: ChatTurn[],
   message: string,
   location: string | null,
   draft: BookingDraft,
-): Promise<{text: string; ui: UiDirective | null; fallback?: boolean}> {
+): Promise<{text: string; ui: UiDirective | null; fallback?: boolean; credits?: Credits}> {
   const res = await fetch('/api/agent', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({history, message, location, draft, tasteProfile: null}),
+    body: JSON.stringify({history, message, location, draft, tasteProfile: null, device: deviceId()}),
   });
   const body = (await res.json()) as {
     text: string;
     ui: UiDirective | null;
     fallback?: boolean;
+    credits?: Credits;
     error?: string;
   };
   if (!res.ok) {
@@ -887,6 +918,7 @@ export default function Home() {
   const [locationFromComposer, setLocationFromComposer] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [agentFallback, setAgentFallback] = useState(false);
+  const [credits, setCredits] = useState<Credits | null>(null);
   // Fixed pre-agent wizard: intent -> party size -> location -> date -> time.
   const [stage, setStage] = useState<WizardStage>('intent');
   const [bookingDraft, setBookingDraft] = useState<BookingDraft>(INITIAL_BOOKING_DRAFT);
@@ -957,9 +989,11 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     void fetch('/api/agent')
-      .then((res) => (res.ok ? (res.json() as Promise<{fallback?: boolean}>) : null))
+      .then((res) => (res.ok ? (res.json() as Promise<{fallback?: boolean; credits?: Credits}>) : null))
       .then((body) => {
-        if (!cancelled && body != null) setAgentFallback(body.fallback === true);
+        if (cancelled || body == null) return;
+        setAgentFallback(body.fallback === true);
+        setCredits(body.credits ?? null);
       })
       .catch(() => {});
     return () => {
@@ -1226,13 +1260,14 @@ export default function Home() {
 
     setIsLoading(true);
     try {
-      const {text: replyText, ui, fallback} = await callAgent(
+      const {text: replyText, ui, fallback, credits: nextCredits} = await callAgent(
         history,
         text,
         nextDraft.location ?? userLocation,
         nextDraft,
       );
       setAgentFallback(fallback === true);
+      if (nextCredits != null) setCredits(nextCredits);
       const appendResponse = (prev: PostSummaryItem[]) =>
         appendAgentResponseToThread(prev, replyText, ui, options?.mergeOptions === true);
       if (isSummaryTurn || summaryExists) {
@@ -1273,12 +1308,19 @@ export default function Home() {
                   style={chatLayout}
                   density="spacious"
                   composer={
-                    <ChatComposer
-                      density="spacious"
-                      onSubmit={send}
-                      isDisabled={isLoading}
-                      placeholder={composerPlaceholder}
-                    />
+                    <VStack gap={2}>
+                      <ChatComposer
+                        density="spacious"
+                        onSubmit={send}
+                        isDisabled={isLoading}
+                        placeholder={composerPlaceholder}
+                      />
+                      {creditsLine(credits) != null && (
+                        <Text type="supporting" color="secondary" justify="center">
+                          {creditsLine(credits)}
+                        </Text>
+                      )}
+                    </VStack>
                   }>
                   <ChatMessageList density="spacious">
                     {messagesBeforeSummary.map((turn, index) =>

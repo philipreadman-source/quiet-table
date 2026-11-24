@@ -23,6 +23,7 @@ import {ExternalLink} from 'lucide-react';
 import {BookOnMapsIcon} from '@/app/components/book-on-maps-icon';
 import {useRestaurantPanel} from '@/app/components/restaurant-panel';
 import {catalogPlace} from '@/lib/catalog';
+import {scoreLine, usePlaceScore} from '@/lib/web-reviews';
 import styles from './venue-result-listing.module.css';
 
 function stopCardSelect(event: MouseEvent) {
@@ -230,6 +231,7 @@ export function VenueResultListingContent({
   const personalizationBadge = formatPersonalizationBadge(enriched.id, memory);
   const place = catalogPlace(enriched.id);
   const panel = useRestaurantPanel();
+  const score = usePlaceScore(enriched.id);
   const aiWriteUps = venueAiWriteUps(enriched).slice(0, 1);
   // Everyone in the stack liked or loved it; newest visit first.
   const fans = membersWhoLikedVenue(enriched.id, enriched.title, communityMembers ?? []);
@@ -277,6 +279,7 @@ export function VenueResultListingContent({
           <p className={styles.title}>{enriched.title}</p>
           {availabilityLine != null && <p className={styles.metaLine}>{availabilityLine}</p>}
           {enriched.subtitle != null && <p className={styles.metaLine}>{enriched.subtitle}</p>}
+          {score != null && <p className={styles.metaLine}>{scoreLine(score)}</p>}
           {michelinLine != null && enriched.michelin_guide_url != null && (
             <p className={styles.metaLine}>
               <a

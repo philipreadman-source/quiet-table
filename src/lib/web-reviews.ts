@@ -1,3 +1,5 @@
+import {useEffect, useState} from 'react';
+
 // Quiet Table members' reviews, anonymous, from Supabase (supabase/web_public.sql).
 // The site calls two read-only functions with the public key; it can't read
 // the tables, so no names or ids ever reach the browser.
@@ -45,6 +47,24 @@ export function placeScores(): Promise<Map<string, PlaceScore>> {
     (rows) => new Map((rows ?? []).map((row) => [row.place_id, {score: Number(row.score), reviews: row.reviews}])),
   );
   return scoresPromise;
+}
+
+/** A place's score once the scores have loaded; null when it has none. */
+export function usePlaceScore(placeId: string): PlaceScore | null {
+  const [score, setScore] = useState<PlaceScore | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void placeScores().then((scores) => !cancelled && setScore(scores.get(placeId) ?? null));
+    return () => {
+      cancelled = true;
+    };
+  }, [placeId]);
+  return score;
+}
+
+/** "9 · 2 reviews on Quiet Table". */
+export function scoreLine(score: PlaceScore): string {
+  return `${formatScore(score.score)} · ${score.reviews === 1 ? '1 review' : `${score.reviews} reviews`} on Quiet Table`;
 }
 
 /** One place's anonymous reviews, newest first, and its gallery photos. */

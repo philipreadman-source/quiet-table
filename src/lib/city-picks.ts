@@ -1,9 +1,10 @@
 import {CUISINE_OPTIONS, type CuisineId} from '@/lib/taste-profile';
-import {isAmsterdamMetroHomeArea, quizCityArea, venueSuitsDiet} from '@/lib/taste-quiz';
+import {venueSuitsDiet} from '@/lib/taste-quiz';
+import {catalogCity} from '@/lib/catalog';
 import {searchRestaurantsPhoton} from '@/lib/venue-search';
 import {paginateVenueOptions, type DietaryNeeds, type VenueOptionCard} from '@/lib/venue-options';
 
-// Outside Amsterdam there's no catalog, so with the agent off results come
+// Outside Amsterdam and London there's no catalog, so with the agent off results come
 // from OpenStreetMap (Photon), searched inside the chosen city: the user's
 // cuisines first, then general restaurants. Sit-down restaurants only, and
 // places they can't eat at left out. Rough by design — the agent does the
@@ -14,14 +15,15 @@ const GENERAL_QUERIES = ['restaurant', 'bistro', 'brasserie', 'kitchen'];
 // Unnamed places mapped by type alone: "Restaurant", "Restaurant 3", "Bistro H".
 const GENERIC_NAME = /^(?:restaurant|bistro|brasserie|kitchen|cafe|café)(?:\s+\w{1,2}|\s*\d+)?$/i;
 
+/** Amsterdam and London have the catalog (src/lib/catalog.ts). */
 export function hasCatalogFor(location: string | undefined): boolean {
-  return location == null || location.trim().length === 0 || isAmsterdamMetroHomeArea(location);
+  return location == null || location.trim().length === 0 || catalogCity(location) != null;
 }
 
-/** Amsterdam has the catalog and London is QA'd; anywhere else is beta. */
+/** Outside the catalog cities, results come from OpenStreetMap: beta. */
 export function isBetaCity(location: string | undefined | null): boolean {
-  if (location == null || location.trim().length === 0 || hasCatalogFor(location)) return false;
-  return quizCityArea(location).toLowerCase() !== 'london';
+  if (location == null || location.trim().length === 0) return false;
+  return !hasCatalogFor(location);
 }
 
 export const BETA_CITY_NOTE = 'Beta: outside Amsterdam and London, results will vary.';

@@ -93,8 +93,9 @@ function venueMatchesTerms(venue: VenueOptionCard, terms: string[]): boolean {
 function catalogForSearch(
   intent: string,
   terms: string[],
+  location?: string,
 ): {catalog: VenueOptionCard[]; matched: boolean} {
-  const intentCatalog = getVenueOptionsForIntent(intent);
+  const intentCatalog = getVenueOptionsForIntent(intent, location);
   if (terms.length === 0) return {catalog: intentCatalog, matched: false};
   const inIntent = intentCatalog.filter((venue) => venueMatchesTerms(venue, terms));
   const intentTitles = new Set(inIntent.map((venue) => venue.title.toLowerCase()));
@@ -187,7 +188,7 @@ function buildVenueOptionsFallbackResponse(
   const showMore = /\bshow more\b/i.test(message);
   const page = showMore ? (draft.venueResultsPage ?? 1) : 0;
   const searchTerms = searchTermsFromQuery(draft.searchQuery, draft.location);
-  const {catalog, matched: searchMatched} = catalogForSearch(draft.intent!, searchTerms);
+  const {catalog, matched: searchMatched} = catalogForSearch(draft.intent!, searchTerms, draft.location);
   if (
     !showMore &&
     !searchMatched &&
@@ -368,7 +369,7 @@ function tryBroadCatalogOptions(
   const companionIds = effectiveCommunityCompanionIds(draft?.goingWithFriendIds, communityMembers);
   const communityLookup = createCommunityFriendLookup(communityMembers);
   const intent = draft?.intent ?? 'Something casual, nothing fussy.';
-  const catalog = getVenueOptionsForIntent(intent);
+  const catalog = getVenueOptionsForIntent(intent, draft?.location);
   const eligible = filterExcludedVenues(catalog, userMemory);
   if (eligible.length < 3) return null;
 
@@ -413,7 +414,13 @@ function tryBroadCatalogOptions(
  * along. For when the agent is off and a message gives nothing to go on. */
 export function casualPicksPage(
   page: number,
-  draft: {goingWithFriendIds?: string[]; dietaryNeeds?: DietaryNeeds; date?: string; time?: string},
+  draft: {
+    goingWithFriendIds?: string[];
+    dietaryNeeds?: DietaryNeeds;
+    date?: string;
+    time?: string;
+    location?: string;
+  },
   userMemory: UserMemory,
   communityMembers: FriendFoodProfile[] = [],
 ): {options: VenueOptionCard[]; hasMore: boolean; total: number} {
@@ -421,7 +428,7 @@ export function casualPicksPage(
   const communityLookup = createCommunityFriendLookup(communityMembers);
   const intent = 'Something casual, nothing fussy.';
   const ranked = rankVenueOptions(
-    filterExcludedVenues(getVenueOptionsForIntent(intent), userMemory),
+    filterExcludedVenues(getVenueOptionsForIntent(intent, draft.location), userMemory),
     draft.date,
     draft.time ?? '7:30pm',
     draft.dietaryNeeds ?? 'none',

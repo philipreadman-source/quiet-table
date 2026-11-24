@@ -92,7 +92,7 @@ const chatMessageInlineStyle: CSSProperties = {alignItems: 'flex-start'};
 // size is always a deterministic card choice (a free-text reply won't
 // reliably normalize), never left for the agent to ask conversationally.
 const DEFAULT_PARTY_SIZES = ['1', '2', '3', '4', '5', '6', '7', '8', '9+'];
-// Casual caps at 6 — large parties belong in the group flow via 6+.
+// Casual caps at 6, then a single 6+ bucket.
 const CASUAL_PARTY_SIZES = ['1', '2', '3', '4', '5', '6', '6+'];
 // Michelin-starred tables rarely seat large parties — offering the full 1-9+
 // range just invites picking a size that won't have real results. Cap the
@@ -125,13 +125,6 @@ const INTENT_CARDS = [
     acknowledgement: 'Yes, chef.',
     partySizes: MICHELIN_PARTY_SIZES,
   },
-  {
-    id: 'group',
-    title: 'Group',
-    subtitle: 'For 6 or more people',
-    message: 'I need a table for a group.',
-    acknowledgement: 'Group dinner, nice.',
-  },
 ] satisfies {
   id: string;
   title: string;
@@ -155,7 +148,6 @@ function intentSummaryLabel(intent: string | undefined): string | null {
   if (lower.includes('date night')) return 'Date night';
   if (lower.includes('casual')) return 'Casual';
   if (lower.includes('michelin')) return 'Michelin star';
-  if (lower.includes('group')) return 'Group';
   return intent.replace(/\.$/, '');
 }
 
@@ -174,9 +166,6 @@ function formatDraftSummary(draft: BookingDraft): string {
   return `${lead}. ${when}.`;
 }
 
-const GROUP_INTENT_MESSAGE = 'I need a table for a group.';
-const CASUAL_INTENT_MESSAGE = 'Something casual, nothing fussy.';
-const GROUP_INTENT_ACKNOWLEDGEMENT = 'Group dinner, nice.';
 
 type WizardStage = 'intent' | 'size' | 'location' | 'occasion' | 'spend' | 'date' | 'time';
 
@@ -757,14 +746,7 @@ function withDraftField<K extends keyof BookingDraft>(
 }
 
 function applyPartySizeSelection(draft: BookingDraft, size: string): BookingDraft {
-  if (size === '6+' && draft.intent === CASUAL_INTENT_MESSAGE) {
-    return {...draft, intent: GROUP_INTENT_MESSAGE, partySize: size};
-  }
   return withDraftField(draft, 'partySize', size);
-}
-
-function isGroupHandoffFromCasual(draft: BookingDraft, size: string): boolean {
-  return size === '6+' && draft.intent === CASUAL_INTENT_MESSAGE;
 }
 
 function toTitleCase(place: string): string {
@@ -796,11 +778,9 @@ function intentCardFromText(text: string): IntentCard | undefined {
     ? 'michelin'
     : /\bdate( night)?\b/.test(lower)
       ? 'date-night'
-      : /\bgroup\b/.test(lower)
-          ? 'group'
-          : /\bcasual\b/.test(lower)
-            ? 'casual'
-            : null;
+      : /\bcasual\b/.test(lower)
+        ? 'casual'
+        : null;
   return id != null ? INTENT_CARDS.find((card) => card.id === id) : undefined;
 }
 
@@ -845,7 +825,6 @@ function mergeDraftFromText(
   if (lower.includes('casual')) next.intent = 'Something casual, nothing fussy.';
   if (lower.includes('date night')) next.intent = "I'm looking for a date night table.";
   if (lower.includes('michelin')) next.intent = 'Find me a Michelin star table.';
-  if (lower.includes('group')) next.intent = 'I need a table for a group.';
 
   return next;
 }
@@ -1343,9 +1322,6 @@ export default function Home() {
                                   isSelected={bookingDraft.partySize === size}
                                   onChange={(isSelected) => {
                                     if (!isSelected) return;
-                                    if (isGroupHandoffFromCasual(bookingDraft, size)) {
-                                      setIntentAcknowledgement(GROUP_INTENT_ACKNOWLEDGEMENT);
-                                    }
                                     setBookingDraft((prev) => applyPartySizeSelection(prev, size));
                                     setStage('location');
                                   }}>

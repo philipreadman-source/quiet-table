@@ -1,6 +1,7 @@
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
 import {catalogCity, catalogPlace} from '@/lib/catalog';
 import {nudgeCatalog, nudgeForText} from '@/lib/find-nudges';
+import {zonesOf} from '@/lib/zones';
 import {friendRankScoreForCompanions} from '@/lib/friend-graph-mock';
 import {
   buildVenueOptionsTitle,
@@ -40,6 +41,7 @@ type BookingDraft = {
   intent?: string;
   /** Parts of the city picked (zones.ts ids); none means all of it. */
   zones?: string[];
+  meal?: 'lunch' | 'dinner';
   partySize?: string;
   location?: string;
   date?: string;
@@ -159,6 +161,30 @@ function fallbackIntentLabel(intent: string): string {
   if (lower.includes('business')) return 'business dinner';
   if (lower.includes('group')) return 'group-friendly';
   return 'casual';
+}
+
+/** The first list's opening, as the agent words it: "London (Soho & Covent
+ * Garden), for date night. Open at 7:30pm on Saturday." */
+function openingLine(draft: BookingDraft): string {
+  const city = catalogCity(draft.location) ?? draft.location ?? 'Amsterdam';
+  const parts = zonesOf(city)
+    .filter((zone) => draft.zones?.includes(zone.id))
+    .map((zone) => zone.label);
+  const where = parts.length > 0 ? `${city} (${parts.join(', ')})` : city;
+  const intent = draft.intent?.toLowerCase() ?? '';
+  const kind = intent.includes('michelin')
+    ? 'a Michelin table'
+    : intent.includes('date')
+      ? 'date night'
+      : intent.includes('group')
+        ? 'a group'
+        : draft.meal === 'lunch'
+          ? 'a casual lunch'
+          : 'something casual';
+  const day =
+    draft.date != null ? new Date(`${draft.date}T12:00:00`).toLocaleDateString('en-GB', {weekday: 'long'}) : null;
+  const when = draft.time != null ? `Open at ${draft.time}${day != null ? ` on ${day}` : ''}.` : '';
+  return `${where}, for ${kind}. ${when}`.trim();
 }
 
 function isLocationChangeMessage(message: string): boolean {
@@ -283,7 +309,7 @@ function buildVenueOptionsFallbackResponse(
         : `Nothing for "${searchLabel}" in the fallback data — here are other picks.`
       : options?.locationChanged === true
         ? `Top ${fallbackIntentLabel(draft.intent!)} picks in ${location}.`
-        : `Top ${fallbackIntentLabel(draft.intent!)} picks at ${time}.`;
+        : openingLine(draft);
 
   const bullets: string[] = [lead.trim()];
   if (friendHint != null) bullets.push(friendHint);

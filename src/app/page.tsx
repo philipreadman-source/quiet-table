@@ -1,6 +1,6 @@
 'use client';
 
-import {nudgesFor} from '@/lib/find-nudges';
+import {nudgeForText, nudgesFor} from '@/lib/find-nudges';
 import {zoneCounts} from '@/lib/venue-options';
 import {
   useEffect,
@@ -942,11 +942,12 @@ async function callAgent(
   message: string,
   location: string | null,
   draft: BookingDraft,
+  catalogOnly = false,
 ): Promise<{text: string; ui: UiDirective | null; fallback?: boolean; credits?: Credits}> {
   const res = await fetch('/api/agent', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({history, message, location, draft, tasteProfile: null, device: deviceId()}),
+    body: JSON.stringify({history, message, location, draft, tasteProfile: null, device: deviceId(), catalogOnly}),
   });
   const body = (await res.json()) as {
     text: string;
@@ -1339,6 +1340,9 @@ export default function Home() {
         text,
         nextDraft.location ?? null,
         nextDraft,
+        // Find's own steps (the first results, diet, Show more, a nudge) come
+        // from the catalog, as on iOS; only typed questions use AI credits.
+        isSummaryTurn || draftOverride != null || nudgeForText(text) != null,
       );
       setAgentFallback(fallback === true);
       if (nextCredits != null) setCredits(nextCredits);

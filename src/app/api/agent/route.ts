@@ -12,7 +12,8 @@ import {
 import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
 import type {TasteProfile} from '@/lib/taste-profile';
 import {buildFallbackResponse} from '@/lib/fallback-response';
-import {catalogAgentContextLine, venueInCity} from '@/lib/venue-options';
+import {catalogAgentContextLine, findVenueOption, venueInCity} from '@/lib/venue-options';
+import {catalogPlace} from '@/lib/catalog';
 import {zonesOf} from '@/lib/zones';
 
 /**
@@ -130,14 +131,14 @@ The first list of places after the wizard:
 
 Finding places:
 - Call search_quiet_table_catalog once for the first list: it already searches in the city and parts of town picked. Pass vibe from the kind of table, and query only for a specific ask (a cuisine, a dish, wine, cocktails). Treat it as vetted product data.
-- Use web_search only for Michelin mode, or when the visitor asks for something the catalog clearly doesn't have (a menu, a brand-new opening). At most one web_search a turn.
+- Use web_search only when the visitor asks for something the catalog clearly doesn't have (a menu, a brand-new opening). At most one web_search a turn.
 - Prefer places in the parts of town picked; only go wider if there are too few.
 - Catalog venues may carry "hours". Skip any closed on draft.date at draft.time; no hours means unknown, so keep them.
 - Dietary limits are hard filters: read draft.dietaryNeeds. Drop any place built around food the party can't eat (e.g. steakhouses for vegetarians).
 - Respect price and spend signals from the draft or chat.
 - Ground every claim in this turn's tool results. Never invent places, hours, prices or reviews.
 
-MICHELIN MODE: when draft.intent is a Michelin table, run exactly ONE web_search (e.g. site:guide.michelin.com Michelin star restaurants Amsterdam). Only propose restaurants found on guide.michelin.com, each with michelin_guide_url and michelin_distinction when known. Never claim Michelin status without a Guide URL.
+MICHELIN MODE: when draft.intent is a Michelin table, call search_quiet_table_catalog with vibe "michelin star": the catalog's places carry their distinction (in the subtitle: "1 Star", "Bib Gourmand"…), from the Michelin Guide. Send those as catalog cards (id and title). Use one web_search only if the visitor asks for something the catalog lacks, and then only propose places found on guide.michelin.com, with michelin_guide_url and michelin_distinction. Never claim a distinction the catalog or the Guide doesn't show.
 
 Cards and UI:
 - At the end of every turn call render_ui exactly once. Venues go in interactive.type "options"; picking one leads to "detail".
@@ -312,7 +313,7 @@ function zoneContextLine(draft: BookingDraft | undefined): string | null {
 }
 
 export async function POST(request: Request) {
-  const {history, message, location, draft, tasteProfile, device} = (await request.json()) as {
+  const {history, message, location, draft, tasteProfile, device, catalogOnly} = (await request.json()) as {
     history: ChatTurn[];
     message: string;
     location?: string | null;
@@ -320,6 +321,10 @@ export async function POST(request: Request) {
     tasteProfile?: TasteProfile | null;
     /** A random id the browser keeps, for the per-device daily answers. */
     device?: string;
+    /** A step of Find rather than a typed question (the first results, the
+     * diet pick, Show more, a nudge): answered from the catalog, free, as on
+     * iOS. The AI is for typed follow-ups. */
+    catalogOnly?: boolean;
   };
 
   // No accounts on the web, so no members' taste to draw on.
@@ -331,6 +336,14 @@ export async function POST(request: Request) {
       fallback: true,
     });
   }
+  if (catalogOnly === true) {
+    return NextResponse.json({
+      ...(await buildFallbackResponse(message, draft, tasteProfile, communityMembers)),
+      fallback: false,
+      credits: {remaining: await creditsRemaining(), limited: null},
+    });
+  }
+
 
   // The day's budget and this device's answers (supabase/web_ai_budget.sql).
   // None left: answer from the catalog, free.
@@ -400,7 +413,9 @@ export async function POST(request: Request) {
     try {
       response = await client.beta.messages.create({
         model: AGENT_MODEL,
-        max_tokens: 2000,
+        // Room for thinking, a web search and the cards: at 2,000 a Michelin
+        // answer ran out mid-cards and arrived with none.
+        max_tokens: 4000,
         system: systemBlocks,
         container: containerId,
         tools: [
@@ -482,12 +497,41 @@ export async function POST(request: Request) {
     uiOut.tool_status = uniqueExecutedCalls.length > 0 ? uniqueExecutedCalls : undefined;
   }
 
-  const michelinApplied = applyMichelinModeToUi(textOut, uiOut, draft?.intent);
+  // An answer with no cards (cut off, or the model skipped render_ui) would
+  // leave the visitor with nothing: give them the catalog's picks instead.
+  if ((uiOut as {interactive?: unknown} | null)?.interactive == null) {
+    console.warn('[agent] answer had no cards; using the catalog', JSON.stringify({text: textOut.slice(0, 200)}));
+    return fallbackWithNote('', await settle(), message, draft, tasteProfile, communityMembers);
+  }
+
+  const michelinApplied = applyMichelinModeToUi(textOut, withCatalogMichelin(uiOut), draft?.intent);
+  // Michelin mode found nothing it could verify: the catalog's starred places.
+  const michelinOptions = (michelinApplied.ui as {interactive?: {type?: string; options?: unknown[]}} | null)
+    ?.interactive;
+  if (michelinOptions?.type === 'options' && michelinOptions.options?.length === 0) {
+    console.warn('[agent] no verified Michelin cards; using the catalog');
+    return fallbackWithNote('', await settle(), message, draft, tasteProfile, communityMembers);
+  }
   return NextResponse.json({
     text: michelinApplied.text,
     ui: keepToCity(michelinApplied.ui, draft?.location),
     credits: await settle(),
   });
+}
+
+/** Catalog places carry their Michelin distinction: add it to the agent's
+ * cards, so Michelin mode doesn't drop a starred place for want of a URL. */
+function withCatalogMichelin(ui: Record<string, unknown> | null): Record<string, unknown> | null {
+  const interactive = (ui as {interactive?: {type?: string; options?: Record<string, unknown>[]}} | null)
+    ?.interactive;
+  if (ui == null || interactive?.type !== 'options' || interactive.options == null) return ui;
+  const options = interactive.options.map((option) => {
+    if (typeof option.michelin_distinction === 'string' && option.michelin_distinction.length > 0) return option;
+    const known = findVenueOption(String(option.id ?? '')) ?? findVenueOption(String(option.title ?? ''));
+    const michelin = known != null ? catalogPlace(known.id)?.michelin : null;
+    return michelin != null ? {...option, michelin_distinction: michelin} : option;
+  });
+  return {...ui, interactive: {...interactive, options}};
 }
 
 /** Last check before the cards go out: drop any catalog place from another

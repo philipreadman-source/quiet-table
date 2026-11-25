@@ -29,12 +29,16 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Text} from '@astryxdesign/core/Text';
 import {Markdown} from '@astryxdesign/core/Markdown';
 import {Calendar, type ISODateString} from '@astryxdesign/core/Calendar';
+import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/SegmentedControl';
 import {
   enrichVenueOption,
   findVenueOption,
   formatRatingsLine,
   resolveMenuAction,
-  TIME_SLOTS,
+  MEAL_SLOTS,
+  MEALS,
+  slotMinutes,
+  type Meal,
   venueAiWriteUps,
   type DietaryNeeds,
   type MenuAction,
@@ -260,6 +264,8 @@ type BookingDraft = {
   location?: string;
   /** Parts of the city picked (zones.ts ids, as on iOS); none means all of it. */
   zones?: string[];
+  /** Lunch or dinner: which times the time step offers. Dinner when unset. */
+  meal?: Meal;
   date?: string;
   time?: string;
   venue?: string;
@@ -878,7 +884,7 @@ function mergeDraftFromText(
     if (place.length >= 2) next.location = toTitleCase(place);
   }
 
-  const timeMatch = lower.match(/\b([6-9](?::30|:00)?\s?(?:pm|p\.m\.))\b/);
+  const timeMatch = lower.match(/\b((?:1[0-2]|[1-9])(?::30|:00)?\s?(?:am|pm|a\.m\.|p\.m\.))(?=\s|$|[.,!?])/);
   if (timeMatch != null) next.time = timeMatch[1].replace(/\s+/g, '');
 
   // Find's cities: keep the city as the location and tick the part of town
@@ -1640,7 +1646,7 @@ export default function Home() {
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
                         <ChatMessageBubble variant="ghost" className="wizard-block--wide" style={wizardBubblePadding}>
                           <VStack gap={3}>
-                            <Text>Which night?</Text>
+                            <Text>Which day?</Text>
                             <Card padding={3}>
                               <Calendar
                                 mode="single"
@@ -1660,13 +1666,38 @@ export default function Home() {
                       </ChatMessage>
                     )}
 
-                    {visibleStages.includes('time') && bookingDraft.date != null && (
+                    {visibleStages.includes('time') && bookingDraft.date != null && (() => {
+                      const meal = bookingDraft.meal ?? 'dinner';
+                      // Today: only times still to come.
+                      const now = new Date();
+                      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                      const slots = MEAL_SLOTS[meal].filter(
+                        (slot) => bookingDraft.date !== today || (slotMinutes(slot) ?? 0) > now.getHours() * 60 + now.getMinutes(),
+                      );
+                      return (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
                         <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <VStack gap={3}>
                             <Text>What time on {formatDateForMessage(bookingDraft.date)}?</Text>
+                            <SegmentedControl
+                              label="Lunch or dinner"
+                              value={meal}
+                              onChange={(value) =>
+                                setBookingDraft((prev) => ({...prev, meal: value as Meal, time: undefined}))
+                              }>
+                              {MEALS.map((option) => (
+                                <SegmentedControlItem key={option.id} value={option.id} label={option.label} />
+                              ))}
+                            </SegmentedControl>
+                            {slots.length === 0 && (
+                              <Text color="secondary">
+                                {meal === 'lunch'
+                                  ? 'Too late for lunch today. Try dinner, or another day.'
+                                  : 'Too late for tonight. Pick another day.'}
+                              </Text>
+                            )}
                             <HStack gap={2} wrap="wrap">
-                              {TIME_SLOTS.map((slot) => (
+                              {slots.map((slot) => (
                                   <SelectableCard
                                     key={slot}
                                     label={slot}
@@ -1691,7 +1722,8 @@ export default function Home() {
                           </VStack>
                         </ChatMessageBubble>
                       </ChatMessage>
-                    )}
+                      );
+                    })()}
 
                     {summaryMessage != null && (
                       <ChatMessage

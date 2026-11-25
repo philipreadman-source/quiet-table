@@ -11,7 +11,37 @@ import {
   type PlaceKind,
 } from '@/lib/catalog';
 
-export const TIME_SLOTS = ['6:00pm', '6:30pm', '7:00pm', '7:30pm', '8:00pm', '8:30pm', '9:00pm', '9:30pm'];
+/** Lunch or dinner: which table times Find offers, as on iOS. */
+export type Meal = 'lunch' | 'dinner';
+export const MEALS: {id: Meal; label: string}[] = [
+  {id: 'lunch', label: 'Lunch'},
+  {id: 'dinner', label: 'Dinner'},
+];
+
+/** "12:30pm"-style times every half hour, from one minute-of-day to another. */
+function halfHours(from: number, to: number): string[] {
+  const times: string[] = [];
+  for (let minutes = from; minutes <= to; minutes += 30) {
+    const hours = Math.floor(minutes / 60);
+    const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+    times.push(`${hour12}:${String(minutes % 60).padStart(2, '0')}${hours < 12 ? 'am' : 'pm'}`);
+  }
+  return times;
+}
+
+/** Table times offered in Find: lunch 11:30–2:30, dinner 5:00–10:30, every
+ * half hour (iOS quiet-table-ios src/shared/taste.ts). */
+export const MEAL_SLOTS: Record<Meal, string[]> = {
+  lunch: halfHours(11 * 60 + 30, 14 * 60 + 30),
+  dinner: halfHours(17 * 60, 22 * 60 + 30),
+};
+
+export const TIME_SLOTS = MEAL_SLOTS.dinner;
+
+/** Minutes past midnight for "7:30pm"; null when it isn't a time. */
+export function slotMinutes(slot: string): number | null {
+  return minutesFromClock(slot);
+}
 
 export type SocialProofSource = 'contact' | 'instagram' | 'tripadvisor';
 

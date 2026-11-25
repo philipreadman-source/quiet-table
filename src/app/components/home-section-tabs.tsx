@@ -72,6 +72,14 @@ export function HomeHeader({
               href="mailto:philip.readman@gmail.com?subject=Quiet%20Table%20iOS%20app"
               hasUnderline>
               Ask to join the iOS app
+            </Link>{' '}
+            or{' '}
+            <Link
+              href="https://www.paypal.com/paypalme/PhilipReadman"
+              target="_blank"
+              rel="noopener noreferrer"
+              hasUnderline>
+              buy me a coffee
             </Link>
             .
           </Text>

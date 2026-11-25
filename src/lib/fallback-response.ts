@@ -12,6 +12,7 @@ import {
   TIME_SLOTS,
   type DietaryNeeds,
   type VenueOptionCard,
+  venueInCity,
 } from '@/lib/venue-options';
 import {
   buildVenueListPersonalizationNote,
@@ -104,8 +105,10 @@ function catalogForSearch(
   if (terms.length === 0) return {catalog: intentCatalog, matched: false};
   const inIntent = intentCatalog.filter((venue) => venueMatchesTerms(venue, terms));
   const intentTitles = new Set(inIntent.map((venue) => venue.title.toLowerCase()));
+  // Other kinds of table in the same city only: never another city's places.
   const elsewhere = listUniqueCatalogVenues().filter(
-    (venue) => !intentTitles.has(venue.title.toLowerCase()) && venueMatchesTerms(venue, terms),
+    (venue) =>
+      !intentTitles.has(venue.title.toLowerCase()) && venueInCity(venue, location ?? 'Amsterdam') && venueMatchesTerms(venue, terms),
   );
   const matches = [...inIntent, ...elsewhere];
   if (matches.length > 0) return {catalog: matches, matched: true};

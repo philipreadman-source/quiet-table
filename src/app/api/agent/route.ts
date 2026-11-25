@@ -12,7 +12,7 @@ import {
 import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
 import type {TasteProfile} from '@/lib/taste-profile';
 import {buildFallbackResponse} from '@/lib/fallback-response';
-import {catalogAgentContextLine} from '@/lib/venue-options';
+import {catalogAgentContextLine, venueInCity} from '@/lib/venue-options';
 import {zonesOf} from '@/lib/zones';
 
 /**
@@ -483,7 +483,23 @@ export async function POST(request: Request) {
   }
 
   const michelinApplied = applyMichelinModeToUi(textOut, uiOut, draft?.intent);
-  return NextResponse.json({text: michelinApplied.text, ui: michelinApplied.ui, credits: await settle()});
+  return NextResponse.json({
+    text: michelinApplied.text,
+    ui: keepToCity(michelinApplied.ui, draft?.location),
+    credits: await settle(),
+  });
+}
+
+/** Last check before the cards go out: drop any catalog place from another
+ * city than the one picked, whatever the model sent. */
+function keepToCity<T>(ui: T, location: string | undefined): T {
+  const interactive = (ui as {interactive?: {type?: string; options?: {id: string; title: string}[]}} | null)
+    ?.interactive;
+  if (interactive?.type !== 'options' || interactive.options == null || location == null) return ui;
+  const kept = interactive.options.filter((option) => venueInCity(option, location));
+  if (kept.length === interactive.options.length) return ui;
+  console.warn(`[agent] dropped ${interactive.options.length - kept.length} option(s) outside ${location}`);
+  return {...ui, interactive: {...interactive, options: kept}};
 }
 
 function dedupeExecutedCalls(calls: {name: string; target: string; status: 'complete'}[]) {

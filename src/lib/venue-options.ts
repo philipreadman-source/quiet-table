@@ -366,11 +366,23 @@ export function formatDietaryBadge(
   return null;
 }
 
+/** A catalog place by id or exact name (any case). Exact only: a loose
+ * "contains" match once let a web result borrow another city's place. */
 export function findVenueOption(idOrTitle: string): VenueOptionCard | undefined {
-  const needle = idOrTitle.trim().toLowerCase();
-  return ALL_VENUE_OPTIONS.find(
-    (v) => v.id === needle || v.title.toLowerCase() === needle || v.title.toLowerCase().includes(needle),
-  );
+  const raw = idOrTitle.trim();
+  const needle = raw.toLowerCase();
+  if (needle.length === 0) return undefined;
+  return ALL_VENUE_OPTIONS.find((v) => v.id === raw || v.title.toLowerCase() === needle);
+}
+
+/** Is this venue in the city (or, for Michelin, starred just outside it)?
+ * True for venues that aren't catalog places: they can't be checked. */
+export function venueInCity(venue: {id: string; title: string}, city: string | null | undefined): boolean {
+  const catalog = catalogCity(city);
+  if (city == null || catalog == null) return true;
+  const known = findVenueOption(venue.id) ?? findVenueOption(venue.title);
+  const place = known != null ? catalogPlace(known.id) : undefined;
+  return place == null || place.city === catalog || place.near === catalog;
 }
 
 

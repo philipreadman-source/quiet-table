@@ -49,6 +49,8 @@ a {
 /* ChatLayout defaults: message area min-height 100% + sticky dock in flow
    adds ~one composer-height of empty scroll. Shrink to content for wizard. */
 .astryx-chat-layout > div:first-child {
+  max-width: 800px;
+  margin-inline: auto;
   min-height: auto;
   padding-bottom: calc(94px + 24px + var(--spacing-4));
 }
@@ -156,11 +158,13 @@ a {
   background-color: var(--qt-accent-soft);
 }
 
-/* ...while unpadded wizard blocks that open with a line of text put it ~10px down. */
+/* ...while unpadded blocks that open with a line of text (wizard questions,
+   the summary line, "Thinking…") put it ~10px down. */
 .astryx-chat-message:has(
     .astryx-chat-message-bubble[data-variant='ghost'] > .astryx-stack:first-child > .astryx-text:first-child
   )
-  .qt-dot {
+  .qt-dot,
+.astryx-chat-message:has(.astryx-chat-message-bubble[data-variant='ghost'] > .astryx-text:first-child) .qt-dot {
   margin-top: 6px;
 }
 
@@ -168,4 +172,10 @@ a {
   html {
     color-scheme: dark;
   }
+}
+
+/* The chat scrolls the full width of the window; clicking into it shouldn't
+   draw a focus ring around the whole page. */
+.astryx-chat-layout:focus {
+  outline: none;
 }

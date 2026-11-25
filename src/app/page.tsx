@@ -88,7 +88,9 @@ const chatShell: CSSProperties = {
   height: '100%',
   position: 'relative',
 };
-const chatLayout: CSSProperties = {flex: 1, minHeight: 0, width: '100%', maxWidth: 800};
+// Full width, so the scrollbar sits at the window's edge; the messages
+// inside keep to an 800px column (globals.css).
+const chatLayout: CSSProperties = {flex: 1, minHeight: 0, width: '100%'};
 const chatBubblePadding: CSSProperties = {
   paddingBlock: 'var(--spacing-4)',
   paddingInline: 'var(--spacing-5)',

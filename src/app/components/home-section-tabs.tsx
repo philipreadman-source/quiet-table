@@ -5,6 +5,7 @@ import {Info, RotateCcw} from 'lucide-react';
 import {Button} from '@astryxdesign/core/Button';
 import {Dialog, DialogHeader} from '@astryxdesign/core/Dialog';
 import {HStack, VStack} from '@astryxdesign/core/Layout';
+import {Link} from '@astryxdesign/core/Link';
 import {Text} from '@astryxdesign/core/Text';
 import styles from './home-section-tabs.module.css';
 
@@ -57,6 +58,13 @@ export function HomeHeader({
           <Text>
             The scores come from people using the Quiet Table iPhone app, where friends share where they&apos;ve eaten
             and what they thought. The app is in testing for now.
+          </Text>
+          <Text>
+            Quiet Table is an idea designed and built by{' '}
+            <Link href="https://philipreadman.com" target="_blank" rel="noopener noreferrer" hasUnderline>
+              Philip Readman
+            </Link>
+            , a product designer and builder based in Amsterdam.
           </Text>
           <Text color="secondary">
             Some answers use AI, paid for by a small daily budget everyone shares. When it runs out, picks come

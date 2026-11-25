@@ -10,6 +10,8 @@ export function searchTables(args: {
   dietary_restrictions?: string[];
   query?: string;
   limit?: number;
+  city?: string;
+  zones?: string[];
 }) {
   // Catalog places only. An empty result means the agent should use
   // web_search for that city.
@@ -18,5 +20,7 @@ export function searchTables(args: {
     near: args.near,
     query: args.query,
     limit: args.limit ?? 12,
+    city: args.city,
+    zones: args.zones,
   });
 }

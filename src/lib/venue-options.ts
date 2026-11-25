@@ -5,6 +5,7 @@ import {
   CATALOG,
   catalogArea,
   catalogCity,
+  catalogPlace,
   placeDetailsLine,
   placesFor,
   type CatalogPlace,
@@ -531,7 +532,7 @@ export function catalogAgentContextLine(): string {
   const count = listUniqueCatalogVenues().length;
   return (
     `Quiet Table's curated catalog: ${count} places in Amsterdam and London, plus starred places within an hour of Amsterdam. ` +
-    'This is vetted product data — call search_quiet_table_catalog whenever you show Amsterdam options, and mix results with web_search (menus, verification, spots not in catalog). ' +
+    'This is vetted product data: call search_quiet_table_catalog whenever you show options in Amsterdam or London; web_search only for Michelin mode or what the catalog lacks. ' +
     'Use exact catalog id + title in render_ui.options so the UI enriches cards.'
   );
 }
@@ -564,16 +565,26 @@ export function searchCatalogForAgent(args: {
   near?: string;
   query?: string;
   limit?: number;
+  /** The city picked in the wizard; the search stays in it. */
+  city?: string;
+  /** Parts of town ticked (zones.ts ids): those places first. */
+  zones?: string[];
 }): ReturnType<typeof summarizeVenueForAgentCatalog>[] {
   const limit = Math.min(Math.max(args.limit ?? 12, 1), 24);
+  const city = catalogCity(args.city);
+  const zones = args.zones ?? [];
+  const inCity = (venue: VenueOptionCard) => {
+    const place = catalogPlace(venue.id);
+    return city == null || (place != null && (place.city === city || place.near === city));
+  };
   let pool: VenueOptionCard[];
 
   if (args.query != null && args.query.trim().length >= 2) {
-    pool = searchCatalogVenues(args.query.trim(), limit);
-  } else if (args.vibe != null && args.vibe.trim().length > 0) {
-    pool = getVenueOptionsForIntent(args.vibe.trim());
+    pool = searchCatalogVenues(args.query.trim(), 200).filter(inCity);
   } else {
-    pool = listUniqueCatalogVenues();
+    // The kind of table asked for, else casual: in the city and parts of
+    // town picked, ranked as the fallback ranks them.
+    pool = getVenueOptionsForIntent(args.vibe?.trim() || 'casual', city, zones);
   }
 
   if (args.near != null && args.near.trim().length > 0) {

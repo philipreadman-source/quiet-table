@@ -2,5 +2,28 @@
   width: 100%;
   max-width: 800px;
   flex-shrink: 0;
-  padding-block: var(--spacing-8);
+  padding-block: var(--spacing-6);
+}
+
+/* Equal sides, so the lockup sits in the true centre. */
+.side {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.lockup {
+  display: block;
+  height: 24px;
+  width: auto;
+}
+
+/* The lockup is black: white on the dark background. */
+@media (prefers-color-scheme: dark) {
+  .lockup {
+    filter: invert(1);
+  }
+}
+
+.about {
+  padding: 0 var(--spacing-4) var(--spacing-6);
 }

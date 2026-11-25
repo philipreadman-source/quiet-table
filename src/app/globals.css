@@ -1,5 +1,5 @@
 :root {
-  --background: #ffffff;
+  --background: #fafafa; /* As the iOS splash. */
   --foreground: #171717;
   /* App token: light sage, the same in both modes (the theme's dark-mode
      accent). Astryx themes only take their own token names, so it lives here. */

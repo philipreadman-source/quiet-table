@@ -70,6 +70,13 @@ a {
   box-sizing: border-box;
 }
 
+/* No frosted fade behind the pinned composer: it spans the full width, so
+   the page scrollbar showed through it. The blur layer sits just before the
+   composer in the dock. */
+.astryx-chat-layout > div:last-child > div:nth-last-child(2) {
+  display: none;
+}
+
 /* Phones: the page gutter is the only side inset, and the composer is one
    line with send on the right, growing as the message wraps. */
 @media (max-width: 640px) {

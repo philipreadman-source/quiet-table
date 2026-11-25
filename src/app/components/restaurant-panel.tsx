@@ -1,10 +1,11 @@
 'use client';
 
-import {createContext, useContext, useEffect, useState, type ReactNode} from 'react';
+import {createContext, useCallback, useContext, useEffect, useState, type ReactNode} from 'react';
 import {ExternalLink} from 'lucide-react';
 import {Avatar} from '@astryxdesign/core/Avatar';
 import {Button} from '@astryxdesign/core/Button';
 import {Dialog} from '@astryxdesign/core/Dialog';
+import {Lightbox} from '@astryxdesign/core/Lightbox';
 import {DialogHeader} from '@astryxdesign/core/Dialog';
 import {HStack, VStack} from '@astryxdesign/core/Layout';
 import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/SegmentedControl';
@@ -140,12 +141,15 @@ function RestaurantPanel({place, table, onClose}: {place: CatalogPlace; table: T
 function ScoreLine({score}: {score: PlaceScore | null}) {
   if (score == null) return <Text color="secondary">No reviews on Quiet Table yet</Text>;
   return (
-    <HStack gap={2} vAlign="end">
+    // One baseline: "9/10" (the /10 inline, so it sits on the 9's line),
+    // then the count.
+    <HStack gap={3} className={styles.scoreLine}>
       <Text type="display-3" weight="semibold">
         {formatScore(score.score)}
+        <Text color="secondary">/10</Text>
       </Text>
       <Text color="secondary">
-        /10 · {score.reviews === 1 ? '1 review' : `${score.reviews} reviews`} on Quiet Table
+        {score.reviews === 1 ? '1 review' : `${score.reviews} reviews`} on Quiet Table
       </Text>
     </HStack>
   );
@@ -278,15 +282,62 @@ function PlaceReviewList({reviews}: {reviews: WebPlace | null}) {
   );
 }
 
+/** Thumbnails that open full screen; with several, step through them with the
+ * arrows, the keyboard, or a swipe on a phone, as on iOS. */
 function PhotoGrid({paths}: {paths: string[]}) {
-  return (
-    <HStack gap={2} className={styles.photos}>
-      {paths.map((path) => (
-        <a key={path} href={photoUrl(path)} target="_blank" rel="noopener noreferrer" className={styles.photo}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- Supabase storage, already sized on upload */}
-          <img src={photoUrl(path)} alt="A diner’s photo" loading="lazy" />
-        </a>
-      ))}
-    </HStack>
+  const [open, setOpen] = useState<number | null>(null);
+  // The lightbox counts them ("2 / 3") itself.
+  const media = paths.map((path) => ({src: photoUrl(path), alt: 'A diner’s photo'}));
+  const step = useCallback(
+    (by: 1 | -1) => setOpen((at) => (at == null ? at : Math.min(Math.max(at + by, 0), paths.length - 1))),
+    [paths.length],
   );
+  useSwipe(open != null, step);
+  return (
+    <>
+      <HStack gap={2} className={styles.photos}>
+        {paths.map((path, at) => (
+          <button key={path} type="button" className={styles.photo} aria-label="Open photo" onClick={() => setOpen(at)}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- Supabase storage, already sized on upload */}
+            <img src={photoUrl(path)} alt="A diner’s photo" loading="lazy" />
+          </button>
+        ))}
+      </HStack>
+      <Lightbox
+        className={styles.lightbox}
+        media={media}
+        isOpen={open != null}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        index={open ?? 0}
+        onIndexChange={setOpen}
+      />
+    </>
+  );
+}
+
+/** A horizontal swipe while `active`: left is the next photo (+1), right the previous (-1). */
+function useSwipe(active: boolean, onSwipe: (step: 1 | -1) => void) {
+  useEffect(() => {
+    if (!active) return;
+    let start: {x: number; y: number} | null = null;
+    const down = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      start = event.touches.length === 1 && touch != null ? {x: touch.clientX, y: touch.clientY} : null;
+    };
+    const up = (event: TouchEvent) => {
+      const touch = event.changedTouches[0];
+      if (start == null || touch == null) return;
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      start = null;
+      // A clear sideways swipe, not a scroll or a tap.
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) onSwipe(dx < 0 ? 1 : -1);
+    };
+    window.addEventListener('touchstart', down, {passive: true});
+    window.addEventListener('touchend', up, {passive: true});
+    return () => {
+      window.removeEventListener('touchstart', down);
+      window.removeEventListener('touchend', up);
+    };
+  }, [active, onSwipe]);
 }

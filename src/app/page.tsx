@@ -1518,11 +1518,12 @@ export default function Home() {
                       const picked = bookingDraft.zones ?? [];
                       return (
                         <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
-                          <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
+                          {/* As wide as the chat column, so the parts of town wrap late. */}
+                          <ChatMessageBubble variant="ghost" className="wizard-block--wide" style={wizardBubblePadding}>
                             <VStack gap={3}>
                               <Text>{`Which part of ${city}? Tick as many as you like.`}</Text>
                               <HStack gap={2} wrap="wrap">
-                                {[{id: null, label: `All of ${city}`, count: counts.total}, ...zonesOf(city).map((zone) => ({id: zone.id, label: zone.label, count: counts.byZone.get(zone.id) ?? 0}))].map((option) => (
+                                {[{id: null, label: 'All', count: counts.total}, ...zonesOf(city).map((zone) => ({id: zone.id, label: zone.label, count: counts.byZone.get(zone.id) ?? 0}))].map((option) => (
                                   <SelectableCard
                                     key={option.id ?? 'all'}
                                     label={option.label}
@@ -1679,16 +1680,19 @@ export default function Home() {
                         <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <VStack gap={3}>
                             <Text>What time on {formatDateForMessage(bookingDraft.date)}?</Text>
-                            <SegmentedControl
-                              label="Lunch or dinner"
-                              value={meal}
-                              onChange={(value) =>
-                                setBookingDraft((prev) => ({...prev, meal: value as Meal, time: undefined}))
-                              }>
-                              {MEALS.map((option) => (
-                                <SegmentedControlItem key={option.id} value={option.id} label={option.label} />
-                              ))}
-                            </SegmentedControl>
+                            {/* In a row, so the switch hugs its two options. */}
+                            <HStack hAlign="start">
+                              <SegmentedControl
+                                label="Lunch or dinner"
+                                value={meal}
+                                onChange={(value) =>
+                                  setBookingDraft((prev) => ({...prev, meal: value as Meal, time: undefined}))
+                                }>
+                                {MEALS.map((option) => (
+                                  <SegmentedControlItem key={option.id} value={option.id} label={option.label} />
+                                ))}
+                              </SegmentedControl>
+                            </HStack>
                             {slots.length === 0 && (
                               <Text color="secondary">
                                 {meal === 'lunch'

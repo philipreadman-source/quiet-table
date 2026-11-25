@@ -1,4 +1,6 @@
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
+import {catalogCity, catalogPlace} from '@/lib/catalog';
+import {nudgeCatalog, nudgeForText} from '@/lib/find-nudges';
 import {friendRankScoreForCompanions} from '@/lib/friend-graph-mock';
 import {
   buildVenueOptionsTitle,
@@ -107,6 +109,13 @@ function catalogForSearch(
   return {catalog: intentCatalog, matched: false};
 }
 
+function nudgeCatalogFor(nudge: NonNullable<ReturnType<typeof nudgeForText>>, draft: BookingDraft): VenueOptionCard[] {
+  const city = catalogCity(draft.location) ?? 'Amsterdam';
+  const cityCatalog = listUniqueCatalogVenues().filter((venue) => catalogPlace(venue.id)?.city === city);
+  const places = nudgeCatalog(nudge, getVenueOptionsForIntent(draft.intent!, draft.location), cityCatalog);
+  return places.length > 0 ? places : getVenueOptionsForIntent(draft.intent!, draft.location);
+}
+
 export const FALLBACK_CAPABILITIES_MESSAGE =
   "The agent's off, so I can't answer questions right now. I can still narrow the list — try a food (\"seafood\"), an area (\"in De Pijp\") or a time (\"8pm\").";
 
@@ -187,8 +196,14 @@ function buildVenueOptionsFallbackResponse(
   const time = draft.time!;
   const showMore = /\bshow more\b/i.test(message);
   const page = showMore ? (draft.venueResultsPage ?? 1) : 0;
-  const searchTerms = searchTermsFromQuery(draft.searchQuery, draft.location);
-  const {catalog, matched: searchMatched} = catalogForSearch(draft.intent!, searchTerms, draft.location);
+  // A nudge under the results ("Cheaper", "Known for wine") filters by the
+  // catalog's own data rather than by keywords.
+  const nudge = nudgeForText(draft.searchQuery);
+  const searchTerms = nudge != null ? [] : searchTermsFromQuery(draft.searchQuery, draft.location);
+  const {catalog, matched: searchMatched} =
+    nudge != null
+      ? {catalog: nudgeCatalogFor(nudge, draft), matched: true}
+      : catalogForSearch(draft.intent!, searchTerms, draft.location);
   if (
     !showMore &&
     !searchMatched &&
@@ -254,7 +269,9 @@ function buildVenueOptionsFallbackResponse(
   );
   const searchLabel = (searchMatched ? matchedTerms : searchTerms).join(' ');
   const lead =
-    searchTerms.length > 0
+    nudge != null
+      ? `${nudge.lead} at ${time}.`
+      : searchTerms.length > 0
       ? searchMatched
         ? `${capitalize(searchLabel)} picks at ${time}.`
         : `Nothing for "${searchLabel}" in the fallback data — here are other picks.`

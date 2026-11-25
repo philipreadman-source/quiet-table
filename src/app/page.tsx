@@ -1,5 +1,6 @@
 'use client';
 
+import {nudgesFor} from '@/lib/find-nudges';
 import {
   useEffect,
   useMemo,
@@ -952,6 +953,14 @@ export default function Home() {
   const summaryMessage = summaryIndex >= 0 ? messages[summaryIndex] : null;
   const lastOptionsUiIndex = findLastOptionsUiIndex(postSummaryThread);
   const hasVenueResults = lastOptionsUiIndex >= 0;
+  const lastOptions = hasVenueResults ? postSummaryThread[lastOptionsUiIndex] : null;
+  const nudges =
+    lastOptions?.type === 'ui' && !isLoading
+      ? nudgesFor(
+          (lastOptions.venueOptions ?? []).map((option) => option.id),
+          bookingDraft,
+        )
+      : [];
   const showingDietary =
     !hasVenueResults &&
     postSummaryThread.some((item) => item.type === 'ui' && item.ui.interactive?.type === 'dietary');
@@ -1309,6 +1318,19 @@ export default function Home() {
                   density="spacious"
                   composer={
                     <VStack gap={2}>
+                      {nudges.length > 0 && (
+                        <HStack gap={2} wrap="wrap">
+                          {nudges.map((nudge) => (
+                            <Button
+                              key={nudge}
+                              label={nudge}
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => void send(nudge)}
+                            />
+                          ))}
+                        </HStack>
+                      )}
                       <ChatComposer
                         density="spacious"
                         onSubmit={send}

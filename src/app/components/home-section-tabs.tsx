@@ -66,6 +66,15 @@ export function HomeHeader({
             </Link>
             , a product designer and builder based in Amsterdam.
           </Text>
+          <Text>
+            Want to support this project, or find it useful?{' '}
+            <Link
+              href="mailto:philip.readman@gmail.com?subject=Quiet%20Table%20iOS%20app"
+              hasUnderline>
+              Ask to join the iOS app
+            </Link>
+            .
+          </Text>
           <Text color="secondary">
             Some answers use AI, paid for by a small daily budget everyone shares. When it runs out, picks come
             straight from our list until tomorrow.

@@ -179,3 +179,16 @@ a {
 .astryx-chat-layout:focus {
   outline: none;
 }
+
+/* The parts of town on one row on wider screens: cards share the width and
+   long names ("Soho & Covent Garden") wrap inside them. Phones wrap cards. */
+@media (min-width: 720px) {
+  .area-cards {
+    flex-wrap: nowrap;
+  }
+
+  /* Never narrower than the count ("351 places"); the names wrap instead. */
+  .area-cards > * {
+    flex: 1 1 auto;
+  }
+}

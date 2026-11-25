@@ -1425,7 +1425,7 @@ export default function Home() {
                                 key={card.id}
                                 label={card.title}
                                 style={{padding: 'var(--spacing-4)'}}
-                                isSelected={false}
+                                isSelected={bookingDraft.intent === card.message}
                                 onChange={(isSelected) => {
                                   if (isSelected) selectIntentCard(card);
                                 }}>
@@ -1524,7 +1524,7 @@ export default function Home() {
                           <ChatMessageBubble variant="ghost" className="wizard-block--wide" style={wizardBubblePadding}>
                             <VStack gap={3}>
                               <Text>{`Which part of ${city}? Tick as many as you like.`}</Text>
-                              <HStack gap={2} wrap="wrap">
+                              <HStack gap={2} wrap="wrap" className="area-cards">
                                 {[{id: null, label: 'All', count: counts.total}, ...zonesOf(city).map((zone) => ({id: zone.id, label: zone.label, count: counts.byZone.get(zone.id) ?? 0}))].map((option) => (
                                   <SelectableCard
                                     key={option.id ?? 'all'}
@@ -1536,7 +1536,7 @@ export default function Home() {
                                       <Text type="label" weight="semibold">
                                         {option.label}
                                       </Text>
-                                      <Text type="supporting" color="secondary">
+                                      <Text type="supporting" color="secondary" style={{whiteSpace: 'nowrap'}}>
                                         {option.count === 1 ? '1 place' : `${option.count} places`}
                                       </Text>
                                     </VStack>

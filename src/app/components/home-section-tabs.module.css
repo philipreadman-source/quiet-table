@@ -27,3 +27,11 @@
 .about {
   padding: 0 var(--spacing-4) var(--spacing-6);
 }
+
+/* Links in the about text: the text's own colour, with a slim underline. */
+.link {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}

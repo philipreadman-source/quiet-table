@@ -61,7 +61,8 @@ export function HomeHeader({
           </Text>
           <Text>
             Quiet Table is an idea designed and built by{' '}
-            <Link href="https://philipreadman.com" target="_blank" rel="noopener noreferrer" hasUnderline>
+            <Link href="https://philipreadman.com" target="_blank" rel="noopener noreferrer" hasUnderline
+              className={styles.link}>
               Philip Readman
             </Link>
             , a product designer and builder based in Amsterdam.
@@ -70,7 +71,8 @@ export function HomeHeader({
             Want to support this project, or find it useful?{' '}
             <Link
               href="mailto:philip.readman@gmail.com?subject=Quiet%20Table%20iOS%20app"
-              hasUnderline>
+              hasUnderline
+              className={styles.link}>
               Ask to join the iOS app
             </Link>{' '}
             or{' '}
@@ -78,7 +80,8 @@ export function HomeHeader({
               href="https://www.paypal.com/paypalme/PhilipReadman"
               target="_blank"
               rel="noopener noreferrer"
-              hasUnderline>
+              hasUnderline
+              className={styles.link}>
               buy me a coffee
             </Link>
             .

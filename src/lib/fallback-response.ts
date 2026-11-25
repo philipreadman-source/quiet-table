@@ -37,6 +37,8 @@ export const FALLBACK_ASLEEP_MESSAGE =
 
 type BookingDraft = {
   intent?: string;
+  /** Parts of the city picked (zones.ts ids); none means all of it. */
+  zones?: string[];
   partySize?: string;
   location?: string;
   date?: string;
@@ -96,8 +98,9 @@ function catalogForSearch(
   intent: string,
   terms: string[],
   location?: string,
+  zones?: string[],
 ): {catalog: VenueOptionCard[]; matched: boolean} {
-  const intentCatalog = getVenueOptionsForIntent(intent, location);
+  const intentCatalog = getVenueOptionsForIntent(intent, location, zones);
   if (terms.length === 0) return {catalog: intentCatalog, matched: false};
   const inIntent = intentCatalog.filter((venue) => venueMatchesTerms(venue, terms));
   const intentTitles = new Set(inIntent.map((venue) => venue.title.toLowerCase()));
@@ -112,8 +115,8 @@ function catalogForSearch(
 function nudgeCatalogFor(nudge: NonNullable<ReturnType<typeof nudgeForText>>, draft: BookingDraft): VenueOptionCard[] {
   const city = catalogCity(draft.location) ?? 'Amsterdam';
   const cityCatalog = listUniqueCatalogVenues().filter((venue) => catalogPlace(venue.id)?.city === city);
-  const places = nudgeCatalog(nudge, getVenueOptionsForIntent(draft.intent!, draft.location), cityCatalog);
-  return places.length > 0 ? places : getVenueOptionsForIntent(draft.intent!, draft.location);
+  const places = nudgeCatalog(nudge, getVenueOptionsForIntent(draft.intent!, draft.location, draft.zones), cityCatalog);
+  return places.length > 0 ? places : getVenueOptionsForIntent(draft.intent!, draft.location, draft.zones);
 }
 
 export const FALLBACK_CAPABILITIES_MESSAGE =
@@ -203,7 +206,7 @@ function buildVenueOptionsFallbackResponse(
   const {catalog, matched: searchMatched} =
     nudge != null
       ? {catalog: nudgeCatalogFor(nudge, draft), matched: true}
-      : catalogForSearch(draft.intent!, searchTerms, draft.location);
+      : catalogForSearch(draft.intent!, searchTerms, draft.location, draft.zones);
   if (
     !showMore &&
     !searchMatched &&
@@ -386,7 +389,7 @@ function tryBroadCatalogOptions(
   const companionIds = effectiveCommunityCompanionIds(draft?.goingWithFriendIds, communityMembers);
   const communityLookup = createCommunityFriendLookup(communityMembers);
   const intent = draft?.intent ?? 'Something casual, nothing fussy.';
-  const catalog = getVenueOptionsForIntent(intent, draft?.location);
+  const catalog = getVenueOptionsForIntent(intent, draft?.location, draft?.zones);
   const eligible = filterExcludedVenues(catalog, userMemory);
   if (eligible.length < 3) return null;
 
@@ -433,6 +436,7 @@ export function casualPicksPage(
   page: number,
   draft: {
     goingWithFriendIds?: string[];
+    zones?: string[];
     dietaryNeeds?: DietaryNeeds;
     date?: string;
     time?: string;
@@ -445,7 +449,7 @@ export function casualPicksPage(
   const communityLookup = createCommunityFriendLookup(communityMembers);
   const intent = 'Something casual, nothing fussy.';
   const ranked = rankVenueOptions(
-    filterExcludedVenues(getVenueOptionsForIntent(intent, draft.location), userMemory),
+    filterExcludedVenues(getVenueOptionsForIntent(intent, draft.location, draft.zones), userMemory),
     draft.date,
     draft.time ?? '7:30pm',
     draft.dietaryNeeds ?? 'none',

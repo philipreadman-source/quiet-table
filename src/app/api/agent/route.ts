@@ -277,6 +277,8 @@ type BookingDraft = {
   intent?: string;
   partySize?: string;
   location?: string;
+  /** Parts of the city picked in the wizard (zones.ts ids); none means all of it. */
+  zones?: string[];
   date?: string;
   time?: string;
   venue?: string;

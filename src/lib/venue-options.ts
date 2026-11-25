@@ -1,5 +1,6 @@
 // Venue option cards for Find, built from the restaurant catalog
 // (src/lib/catalog.ts): opening hours, diet fit and the card's lines.
+import {widenZones, zoneOf} from '@/lib/zones';
 import {
   CATALOG,
   catalogArea,
@@ -205,10 +206,33 @@ const STAR_WEIGHT: Record<string, number> = {
   Selected: 1,
 };
 
+/** How many places suit this kind of table in a city, in all and per zone,
+ * for the area picker's counts. */
+export function zoneCounts(intent: string, city: string): {total: number; byZone: Map<string, number>} {
+  const catalog = catalogCity(city);
+  const places = catalog != null ? placesFor(catalog, intentKind(intent)).filter((place) => place.city === catalog) : [];
+  const byZone = new Map<string, number>();
+  for (const place of places) {
+    const zone = zoneOf(place);
+    if (zone != null) byZone.set(zone, (byZone.get(zone) ?? 0) + 1);
+  }
+  return {total: places.length, byZone};
+}
+
+/** Below this many places in the parts of town picked, their neighbours
+ * follow them, as on iOS. */
+const ZONE_MIN_RESULTS = 5;
+
 /** The places that suit a kind of table in the location's city, best first:
  * the part of town they named, then (for Michelin) the stars, then how many
- * guides recommend it, then popularity. */
-export function getVenueOptionsForIntent(intent: string, location?: string | null): VenueOptionCard[] {
+ * guides recommend it, then popularity. With `zones` (the area picker's
+ * "Soho & Covent Garden"…), only places there, then their neighbours when
+ * that's too few. */
+export function getVenueOptionsForIntent(
+  intent: string,
+  location?: string | null,
+  zones: string[] = [],
+): VenueOptionCard[] {
   const kind = intentKind(intent);
   const city = catalogCity(location) ?? 'Amsterdam';
   const area = catalogArea(location)?.toLowerCase() ?? null;
@@ -217,10 +241,18 @@ export function getVenueOptionsForIntent(intent: string, location?: string | nul
     // In a Michelin search each star outweighs the guides, as on iOS.
     (kind === 'michelin' ? (STAR_WEIGHT[place.michelin ?? ''] ?? 0) * 4 - (place.near != null ? 6 : 0) : 0) +
     Math.min(place.mentions, 4);
-  return placesFor(city, kind)
-    .map((place) => ({place, score: score(place)}))
-    .sort((a, b) => b.score - a.score || a.place.rank - b.place.rank)
-    .map(({place}) => placeOptionCard(place));
+  const ranked = (places: CatalogPlace[]) =>
+    places
+      .map((place) => ({place, score: score(place)}))
+      .sort((a, b) => b.score - a.score || a.place.rank - b.place.rank)
+      .map(({place}) => placeOptionCard(place));
+  const all = placesFor(city, kind);
+  if (zones.length === 0) return ranked(all);
+  const inZones = (ids: string[]) => all.filter((place) => ids.includes(zoneOf(place) ?? ''));
+  const picked = ranked(inZones(zones));
+  if (picked.length >= ZONE_MIN_RESULTS) return picked;
+  const neighbours = ranked(inZones(widenZones(city, zones).filter((zone) => !zones.includes(zone))));
+  return [...picked, ...neighbours];
 }
 
 function dietaryRankScore(tags: DietaryTag[] | undefined, needs: DietaryNeeds | undefined): number {

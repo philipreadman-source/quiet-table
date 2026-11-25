@@ -26,3 +26,13 @@ const places = JSON.parse(readFileSync(source, 'utf8')).map((place) => {
 
 writeFileSync(target, `${JSON.stringify(places)}\n`);
 console.log(`${places.length} places → src/data/catalog.json`);
+
+// The parts of each city ("Soho & Covent Garden", "De Pijp") come from iOS
+// too, so Find's area picker matches the app's.
+const zonesSource = join(root, '..', 'quiet-table-ios', 'src', 'shared', 'zones.ts');
+const zonesTarget = join(root, 'src', 'lib', 'zones.ts');
+writeFileSync(
+  zonesTarget,
+  `// Copied from quiet-table-ios/src/shared/zones.ts by scripts/sync-catalog.mjs.\n// Edit it there, then run the sync.\n\n${readFileSync(zonesSource, 'utf8')}`,
+);
+console.log('zones → src/lib/zones.ts');

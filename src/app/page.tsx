@@ -1,6 +1,7 @@
 'use client';
 
 import {nudgesFor} from '@/lib/find-nudges';
+import {zoneCounts} from '@/lib/venue-options';
 import {
   useEffect,
   useMemo,
@@ -28,7 +29,6 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Text} from '@astryxdesign/core/Text';
 import {Markdown} from '@astryxdesign/core/Markdown';
 import {Calendar, type ISODateString} from '@astryxdesign/core/Calendar';
-import {Typeahead} from '@astryxdesign/core/Typeahead';
 import {
   enrichVenueOption,
   findVenueOption,
@@ -42,7 +42,7 @@ import {
 } from '@/lib/venue-options';
 import {filterExcludedVenues, getUserMemory, type UserMemory} from '@/lib/user-memory';
 import {casualPicksPage} from '@/lib/fallback-response';
-import {BETA_CITY_NOTE, cityLabel, hasCatalogFor, isBetaCity} from '@/lib/city-picks';
+import {cityLabel, hasCatalogFor} from '@/lib/city-picks';
 import {
   DATE_NIGHT_OCCASION_CARDS,
   type DateNightOccasion,
@@ -55,11 +55,10 @@ import {BookOnMapsIcon} from '@/app/components/book-on-maps-icon';
 import {VenueResultListingContent} from '@/app/components/venue-result-listing';
 import {HomeHeader} from '@/app/components/home-section-tabs';
 import {RestaurantPanelProvider} from '@/app/components/restaurant-panel';
-import {bookingUrl, catalogPlace, type Table} from '@/lib/catalog';
+import {bookingUrl, catalogArea, catalogCity, catalogPlace, type CatalogCity, type Table} from '@/lib/catalog';
+import {zonesOf} from '@/lib/zones';
 import type {FriendFoodProfile} from '@/lib/friend-graph-mock';
-import {reverseGeocode} from '@/lib/reverse-geocode';
 import {parseLocationFromMessage} from '@/lib/parse-location';
-import {createPlaceSearchSource} from '@/lib/place-search';
 import {handoffVenueBooking} from '@/lib/venue-booking-handoff';
 
 // Placeholder mark until there's a real logo: a small light-green dot,
@@ -166,7 +165,10 @@ function intentSummaryLabel(intent: string | undefined): string | null {
 function formatDraftSummary(draft: BookingDraft): string {
   const intent = intentSummaryLabel(draft.intent);
   const party = draft.partySize != null ? partySizeSummaryPhrase(draft.partySize) : null;
-  const place = draft.location != null ? `in ${draft.location}` : null;
+  const parts = zonesOf(draft.location ?? '')
+    .filter((zone) => draft.zones?.includes(zone.id))
+    .map((zone) => zone.label);
+  const place = draft.location != null ? `in ${draft.location}${parts.length > 0 ? ` (${parts.join(', ')})` : ''}` : null;
   const when =
     draft.date != null && draft.time != null
       ? `${formatDateForMessage(draft.date)} around ${draft.time}`
@@ -179,7 +181,7 @@ function formatDraftSummary(draft: BookingDraft): string {
 }
 
 
-type WizardStage = 'intent' | 'size' | 'location' | 'occasion' | 'spend' | 'date' | 'time';
+type WizardStage = 'intent' | 'size' | 'location' | 'area' | 'occasion' | 'spend' | 'date' | 'time';
 
 // Composer teaser updates with the flow — typing is always a valid escape hatch.
 // Wizard steps are set; post-summary phases (dietary, etc.) can be re-specced later.
@@ -187,6 +189,7 @@ const STAGE_PLACEHOLDERS: Record<WizardStage, string> = {
   intent: "Or just tell me what you're after...",
   size: 'Or tell me how many...',
   location: 'Or specify a location...',
+  area: 'Or name a part of town...',
   occasion: 'Or describe the occasion...',
   spend: 'Or say what you want to spend...',
   date: 'Or tell me when...',
@@ -227,10 +230,10 @@ function resolveComposerPlaceholder(args: {
 
 function wizardStageOrder(sizeStepSkipped: boolean, dateNightStepsIncluded: boolean): WizardStage[] {
   if (sizeStepSkipped && dateNightStepsIncluded) {
-    return ['intent', 'location', 'occasion', 'spend', 'date', 'time'];
+    return ['intent', 'location', 'area', 'occasion', 'spend', 'date', 'time'];
   }
-  if (sizeStepSkipped) return ['intent', 'location', 'date', 'time'];
-  return ['intent', 'size', 'location', 'date', 'time'];
+  if (sizeStepSkipped) return ['intent', 'location', 'area', 'date', 'time'];
+  return ['intent', 'size', 'location', 'area', 'date', 'time'];
 }
 
 function stageAfterIntentSelection(fixedPartySize: string | undefined): WizardStage {
@@ -255,6 +258,8 @@ type BookingDraft = {
   intent?: string;
   partySize?: string;
   location?: string;
+  /** Parts of the city picked (zones.ts ids, as on iOS); none means all of it. */
+  zones?: string[];
   date?: string;
   time?: string;
   venue?: string;
@@ -286,7 +291,8 @@ const DIETARY_CHOICES: {label: string; value: DietaryNeeds}[] = [
   {label: 'Mixed', value: 'mixed'},
 ];
 
-const INITIAL_BOOKING_DRAFT: BookingDraft = {location: 'Amsterdam'};
+// No city until one's picked (or the browser already shares where you are).
+const INITIAL_BOOKING_DRAFT: BookingDraft = {};
 
 type ToolStatus = {name: string; target: string; status: 'complete' | 'running'};
 
@@ -815,6 +821,34 @@ function offlineNothingParsed(location: string | undefined): string {
 }
 const OFFLINE_SHOW_MORE = 'Show more restaurants';
 
+/** The zone a typed area falls in: "Soho" → soho, "De Pijp" → de-pijp. */
+function zoneForArea(city: CatalogCity, area: string | null): string | null {
+  if (area == null) return null;
+  const lower = area.toLowerCase();
+  const zone = zonesOf(city).find(
+    (candidate) =>
+      candidate.areas.some((name) => name.toLowerCase() === lower) || candidate.label.toLowerCase().includes(lower),
+  );
+  return zone?.id ?? null;
+}
+
+/** The two cities Find covers on the web, as on iOS. */
+const FIND_CITIES: CatalogCity[] = ['Amsterdam', 'London'];
+
+/** Which of Find's cities a position is in, within about 40 km of the centre. */
+function cityNear(lat: number, lng: number): CatalogCity | null {
+  const centres: Record<CatalogCity, {lat: number; lng: number}> = {
+    Amsterdam: {lat: 52.3676, lng: 4.9041},
+    London: {lat: 51.5072, lng: -0.1276},
+  };
+  for (const city of FIND_CITIES) {
+    const centre = centres[city];
+    const km = Math.hypot((lat - centre.lat) * 111, (lng - centre.lng) * 111 * Math.cos((lat * Math.PI) / 180));
+    if (km < 40) return city;
+  }
+  return null;
+}
+
 function mergeDraftFromText(
   draft: BookingDraft,
   text: string,
@@ -846,6 +880,17 @@ function mergeDraftFromText(
 
   const timeMatch = lower.match(/\b([6-9](?::30|:00)?\s?(?:pm|p\.m\.))\b/);
   if (timeMatch != null) next.time = timeMatch[1].replace(/\s+/g, '');
+
+  // Find's cities: keep the city as the location and tick the part of town
+  // named ("Soho" → London, Soho & Covent Garden).
+  if (next.location != null && next.location !== draft.location) {
+    const city = catalogCity(next.location);
+    if (city != null) {
+      const zone = zoneForArea(city, catalogArea(next.location));
+      next.location = city;
+      next.zones = zone != null ? [zone] : [];
+    }
+  }
 
   if (lower.includes('casual')) next.intent = 'Something casual, nothing fussy.';
   if (lower.includes('date night')) next.intent = "I'm looking for a date night table.";
@@ -910,13 +955,11 @@ async function callAgent(
 
 export default function Home() {
   // Hooks must run before the loading early return below, on every render.
-  const placeSearchSource = useMemo(() => createPlaceSearchSource(), []);
   const [messages, setMessages] = useState<ChatTurn[]>([
     {role: 'assistant', text: "Let's find your table."},
   ]);
   const [postSummaryThread, setPostSummaryThread] = useState<PostSummaryItem[]>([]);
   const [wizardComposerThread, setWizardComposerThread] = useState<PostSummaryItem[]>([]);
-  const [locationFromComposer, setLocationFromComposer] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [agentFallback, setAgentFallback] = useState(false);
   const [credits, setCredits] = useState<Credits | null>(null);
@@ -932,11 +975,6 @@ export default function Home() {
   const [dateNightStepsIncluded, setDateNightStepsIncluded] = useState(false);
   const [intentAcknowledgement, setIntentAcknowledgement] = useState<string | null>(null);
   const chatLayoutScrollRef = useRef<HTMLDivElement>(null);
-  // Real geolocation doesn't resolve in this sandboxed preview environment
-  // (no permission prompt reaches it), so the prototype assumes it was
-  // already shared at the start of the session and defaults to Amsterdam.
-  // A real deployment would start this at null and rely on requestLocation.
-  const userLocation = bookingDraft.location ?? null;
   const wizardComplete = messages.some((m) => m.kind === 'summary');
   const visibleStages = useMemo(
     () =>
@@ -972,25 +1010,27 @@ export default function Home() {
     agentFallback,
   });
 
-  // Best-effort: ask for location. If permission is denied or geolocation
-  // isn't available, userLocation just stays null — the location wizard
-  // step falls back to a "share my location" retry, and if that's declined
-  // too, typing an area into the composer works exactly as it always has.
-  const requestLocation = () => {
-    if (typeof navigator === 'undefined' || navigator.geolocation == null) return;
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        reverseGeocode(position.coords.latitude, position.coords.longitude).then((place) => {
-          if (place != null) {
-            setBookingDraft((prev) => withDraftField(prev, 'location', place));
-            setLocationFromComposer(false);
-          }
-        });
-      },
-      () => {},
-      {timeout: 5000},
-    );
-  };
+  // Where you are, only when the browser already shares it with the site (no
+  // prompt): in Amsterdam or London, that city is picked for you.
+  const [nearCity, setNearCity] = useState<CatalogCity | null>(null);
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || navigator.permissions == null || navigator.geolocation == null) return;
+    let cancelled = false;
+    void navigator.permissions
+      .query({name: 'geolocation'})
+      .then((status) => {
+        if (cancelled || status.state !== 'granted') return;
+        navigator.geolocation.getCurrentPosition(
+          (position) => !cancelled && setNearCity(cityNear(position.coords.latitude, position.coords.longitude)),
+          () => {},
+          {timeout: 5000, maximumAge: 10 * 60 * 1000},
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // No accounts on the web: no saved taste, so Find runs on what's asked.
   const userMemory = useMemo(() => getUserMemory(null), []);
@@ -1011,12 +1051,33 @@ export default function Home() {
   }, []);
 
 
-  // Location step: the saved-location card and the place search both land here.
-  const pickWizardLocation = (location: string) => {
-    setBookingDraft((prev) => withDraftField(prev, 'location', location));
-    setLocationFromComposer(false);
-    setStage(dateNightStepsIncluded ? 'occasion' : 'date');
+  // After the city: its parts of town for Find's cities, else straight on.
+  function stageAfterCity(location: string | undefined): WizardStage {
+    if (zonesOf(location ?? '').length > 0) return 'area';
+    return dateNightStepsIncluded ? 'occasion' : 'date';
+  }
+
+  // Location step: Amsterdam or London. A new city clears the parts of town.
+  const pickCity = (city: CatalogCity) => {
+    setBookingDraft((prev) => ({...prev, location: city, zones: prev.location === city ? prev.zones : []}));
+    setStage('area');
   };
+
+  // Area step: tick parts of town (none = all of it), then carry on.
+  const toggleZone = (zone: string | null) =>
+    setBookingDraft((prev) => {
+      if (zone == null) return {...prev, zones: []};
+      const zones = prev.zones ?? [];
+      return {...prev, zones: zones.includes(zone) ? zones.filter((id) => id !== zone) : [...zones, zone]};
+    });
+  const finishArea = () => setStage(dateNightStepsIncluded ? 'occasion' : 'date');
+
+  // Already somewhere Find covers: that city comes ticked.
+  useEffect(() => {
+    // Picking it for them is the point: one step, when they reach the question.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (stage === 'location' && bookingDraft.location == null && nearCity != null) pickCity(nearCity);
+  }, [stage, nearCity, bookingDraft.location]);
 
   // Picking an intent restarts the wizard. On the first pick, keep anything
   // typed before it (a friend, a party size), and the location as always.
@@ -1033,13 +1094,13 @@ export default function Home() {
     const base: BookingDraft = {
       ...INITIAL_BOOKING_DRAFT,
       ...carried,
-      location: source.location ?? 'Amsterdam',
+      location: source.location,
+      zones: source.zones,
       intent: card.message,
     };
     setMessages((prev) => (prev.length > 0 ? [prev[0]!] : []));
     setPostSummaryThread([]);
     if (typedDraft == null) setWizardComposerThread([]);
-    if (typedDraft == null) setLocationFromComposer(false);
     setIntentAcknowledgement(card.acknowledgement);
     if (card.fixedPartySize != null) {
       setBookingDraft({...base, partySize: card.fixedPartySize});
@@ -1094,17 +1155,15 @@ export default function Home() {
     if (card != null) {
       selectIntentCard(card, draft);
       setWizardComposerThread(exchange);
-      if (locationChanged) setLocationFromComposer(true);
       return;
     }
 
     setBookingDraft(draft);
     setWizardComposerThread((prev) => [...prev, ...exchange]);
-    if (locationChanged) setLocationFromComposer(true);
     if (stage === 'size' && sizeChanged) {
       setStage('location');
     } else if (stage === 'location' && locationChanged) {
-      setStage(dateNightStepsIncluded ? 'occasion' : 'date');
+      setStage(stageAfterCity(draft.location));
     }
   };
 
@@ -1159,7 +1218,6 @@ export default function Home() {
     setMessages((prev) => (prev.length > 0 && prev[0]?.role === 'assistant' ? [prev[0]!] : prev));
     setPostSummaryThread([]);
     setWizardComposerThread([]);
-    setLocationFromComposer(false);
     setDateNightStepsIncluded(false);
     setIntentAcknowledgement(null);
     setSizeStepSkipped(false);
@@ -1167,7 +1225,8 @@ export default function Home() {
     setStage('intent');
     setBookingDraft((prev) => ({
       ...INITIAL_BOOKING_DRAFT,
-      location: prev.location ?? 'Amsterdam',
+      location: prev.location,
+      zones: prev.zones,
     }));
     setIsLoading(false);
     requestAnimationFrame(() => {
@@ -1225,7 +1284,6 @@ export default function Home() {
         const updatedSummary = formatDraftSummary(nextDraft);
         return prev.map((m, i) => (i === summaryIdx ? {...m, text: updatedSummary} : m));
       });
-      setLocationFromComposer(true);
     }
 
     const locationPickedInWizard =
@@ -1237,7 +1295,6 @@ export default function Home() {
 
     if (locationPickedInWizard) {
       setBookingDraft(nextDraft);
-      setLocationFromComposer(true);
       setWizardComposerThread((prev) => [
         ...prev,
         {type: 'message', role: 'user', text},
@@ -1247,7 +1304,7 @@ export default function Home() {
           text: `Got it — I'll look around ${nextDraft.location}.`,
         },
       ]);
-      setStage(dateNightStepsIncluded ? 'occasion' : 'date');
+      setStage(stageAfterCity(nextDraft.location));
       return;
     }
 
@@ -1272,7 +1329,7 @@ export default function Home() {
       const {text: replyText, ui, fallback, credits: nextCredits} = await callAgent(
         history,
         text,
-        nextDraft.location ?? userLocation,
+        nextDraft.location ?? null,
         nextDraft,
       );
       setAgentFallback(fallback === true);
@@ -1318,19 +1375,6 @@ export default function Home() {
                   density="spacious"
                   composer={
                     <VStack gap={2}>
-                      {nudges.length > 0 && (
-                        <HStack gap={2} wrap="wrap">
-                          {nudges.map((nudge) => (
-                            <Button
-                              key={nudge}
-                              label={nudge}
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => void send(nudge)}
-                            />
-                          ))}
-                        </HStack>
-                      )}
                       <ChatComposer
                         density="spacious"
                         onSubmit={send}
@@ -1434,50 +1478,72 @@ export default function Home() {
                                 ? `${intentAcknowledgement} Where should I look?`
                                 : 'Where should I look?'}
                             </Text>
-                            {userLocation != null ? (
-                              <VStack gap={2}>
-                                <ClickableCard
-                                  label={userLocation}
-                                  padding={4}
-                                  onClick={() => pickWizardLocation(userLocation)}>
+                            <VStack gap={2} align="start">
+                              {FIND_CITIES.map((city) => (
+                                <SelectableCard
+                                  key={city}
+                                  label={city}
+                                  style={{padding: 'var(--spacing-4)'}}
+                                  isSelected={bookingDraft.location === city}
+                                  onChange={(isSelected) => {
+                                    if (isSelected) pickCity(city);
+                                  }}>
                                   <VStack gap={0}>
                                     <Text type="label" weight="semibold">
-                                      {userLocation}
+                                      {city}
                                     </Text>
                                     <Text type="supporting" color="secondary">
-                                      {locationFromComposer
-                                        ? "Let's look for a table"
-                                        : 'Based on your location'}
+                                      {city === nearCity
+                                        ? 'Based on your location'
+                                        : `${zoneCounts(bookingDraft.intent ?? '', city).total} places`}
                                     </Text>
                                   </VStack>
-                                </ClickableCard>
-                                {isBetaCity(userLocation) && (
-                                  <Text type="supporting" color="secondary">
-                                    {BETA_CITY_NOTE}
-                                  </Text>
-                                )}
-                              </VStack>
-                            ) : (
-                              <HStack hAlign="start">
-                                <Button label="Use my current location" size="sm" onClick={requestLocation} />
-                              </HStack>
-                            )}
-                            <Typeahead
-                              label="Or search for a city or area"
-                              placeholder="London, Shoreditch, Paris…"
-                              searchSource={placeSearchSource}
-                              value={null}
-                              onChange={(item) => {
-                                const location = item?.auxiliaryData?.location;
-                                if (location != null) pickWizardLocation(location);
-                              }}
-                              debounceMs={300}
-                              emptySearchResultsText="No places found"
-                            />
+                                </SelectableCard>
+                              ))}
+                            </VStack>
                           </VStack>
                         </ChatMessageBubble>
                       </ChatMessage>
                     )}
+
+                    {visibleStages.includes('area') && bookingDraft.location != null && zonesOf(bookingDraft.location).length > 0 && (() => {
+                      const city = bookingDraft.location;
+                      const counts = zoneCounts(bookingDraft.intent ?? '', city);
+                      const picked = bookingDraft.zones ?? [];
+                      return (
+                        <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
+                          <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
+                            <VStack gap={3}>
+                              <Text>{`Which part of ${city}? Tick as many as you like.`}</Text>
+                              <HStack gap={2} wrap="wrap">
+                                {[{id: null, label: `All of ${city}`, count: counts.total}, ...zonesOf(city).map((zone) => ({id: zone.id, label: zone.label, count: counts.byZone.get(zone.id) ?? 0}))].map((option) => (
+                                  <SelectableCard
+                                    key={option.id ?? 'all'}
+                                    label={option.label}
+                                    style={{padding: 'var(--spacing-3)'}}
+                                    isSelected={option.id == null ? picked.length === 0 : picked.includes(option.id)}
+                                    onChange={() => toggleZone(option.id)}>
+                                    <VStack gap={0}>
+                                      <Text type="label" weight="semibold">
+                                        {option.label}
+                                      </Text>
+                                      <Text type="supporting" color="secondary">
+                                        {option.count === 1 ? '1 place' : `${option.count} places`}
+                                      </Text>
+                                    </VStack>
+                                  </SelectableCard>
+                                ))}
+                              </HStack>
+                              {stage === 'area' && (
+                                <HStack hAlign="start">
+                                  <Button label="Next" variant="primary" size="sm" onClick={finishArea} />
+                                </HStack>
+                              )}
+                            </VStack>
+                          </ChatMessageBubble>
+                        </ChatMessage>
+                      );
+                    })()}
 
                     <ComposerThreadMessages
                       items={wizardComposerThread}
@@ -1685,6 +1751,26 @@ export default function Home() {
 
                       return null;
                     })}
+
+                    {/* Nudges under the latest results, in the conversation rather than
+                        floating over it by the prompt. */}
+                    {nudges.length > 0 && (
+                      <ChatMessage sender="assistant" avatar={OPTIONS_SPACER}>
+                        <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
+                          <HStack gap={2} wrap="wrap">
+                            {nudges.map((nudge) => (
+                              <Button
+                                key={nudge}
+                                label={nudge}
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => void send(nudge)}
+                              />
+                            ))}
+                          </HStack>
+                        </ChatMessageBubble>
+                      </ChatMessage>
+                    )}
 
                     {isLoading && (
                       <ChatMessage

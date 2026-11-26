@@ -447,7 +447,7 @@ function tryBroadCatalogOptions(
   });
 
   return {
-    text: `Here are ${total} popular picks around ${draft?.location ?? 'Amsterdam'} — tap one to explore.`,
+    text: `A few popular picks around ${draft?.location ?? 'Amsterdam'}. Tap one to explore.`,
     ui: {
       interactive: {
         type: 'options',

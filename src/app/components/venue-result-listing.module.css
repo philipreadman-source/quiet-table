@@ -77,25 +77,24 @@
 }
 
 .chip {
+  /* Plain grey text with a light tick, like the lines above it: no pill. */
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   align-self: flex-start;
-  margin-top: 6px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: #444;
-  color: #fafafa;
-  font-size: 0.875rem;
-  line-height: 1.2;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
 }
 
 .chipIcon {
   display: flex;
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  color: var(--qt-accent-soft);
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-secondary);
+  opacity: 0.6;
 }
 
 /* Expandable band under header — room for more icon+text rows */

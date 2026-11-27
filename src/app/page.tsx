@@ -1011,6 +1011,9 @@ export default function Home() {
   const [dateNightStepsIncluded, setDateNightStepsIncluded] = useState(false);
   const [intentAcknowledgement, setIntentAcknowledgement] = useState<string | null>(null);
   const chatLayoutScrollRef = useRef<HTMLDivElement>(null);
+  /** Bumped by Start over so the chat layout starts fresh: its scroll-to-bottom
+   * button otherwise stays up after the long list it was tracking is gone. */
+  const [chatRound, setChatRound] = useState(0);
   const wizardComplete = messages.some((m) => m.kind === 'summary');
   const visibleStages = useMemo(
     () =>
@@ -1265,8 +1268,9 @@ export default function Home() {
       zones: prev.zones,
     }));
     setIsLoading(false);
+    setChatRound((round) => round + 1);
     requestAnimationFrame(() => {
-      chatLayoutScrollRef.current?.scrollTo({top: 0, behavior: 'smooth'});
+      chatLayoutScrollRef.current?.scrollTo({top: 0});
     });
   };
 
@@ -1409,6 +1413,7 @@ export default function Home() {
                 <HomeHeader restartVisible={hasVenueResults && !isLoading} onRestart={restartFindFlow} />
                 <RestaurantPanelProvider table={findTable(bookingDraft)}>
                 <ChatLayout
+                  key={chatRound}
                   ref={chatLayoutScrollRef}
                   style={chatLayout}
                   density="spacious"

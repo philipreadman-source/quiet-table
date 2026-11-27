@@ -22,7 +22,7 @@ import {ExternalLink} from 'lucide-react';
 import {BookOnMapsIcon} from '@/app/components/book-on-maps-icon';
 import {useRestaurantPanel} from '@/app/components/restaurant-panel';
 import {catalogPlace} from '@/lib/catalog';
-import {scoreLine, usePlaceScore} from '@/lib/web-reviews';
+import {formatScore, usePlaceScore} from '@/lib/web-reviews';
 import styles from './venue-result-listing.module.css';
 
 function stopCardSelect(event: MouseEvent) {
@@ -247,7 +247,13 @@ export function VenueResultListingContent({
           <p className={styles.title}>{enriched.title}</p>
           {availabilityLine != null && <p className={styles.metaLine}>{availabilityLine}</p>}
           {enriched.subtitle != null && <p className={styles.metaLine}>{enriched.subtitle}</p>}
-          {score != null && <p className={styles.metaLine}>{scoreLine(score)}</p>}
+          {score != null && (
+            <p className={styles.metaLine}>
+              <span className={styles.scoreValue}>{`${formatScore(score.score)}/10`}</span>
+              {` · ${score.reviews === 1 ? '1 review' : `${score.reviews} reviews`} on Quiet Table`}
+            </p>
+          )}
+          {enriched.why_line != null && <p className={styles.metaLine}>{enriched.why_line}</p>}
           {michelinLine != null && enriched.michelin_guide_url != null && (
             <p className={styles.metaLine}>
               <a

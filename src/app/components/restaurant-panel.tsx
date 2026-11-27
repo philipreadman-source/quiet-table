@@ -1,5 +1,6 @@
 'use client';
 
+import {markOpened} from '@/lib/find-history';
 import {createContext, useCallback, useContext, useEffect, useState, type ReactNode} from 'react';
 import {ExternalLink} from 'lucide-react';
 import {Avatar} from '@astryxdesign/core/Avatar';
@@ -49,7 +50,14 @@ export function RestaurantPanelProvider({table, children}: {table: Table | null;
   const [placeId, setPlaceId] = useState<string | null>(null);
   const place = placeId != null ? catalogPlace(placeId) : undefined;
   return (
-    <RestaurantPanelContext.Provider value={{open: setPlaceId}}>
+    <RestaurantPanelContext.Provider
+      value={{
+        open: (id) => {
+          // Opened: Find no longer treats it as a place you haven't looked at.
+          markOpened(id);
+          setPlaceId(id);
+        },
+      }}>
       {children}
       {place != null && <RestaurantPanel place={place} table={table} onClose={() => setPlaceId(null)} />}
     </RestaurantPanelContext.Provider>

@@ -2,6 +2,7 @@
 
 import {nudgeForText, nudgesFor} from '@/lib/find-nudges';
 import {zoneCounts} from '@/lib/venue-options';
+import {findHistory, markShown} from '@/lib/find-history';
 import {
   useEffect,
   useMemo,
@@ -597,6 +598,11 @@ function AgentUiBlock({
     interactive?.type === 'options'
       ? filterExcludedVenues(venueOptions ?? interactive.options, userMemory)
       : [];
+  // Note the places on screen as shown, so next time they step back unless opened.
+  const shownKey = listingOptions.map((option) => option.id).join('|');
+  useEffect(() => {
+    if (shownKey.length > 0) markShown(shownKey.split('|'));
+  }, [shownKey]);
 
   const bookVenueOnMaps = (venue: VenueOptionCard) => {
     const enriched = enrichVenueOption(venue);
@@ -949,7 +955,17 @@ async function callAgent(
   const res = await fetch('/api/agent', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({history, message, location, draft, tasteProfile: null, device: deviceId(), catalogOnly}),
+    body: JSON.stringify({
+      history,
+      message,
+      location,
+      // Find's own steps carry what this browser has been shown and opened,
+      // so the ranking can vary and keep a slot for unseen places.
+      draft: catalogOnly ? {...draft, findHistory: findHistory()} : draft,
+      tasteProfile: null,
+      device: deviceId(),
+      catalogOnly,
+    }),
   });
   const body = (await res.json()) as {
     text: string;

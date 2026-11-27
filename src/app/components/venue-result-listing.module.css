@@ -56,6 +56,13 @@
   color: var(--color-text-secondary);
 }
 
+/* The members' score on a card: "8/10", easy to spot. */
+.scoreValue {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
 .michelinLink {
   color: #c4b5a0;
   text-decoration: underline;

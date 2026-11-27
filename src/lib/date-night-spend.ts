@@ -1,4 +1,6 @@
-/** Date-night spend tier — captured after occasion, before date/time. No ranking yet. */
+/** Date-night budget, asked after the occasion. Two choices, as on iOS:
+ * within reach, or a treat. Find puts places in budget first (price bands
+ * 1–2 or 3–4). 'splurge' is the old third choice; it counts as 'upscale'. */
 export type DateNightSpend = 'moderate' | 'upscale' | 'splurge';
 
 export const DATE_NIGHT_SPEND_CARDS: {
@@ -10,20 +12,14 @@ export const DATE_NIGHT_SPEND_CARDS: {
   {
     id: 'moderate',
     title: 'Keep it easy',
-    subtitle: 'Roughly €40–60 per person',
+    subtitle: 'Roughly €40–70 per person',
     summaryPhrase: 'Keeping it easy on spend.',
   },
   {
     id: 'upscale',
-    title: 'Worth dressing up for',
-    subtitle: 'Roughly €80–120 per person',
-    summaryPhrase: 'Worth dressing up for.',
-  },
-  {
-    id: 'splurge',
-    title: 'Special splurge',
-    subtitle: 'Roughly €150+ per person',
-    summaryPhrase: 'A special splurge.',
+    title: 'Treat ourselves',
+    subtitle: 'Roughly €70+ per person',
+    summaryPhrase: 'Treating ourselves.',
   },
 ];
 

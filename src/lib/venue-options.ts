@@ -85,6 +85,9 @@ export type VenueOptionCard = {
   dietary_tags?: DietaryTag[];
   /** When set, a day that's missing is a closed day. */
   opening_hours?: OpeningHours;
+  /** Why it's in the list, when that's worth saying: "Best reviewed", "No
+   * reviews yet", "Recently opened". */
+  why_line?: string;
 };
 
 /** Day (0 = Sunday … 6 = Saturday, as Date#getDay) → 24h ['HH:MM', 'HH:MM']
@@ -305,25 +308,135 @@ function dietaryRankScore(tags: DietaryTag[] | undefined, needs: DietaryNeeds | 
 
 /** Rank: exact time → near (±15/30) → personal history → dietary fit.
  * Callers should filter with filterVenuesByAimedTime first. */
+/** What Find ranks by beyond opening hours and diet. As on iOS
+ * (quiet-table-ios src/lib/find-results.ts). */
+export type FindRanking = {
+  /** The kind of table ("casual", "Date night"…). */
+  intent?: string;
+  /** Date night's budget. 'splurge' is the old third choice; it counts as 'upscale'. */
+  spend?: 'moderate' | 'upscale' | 'splurge';
+  /** Points off places this browser was shown lately and didn't open. */
+  seen?: Record<string, number>;
+  /** Places this browser has opened. */
+  opened?: string[];
+  /** Members' reviews per place: average and count. */
+  scores?: Map<string, {score: number; reviews: number}>;
+};
+
+/** Places a showing pushes down, per point (src/lib/find-history.ts): enough
+ * that a place shown twice and not opened makes room for others. */
+const SEEN_SHIFT = 6;
+/** At least this many reviews, averaging at least this, to be "Best reviewed". */
+const BEST_REVIEWED_MIN_REVIEWS = 2;
+const BEST_REVIEWED_MIN_SCORE = 8;
+/** Members' reviews as a lift, as on iOS: each review a light nod from 5
+ * (the line between liking and not), capped so a crowd can't take over. */
+function reviewNod(score: {score: number; reviews: number} | undefined): number {
+  if (score == null) return 0;
+  return Math.max(-3, Math.min(3, score.reviews * 0.25 * (score.score - 5)));
+}
+
+/** A place listed as opening within this many months counts as recent. */
+const RECENT_MONTHS = 12;
+
+function isRecentlyOpened(place: CatalogPlace | undefined, now = new Date()): boolean {
+  if (place?.new_since == null) return false;
+  const [year, month] = place.new_since.split('-').map(Number);
+  return (now.getFullYear() - year!) * 12 + (now.getMonth() + 1 - month!) < RECENT_MONTHS;
+}
+
+/** Priced outside the table: over an easy date-night budget (band 3+, or a
+ * starred place with no price), under a treat (band 1), or band 3+ for a
+ * casual table. Places with no price get the benefit of the doubt. */
+function isOffBudget(place: CatalogPlace | undefined, ranking: FindRanking): boolean {
+  if (place == null) return false;
+  const kind = ranking.intent != null ? intentKind(ranking.intent) : null;
+  if (kind === 'casual') return place.price != null && place.price >= 3;
+  if (kind !== 'date-night' || ranking.spend == null) return false;
+  if (ranking.spend === 'moderate') return place.price != null ? place.price >= 3 : (place.michelin?.includes('Star') ?? false);
+  return place.price != null && place.price <= 1;
+}
+
+/**
+ * Find's order. Places closed at the time are dropped; places outside the
+ * budget (or band 3+ for a casual table) go after the rest. Then your own
+ * history and the party's diet, then the catalog's order, with places this
+ * browser was shown lately (and didn't open) stepping back. Each page keeps a
+ * slot for a place nobody has reviewed and this browser hasn't opened, and the
+ * best-reviewed place says so.
+ */
 export function rankVenueOptions(
   options: VenueOptionCard[],
   dateIso: string | undefined,
   time: string,
   dietaryNeeds?: DietaryNeeds,
   memoryRank?: (venueId: string) => number,
+  ranking: FindRanking = {},
 ): VenueOptionCard[] {
-  // No real availability, but places known to be closed then are dropped.
-  // Ranked on taste and diet only.
-  return options.filter((venue) => isVenueOpenAt(venue, dateIso, time)).sort((a, b) => {
-    if (memoryRank != null) {
-      const memA = memoryRank(a.id);
-      const memB = memoryRank(b.id);
-      if (memA !== memB) return memB - memA;
+  const opened = new Set(ranking.opened ?? []);
+  const entries = options
+    .filter((venue) => isVenueOpenAt(venue, dateIso, time))
+    .map((venue, index) => {
+      const place = catalogPlace(venue.id);
+      const reviewed = (ranking.scores?.get(venue.id)?.reviews ?? 0) > 0;
+      return {
+        venue,
+        place,
+        offBudget: isOffBudget(place, ranking),
+        unseen: !reviewed && !opened.has(venue.id),
+        memory: memoryRank?.(venue.id) ?? 0,
+        diet: dietaryRankScore(venue.dietary_tags, dietaryNeeds),
+        order: index + ((ranking.seen?.[venue.id] ?? 0) - reviewNod(ranking.scores?.get(venue.id))) * SEEN_SHIFT,
+      };
+    })
+    .sort(
+      (a, b) =>
+        Number(a.offBudget) - Number(b.offBudget) ||
+        b.memory - a.memory ||
+        b.diet - a.diet ||
+        a.order - b.order,
+    );
+
+  // A slot per page for a place nobody has reviewed and you haven't opened:
+  // when a page has none, the best one further down moves up to its second place.
+  for (let start = 0; start + VENUE_PAGE_SIZE <= entries.length; start += VENUE_PAGE_SIZE) {
+    if (entries.slice(start, start + VENUE_PAGE_SIZE).some((entry) => entry.unseen)) continue;
+    const from = entries.findIndex(
+      (entry, index) => index >= start + VENUE_PAGE_SIZE && entry.unseen && !entry.offBudget,
+    );
+    if (from < 0) break;
+    const [moved] = entries.splice(from, 1);
+    entries.splice(start + 1, 0, moved!);
+  }
+
+  let best: (typeof entries)[number] | null = null;
+  let bestScore = 0;
+  for (const entry of entries) {
+    const score = ranking.scores?.get(entry.venue.id);
+    if (entry.offBudget || score == null || score.reviews < BEST_REVIEWED_MIN_REVIEWS) continue;
+    if (score.score >= BEST_REVIEWED_MIN_SCORE && score.score > bestScore) {
+      best = entry;
+      bestScore = score.score;
     }
-    const dietA = dietaryRankScore(a.dietary_tags, dietaryNeeds);
-    const dietB = dietaryRankScore(b.dietary_tags, dietaryNeeds);
-    if (dietA !== dietB) return dietB - dietA;
-    return 0;
+  }
+
+  // The page's unseen pick says why it's there; the first on each page only,
+  // so the label means something when few places have reviews.
+  const labelled = new Set<(typeof entries)[number]>();
+  for (let start = 0; start < entries.length; start += VENUE_PAGE_SIZE) {
+    const first = entries.slice(start, start + VENUE_PAGE_SIZE).find((entry) => entry.unseen && !entry.offBudget);
+    if (first != null) labelled.add(first);
+  }
+  return entries.map((entry) => {
+    const why =
+      entry === best
+        ? 'Best reviewed'
+        : labelled.has(entry)
+          ? isRecentlyOpened(entry.place)
+            ? 'Recently opened · no reviews yet'
+            : 'No reviews yet'
+          : null;
+    return why != null ? {...entry.venue, why_line: why} : entry.venue;
   });
 }
 

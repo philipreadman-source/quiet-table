@@ -1,4 +1,5 @@
 import {applyMichelinModeToUi} from '@/lib/michelin-mode';
+import {reviewScores} from '@/lib/review-scores';
 import {catalogCity, catalogPlace} from '@/lib/catalog';
 import {nudgeCatalog, nudgeForText} from '@/lib/find-nudges';
 import {zonesOf} from '@/lib/zones';
@@ -54,6 +55,11 @@ type BookingDraft = {
   goingWithSkipped?: boolean;
   partyDietarySummary?: string;
   searchQuery?: string;
+  /** Date night's budget: 'moderate', 'upscale' (or the old 'splurge'). */
+  spend?: string;
+  /** What this browser has been shown and opened (src/lib/find-history.ts),
+   * sent with Find's own steps only. */
+  findHistory?: {seen?: Record<string, number>; opened?: string[]};
 };
 
 const SEARCH_STOPWORDS = new Set([
@@ -220,7 +226,7 @@ function buildVenueOptionsFallbackResponse(
   message: string,
   userMemory: UserMemory,
   communityMembers: FriendFoodProfile[] = [],
-  options?: {locationChanged?: boolean},
+  options?: {locationChanged?: boolean; scores?: Map<string, {score: number; reviews: number}>},
 ): {text: string; ui: FallbackUi} {
   const companionIds = effectiveCommunityCompanionIds(draft.goingWithFriendIds, communityMembers);
   const communityLookup = createCommunityFriendLookup(communityMembers);
@@ -261,6 +267,14 @@ function buildVenueOptionsFallbackResponse(
         draft.intent,
         communityLookup,
       ),
+    {
+      intent: draft.intent,
+      spend:
+        draft.spend === 'moderate' || draft.spend === 'upscale' || draft.spend === 'splurge' ? draft.spend : undefined,
+      seen: draft.findHistory?.seen,
+      opened: draft.findHistory?.opened,
+      scores: options?.scores,
+    },
   );
   const {options: pageOptions, hasMore, total} = paginateVenueOptions(ranked, page);
   const optionsOut = pageOptions.map((option) => {
@@ -603,7 +617,7 @@ export async function buildFallbackResponse(
       message,
       userMemory,
       communityMembers,
-      {locationChanged: isLocationChangeMessage(message)},
+      {locationChanged: isLocationChangeMessage(message), scores: await reviewScores()},
     );
   }
 

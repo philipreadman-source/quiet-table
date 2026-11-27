@@ -1,7 +1,6 @@
 'use client';
 
-import {useState, type CSSProperties, type MouseEvent, type ReactNode} from 'react';
-import {Sparkles} from 'lucide-react';
+import {type CSSProperties, type MouseEvent, type ReactNode} from 'react';
 import {Avatar} from '@astryxdesign/core/Avatar';
 import {AvatarGroup, AvatarGroupOverflow} from '@astryxdesign/core/AvatarGroup';
 import {Button} from '@astryxdesign/core/Button';
@@ -43,10 +42,6 @@ function IconCheck({className}: {className?: string}) {
       />
     </svg>
   );
-}
-
-function IconSparkle({className}: {className?: string}) {
-  return <Sparkles className={className} size={14} strokeWidth={1.8} aria-hidden />;
 }
 
 function IconThumb({className}: {className?: string}) {
@@ -110,37 +105,10 @@ function MetaRow({
   );
 }
 
-const READ_MORE_MIN_CHARS = 96;
-
-function ExpandableAiBlurb({text}: {text: string}) {
-  const [expanded, setExpanded] = useState(false);
-  const canExpand = text.length > READ_MORE_MIN_CHARS;
-
-  return (
-    <div className={styles.aiBlurbBlock}>
-      <MetaRow icon={<IconSparkle />}>
-        <span
-          className={
-            expanded || !canExpand
-              ? styles.aiBlurbText
-              : `${styles.aiBlurbText} ${styles.aiBlurbTextClamped}`
-          }>
-          {text}
-        </span>
-      </MetaRow>
-      {canExpand && (
-        <button
-          type="button"
-          className={styles.readMore}
-          onClick={(event) => {
-            stopCardSelect(event);
-            setExpanded((open) => !open);
-          }}>
-          {expanded ? 'Show less' : 'Read more…'}
-        </button>
-      )}
-    </div>
-  );
+/** A place's short write-up: two lines at most, no icon. The full text is
+ * in the restaurant panel. */
+function AiBlurb({text}: {text: string}) {
+  return <p className={`${styles.metaRowText} ${styles.aiBlurbTextClamped}`}>{text}</p>;
 }
 
 function VenueListActions({
@@ -321,7 +289,7 @@ export function VenueResultListingContent({
       {aiWriteUps.length > 0 && (
         <div className={styles.metaRows}>
           {aiWriteUps.map((text, index) => (
-            <ExpandableAiBlurb key={`${enriched.id}-ai-${index}`} text={text} />
+            <AiBlurb key={`${enriched.id}-ai-${index}`} text={text} />
           ))}
         </div>
       )}

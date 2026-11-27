@@ -689,7 +689,9 @@ function AgentUiBlock({
 
       {interactive?.type === 'options' && (
         <VStack gap={2}>
-          {interactive.title != null && (
+          {/* The chat line above already says what the list is; the title
+              only shows when there's nothing to list. */}
+          {interactive.title != null && listingOptions.length === 0 && (
             <Text type="label" weight="semibold">
               {interactive.title}
             </Text>

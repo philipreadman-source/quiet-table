@@ -420,22 +420,10 @@ export function rankVenueOptions(
     }
   }
 
-  // The page's unseen pick says why it's there; the first on each page only,
-  // so the label means something when few places have reviews.
-  const labelled = new Set<(typeof entries)[number]>();
-  for (let start = 0; start < entries.length; start += VENUE_PAGE_SIZE) {
-    const first = entries.slice(start, start + VENUE_PAGE_SIZE).find((entry) => entry.unseen && !entry.offBudget);
-    if (first != null) labelled.add(first);
-  }
+  // Cards say what a place is here on, when there's something to say: best
+  // reviewed, or recently opened. "No reviews yet" goes without saying.
   return entries.map((entry) => {
-    const why =
-      entry === best
-        ? 'Best reviewed'
-        : labelled.has(entry)
-          ? isRecentlyOpened(entry.place)
-            ? 'Recently opened · no reviews yet'
-            : 'No reviews yet'
-          : null;
+    const why = entry === best ? 'Best reviewed' : isRecentlyOpened(entry.place) ? 'Recently opened' : null;
     return why != null ? {...entry.venue, why_line: why} : entry.venue;
   });
 }

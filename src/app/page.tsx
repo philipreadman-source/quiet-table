@@ -992,7 +992,7 @@ async function callAgent(
 export default function Home() {
   // Hooks must run before the loading early return below, on every render.
   const [messages, setMessages] = useState<ChatTurn[]>([
-    {role: 'assistant', text: "Let's find your table."},
+    {role: 'assistant', text: "Let's find your restaurant."},
   ]);
   const [postSummaryThread, setPostSummaryThread] = useState<PostSummaryItem[]>([]);
   const [wizardComposerThread, setWizardComposerThread] = useState<PostSummaryItem[]>([]);

@@ -30,15 +30,13 @@ import {Banner} from '@astryxdesign/core/Banner';
 import {Text} from '@astryxdesign/core/Text';
 import {Markdown} from '@astryxdesign/core/Markdown';
 import {Calendar, type ISODateString} from '@astryxdesign/core/Calendar';
-import {SegmentedControl, SegmentedControlItem} from '@astryxdesign/core/SegmentedControl';
 import {
   enrichVenueOption,
   findVenueOption,
   formatRatingsLine,
   resolveMenuAction,
-  MEAL_SLOTS,
-  MEALS,
-  slotMinutes,
+  MEAL_TIME,
+  mealsLeft,
   type Meal,
   venueAiWriteUps,
   type DietaryNeeds,
@@ -177,9 +175,11 @@ function formatDraftSummary(draft: BookingDraft): string {
     .map((zone) => zone.label);
   const place = draft.location != null ? `in ${draft.location}${parts.length > 0 ? ` (${parts.join(', ')})` : ''}` : null;
   const when =
-    draft.date != null && draft.time != null
-      ? `${formatDateForMessage(draft.date)} around ${draft.time}`
-      : null;
+    draft.date != null && draft.meal != null
+      ? `${formatDateForMessage(draft.date)}, ${draft.meal === 'late' ? 'late' : `for ${draft.meal}`}`
+      : draft.date != null && draft.time != null
+        ? `${formatDateForMessage(draft.date)} around ${draft.time}`
+        : null;
 
   const lead = [intent, party, place].filter(Boolean).join(', ');
   if (lead.length === 0) return when != null ? `${when}.` : '';
@@ -283,11 +283,12 @@ type BookingDraft = {
   occasionNotes?: string;
 };
 
-/** The table so far, for booking links: needs a date and time. */
+/** The table so far, for booking links: the day and party. Find asks a meal,
+ * not a time, so the booking page shows the free times. */
 function findTable(draft: BookingDraft): Table | null {
-  if (draft.date == null || draft.time == null) return null;
+  if (draft.date == null) return null;
   const party = Number.parseInt(draft.partySize ?? '2', 10);
-  return {date: draft.date, time: draft.time, party: Number.isNaN(party) ? 2 : party};
+  return {date: draft.date, party: Number.isNaN(party) ? 2 : party};
 }
 
 /** No accounts on the web, so no members' picks to rank by (yet). */
@@ -615,7 +616,8 @@ function AgentUiBlock({
     }
     handoffVenueBooking(enriched, {
       date: bookingDraft.date,
-      time: bookingDraft.time,
+      // A meal was picked, not a time: let the booking page show what's free.
+      time: bookingDraft.meal != null ? undefined : bookingDraft.time,
       partySize: bookingDraft.partySize,
       location: bookingDraft.location,
     });
@@ -896,6 +898,13 @@ function mergeDraftFromText(
 
   const timeMatch = lower.match(/\b((?:1[0-2]|[1-9])(?::30|:00)?\s?(?:am|pm|a\.m\.|p\.m\.))(?=\s|$|[.,!?])/);
   if (timeMatch != null) next.time = timeMatch[1].replace(/\s+/g, '');
+  // "Lunch", "dinner" or "late" (a meal card or typed): the meal, and a time inside it.
+  const mealMatch = lower.match(/\b(lunch|dinner|late)\b/);
+  if (mealMatch != null && timeMatch == null) {
+    const meal = mealMatch[1] as Meal;
+    next.meal = meal;
+    next.time = MEAL_TIME[meal];
+  }
 
   // Find's cities: keep the city as the location and tick the part of town
   // named ("Soho" → London, Soho & Covent Garden).
@@ -1679,7 +1688,7 @@ export default function Home() {
                                 onChange={(value: string | undefined) => {
                                   if (value == null) return;
                                   setBookingDraft((prev) => {
-                                    const {time, ...rest} = prev;
+                                    const {time, meal, ...rest} = prev;
                                     return {...rest, date: value};
                                   });
                                   setStage('time');
@@ -1692,61 +1701,41 @@ export default function Home() {
                     )}
 
                     {visibleStages.includes('time') && bookingDraft.date != null && (() => {
-                      const meal = bookingDraft.meal ?? 'dinner';
-                      // Today: only times still to come.
-                      const now = new Date();
-                      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                      const slots = MEAL_SLOTS[meal].filter(
-                        (slot) => bookingDraft.date !== today || (slotMinutes(slot) ?? 0) > now.getHours() * 60 + now.getMinutes(),
-                      );
+                      // Today: only meals not over yet.
+                      const meals = mealsLeft(bookingDraft.date);
                       return (
                       <ChatMessage sender="assistant" avatar={QUIET_TABLE_AVATAR}>
                         <ChatMessageBubble variant="ghost" style={wizardBubblePadding}>
                           <VStack gap={3}>
-                            <Text>What time on {formatDateForMessage(bookingDraft.date)}?</Text>
-                            {/* In a row, so the switch hugs its two options. */}
-                            <HStack hAlign="start">
-                              <SegmentedControl
-                                label="Lunch or dinner"
-                                value={meal}
-                                onChange={(value) =>
-                                  setBookingDraft((prev) => ({...prev, meal: value as Meal, time: undefined}))
-                                }>
-                                {MEALS.map((option) => (
-                                  <SegmentedControlItem key={option.id} value={option.id} label={option.label} />
-                                ))}
-                              </SegmentedControl>
-                            </HStack>
-                            {slots.length === 0 && (
-                              <Text color="secondary">
-                                {meal === 'lunch'
-                                  ? 'Too late for lunch today. Try dinner, or another day.'
-                                  : 'Too late for tonight. Pick another day.'}
-                              </Text>
+                            <Text>Lunch or dinner on {formatDateForMessage(bookingDraft.date)}?</Text>
+                            {meals.length === 0 && (
+                              <Text color="secondary">It’s too late to eat out today. Pick another day.</Text>
                             )}
-                            <HStack gap={2} wrap="wrap">
-                              {slots.map((slot) => (
-                                  <SelectableCard
-                                    key={slot}
-                                    label={slot}
-                                    style={{padding: 'var(--spacing-3)'}}
-                                    isSelected={bookingDraft.time === slot}
-                                    onChange={(isSelected) => {
-                                      if (!isSelected) return;
-                                      const nextDraft = withDraftField(bookingDraft, 'time', slot);
-                                      setBookingDraft(nextDraft);
-                                      requestAnimationFrame(() => {
-                                        send(formatDraftSummary(nextDraft), nextDraft, {
-                                          displayAsSummary: true,
-                                        });
-                                      });
-                                    }}>
-                                    <Text type="label" weight="semibold" justify="center">
-                                      {slot}
+                            <VStack gap={2}>
+                              {meals.map((meal) => (
+                                <ClickableCard
+                                  key={meal.id}
+                                  label={meal.label}
+                                  padding={4}
+                                  onClick={() => {
+                                    // The meal, and a time inside it for the AI's context; never sent to booking.
+                                    const nextDraft: BookingDraft = {...bookingDraft, meal: meal.id, time: MEAL_TIME[meal.id]};
+                                    setBookingDraft(nextDraft);
+                                    requestAnimationFrame(() => {
+                                      send(formatDraftSummary(nextDraft), nextDraft, {displayAsSummary: true});
+                                    });
+                                  }}>
+                                  <VStack gap={0}>
+                                    <Text type="label" weight="semibold">
+                                      {meal.label}
                                     </Text>
-                                  </SelectableCard>
+                                    <Text type="supporting" color="secondary">
+                                      {meal.subtitle}
+                                    </Text>
+                                  </VStack>
+                                </ClickableCard>
                               ))}
-                            </HStack>
+                            </VStack>
                           </VStack>
                         </ChatMessageBubble>
                       </ChatMessage>

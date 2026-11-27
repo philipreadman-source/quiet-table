@@ -12,32 +12,34 @@ import {
   type PlaceKind,
 } from '@/lib/catalog';
 
-/** Lunch or dinner: which table times Find offers, as on iOS. */
-export type Meal = 'lunch' | 'dinner';
-export const MEALS: {id: Meal; label: string}[] = [
-  {id: 'lunch', label: 'Lunch'},
-  {id: 'dinner', label: 'Dinner'},
+/** Lunch, dinner or late: Find asks which meal, not a time, as on iOS
+ * (quiet-table-ios src/shared/taste.ts). The booking page shows free times. */
+export type Meal = 'lunch' | 'dinner' | 'late';
+export const MEALS: {id: Meal; label: string; subtitle: string}[] = [
+  {id: 'lunch', label: 'Lunch', subtitle: 'Around 12 to 2'},
+  {id: 'dinner', label: 'Dinner', subtitle: 'Around 6 to 9'},
+  {id: 'late', label: 'Late', subtitle: 'Kitchen open after 10'},
 ];
 
-/** "12:30pm"-style times every half hour, from one minute-of-day to another. */
-function halfHours(from: number, to: number): string[] {
-  const times: string[] = [];
-  for (let minutes = from; minutes <= to; minutes += 30) {
-    const hours = Math.floor(minutes / 60);
-    const hour12 = hours % 12 === 0 ? 12 : hours % 12;
-    times.push(`${hour12}:${String(minutes % 60).padStart(2, '0')}${hours < 12 ? 'am' : 'pm'}`);
-  }
-  return times;
-}
-
-/** Table times offered in Find: lunch 11:30–2:30, dinner 5:00–10:30, every
- * half hour (iOS quiet-table-ios src/shared/taste.ts). */
-export const MEAL_SLOTS: Record<Meal, string[]> = {
-  lunch: halfHours(11 * 60 + 30, 14 * 60 + 30),
-  dinner: halfHours(17 * 60, 22 * 60 + 30),
+/** When each meal is, as "HH:MM". A place suits the meal when it's open for
+ * food at some point in the window: late means still going at 22:30. */
+export const MEAL_WINDOWS: Record<Meal, {from: string; to: string}> = {
+  lunch: {from: '12:00', to: '14:00'},
+  dinner: {from: '18:00', to: '21:00'},
+  late: {from: '22:30', to: '22:30'},
 };
 
-export const TIME_SLOTS = MEAL_SLOTS.dinner;
+/** A time inside each meal, for the parts of Find that still read a time
+ * (the AI's context). Never sent to a booking page. */
+export const MEAL_TIME: Record<Meal, string> = {lunch: '12:30pm', dinner: '7:00pm', late: '10:30pm'};
+
+/** Today, the meals not yet over (an hour after the window ends). */
+export function mealsLeft(dateIso: string | undefined, now = new Date()): typeof MEALS {
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  if (dateIso !== today) return MEALS;
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  return MEALS.filter((meal) => (minutesFromClock(MEAL_WINDOWS[meal.id].to) ?? 0) + 60 > minutes);
+}
 
 /** Minutes past midnight for "7:30pm"; null when it isn't a time. */
 export function slotMinutes(slot: string): number | null {
@@ -107,6 +109,27 @@ function minutesFromClock(value: string): number | null {
 }
 
 /** Open at that date and time? True when we don't know (no hours, no date). */
+/** Open for this meal that day: a range overlapping the meal's window, or a
+ * late opening from the night before running into it. True when the hours
+ * aren't known. */
+export function isVenueOpenForMeal(venue: VenueOptionCard, dateIso: string | undefined, meal: Meal): boolean {
+  const hours = venue.opening_hours;
+  if (hours == null || dateIso == null) return true;
+  const date = new Date(`${dateIso}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return true;
+  const day = date.getDay() as keyof OpeningHours;
+  const from = minutesFromClock(MEAL_WINDOWS[meal].from)!;
+  const to = minutesFromClock(MEAL_WINDOWS[meal].to)!;
+  const overlaps = (hours[day] ?? []).some(([open, close]) => {
+    const start = minutesFromClock(open);
+    let end = minutesFromClock(close);
+    if (start == null || end == null) return true;
+    if (end <= start) end += 24 * 60;
+    return start <= to && end >= from;
+  });
+  return overlaps || isVenueOpenAt(venue, dateIso, MEAL_WINDOWS[meal].from);
+}
+
 export function isVenueOpenAt(
   venue: VenueOptionCard,
   dateIso: string | undefined,
@@ -321,6 +344,8 @@ export type FindRanking = {
   opened?: string[];
   /** Members' reviews per place: average and count. */
   scores?: Map<string, {score: number; reviews: number}>;
+  /** Lunch, dinner or late: checked against the hours instead of the time. */
+  meal?: Meal;
 };
 
 /** Places a showing pushes down, per point (src/lib/find-history.ts): enough
@@ -375,7 +400,9 @@ export function rankVenueOptions(
 ): VenueOptionCard[] {
   const opened = new Set(ranking.opened ?? []);
   const entries = options
-    .filter((venue) => isVenueOpenAt(venue, dateIso, time))
+    .filter((venue) =>
+      ranking.meal != null ? isVenueOpenForMeal(venue, dateIso, ranking.meal) : isVenueOpenAt(venue, dateIso, time),
+    )
     .map((venue, index) => {
       const place = catalogPlace(venue.id);
       const reviewed = (ranking.scores?.get(venue.id)?.reviews ?? 0) > 0;

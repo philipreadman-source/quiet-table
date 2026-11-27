@@ -11,7 +11,8 @@ import {
   listUniqueCatalogVenues,
   paginateVenueOptions,
   rankVenueOptions,
-  TIME_SLOTS,
+  MEALS,
+  type Meal,
   type DietaryNeeds,
   type VenueOptionCard,
   venueInCity,
@@ -42,7 +43,8 @@ type BookingDraft = {
   intent?: string;
   /** Parts of the city picked (zones.ts ids); none means all of it. */
   zones?: string[];
-  meal?: 'lunch' | 'dinner';
+  /** Lunch, dinner or late; Find checks opening hours against it. */
+  meal?: Meal;
   partySize?: string;
   location?: string;
   date?: string;
@@ -189,7 +191,14 @@ function openingLine(draft: BookingDraft): string {
           : 'something casual';
   const day =
     draft.date != null ? new Date(`${draft.date}T12:00:00`).toLocaleDateString('en-GB', {weekday: 'long'}) : null;
-  const when = draft.time != null ? `Open at ${draft.time}${day != null ? ` on ${day}` : ''}.` : '';
+  const on = day != null ? ` on ${day}` : '';
+  const when =
+    draft.meal != null
+      ? // "A casual lunch" already says lunch.
+        `Open ${draft.meal === 'late' ? 'late' : kind === 'a casual lunch' ? '' : `for ${draft.meal}`}${on}.`.replace('  ', ' ')
+      : draft.time != null
+        ? `Open at ${draft.time}${on}.`
+        : '';
   return `${where}, for ${kind}. ${when}`.trim();
 }
 
@@ -274,6 +283,7 @@ function buildVenueOptionsFallbackResponse(
       seen: draft.findHistory?.seen,
       opened: draft.findHistory?.opened,
       scores: options?.scores,
+      meal: draft.meal,
     },
   );
   const {options: pageOptions, hasMore, total} = paginateVenueOptions(ranked, page);
@@ -406,15 +416,12 @@ function buildClarifyResponse(draft: BookingDraft | undefined, message: string):
 
   if (draft.time == null) {
     return {
-      text: 'What time works?',
+      text: 'Lunch, dinner or late?',
       ui: {
         interactive: {
           type: 'clarify',
-          question: 'Time',
-          options: TIME_SLOTS.filter((_, i) => i % 2 === 0).map((slot) => ({
-            id: `time-${slot}`,
-            label: slot,
-          })),
+          question: 'Lunch, dinner or late?',
+          options: MEALS.map((meal) => ({id: `meal-${meal.id}`, label: meal.label})),
         },
       },
     };

@@ -126,7 +126,7 @@ Tone:
 
 The first list of places after the wizard:
 - Open with where and what, then one line on the picks, then nothing else. Shape: "<City> (<parts of town>), for <kind of table>. <One sentence on the fit and the time>." e.g. "Amsterdam (Oost), for date night. Three upscale fits work for 6:30 on Saturday." or "London, for a casual lunch. Four easy picks open at 12:30 on Friday."
-- The city is draft.location; the parts of town are the labels for draft.zones (given in context); leave the brackets out when no parts were picked. The kind of table comes from draft.intent; say lunch when draft.meal is "lunch".
+- The city is draft.location; the parts of town are the labels for draft.zones (given in context); leave the brackets out when no parts were picked. The kind of table comes from draft.intent; say lunch when draft.meal is "lunch", and late when it is "late". The visitor picked a meal, not a time: don't name a time.
 - Empty spoken text is fine on "show more".
 
 Finding places:
@@ -254,7 +254,7 @@ type BookingDraft = {
   /** Parts of the city picked in the wizard (zones.ts ids); none means all of it. */
   zones?: string[];
   /** Lunch or dinner. */
-  meal?: 'lunch' | 'dinner';
+  meal?: 'lunch' | 'dinner' | 'late';
   date?: string;
   time?: string;
   venue?: string;

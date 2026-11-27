@@ -129,8 +129,10 @@ export function appleMapsUrl(place: CatalogPlace): string {
   return `https://maps.apple.com/?q=${encodeURIComponent(query)}`;
 }
 
-/** The table from Find: yyyy-mm-dd, "7:30pm", and how many. */
-export type Table = {date: string; time: string; party: number};
+/** The table from Find: yyyy-mm-dd, how many, and a time ("7:30pm") when
+ * there is one. Find asks lunch, dinner or late, so usually there isn't: the
+ * booking page then shows the day's free times. */
+export type Table = {date: string; time?: string; party: number};
 
 /** Book's link, as on iOS: the place's booking page filled in with the table
  * where its system allows, else its page, its website, or Google Maps. */
@@ -147,7 +149,7 @@ export function bookingUrl(place: CatalogPlace, table: Table | null): string {
 }
 
 function withTable(booking: Booking, table: Table): string | null {
-  const time = clock(table.time);
+  const time = table.time != null ? clock(table.time) : null;
   const id = encodeURIComponent(booking.id);
   const party = String(Math.max(1, table.party));
   const query = (params: Record<string, string>) => new URLSearchParams(params).toString();

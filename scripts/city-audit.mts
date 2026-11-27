@@ -23,13 +23,13 @@ for (const city of ['Amsterdam', 'London'] as const) {
   // 1. The agent's catalog tool
   for (const vibe of ['casual', 'date night', 'michelin star', 'group', '']) {
     for (const zones of zoneSets) {
-      for (const r of searchCatalogForAgent({vibe, city, zones, limit: 24})) ok(r.id, city, `agent ${city} ${vibe} ${zones}`);
+      for (const r of searchCatalogForAgent({vibe, city, zones, limit: 24, wider: true}).places) ok(r.id, city, `agent ${city} ${vibe} ${zones}`);
     }
   }
   for (const query of ['wine', 'pizza', 'sushi', 'Dishoom', 'De Kas', 'cocktail', 'bar']) {
-    for (const r of searchCatalogForAgent({query, city, limit: 24})) ok(r.id, city, `agent ${city} query ${query}`);
-    for (const r of searchCatalogForAgent({vibe: 'casual', near: 'Soho', city})) ok(r.id, city, `agent ${city} near Soho`);
-    for (const r of searchCatalogForAgent({vibe: 'casual', near: 'De Pijp', city})) ok(r.id, city, `agent ${city} near De Pijp`);
+    for (const r of searchCatalogForAgent({query, city, limit: 24}).places) ok(r.id, city, `agent ${city} query ${query}`);
+    for (const r of searchCatalogForAgent({vibe: 'casual', near: 'Soho', city, wider: true}).places) ok(r.id, city, `agent ${city} near Soho`);
+    for (const r of searchCatalogForAgent({vibe: 'casual', near: 'De Pijp', city, wider: true}).places) ok(r.id, city, `agent ${city} near De Pijp`);
   }
   // 2. The catalog fallback, whole flow
   for (const intent of INTENTS) {

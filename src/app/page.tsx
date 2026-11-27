@@ -394,10 +394,14 @@ function threadToAgentHistory(
   const summaryIndex = messages.findIndex((m) => m.kind === 'summary');
   const beforeSummary = summaryIndex >= 0 ? messages.slice(0, summaryIndex) : messages;
   const summaryTurns = summaryIndex >= 0 ? [messages[summaryIndex]!] : [];
-  const toTurns = (thread: PostSummaryItem[]) =>
-    thread
-      .filter((item): item is Extract<PostSummaryItem, {type: 'message'}> => item.type === 'message')
-      .map((item) => ({role: item.role, text: item.text}));
+  // Cards count as what the assistant said, by name, so the agent knows what
+  // it already showed and finds new places when asked for more.
+  const toTurns = (thread: PostSummaryItem[]): ChatTurn[] =>
+    thread.flatMap((item): ChatTurn[] => {
+      if (item.type === 'message') return [{role: item.role, text: item.text}];
+      const names = (item.venueOptions ?? []).map((venue) => venue.title).filter((title) => title.length > 0);
+      return names.length > 0 ? [{role: 'assistant', text: `Cards shown: ${names.join(', ')}`}] : [];
+    });
   return [...beforeSummary, ...toTurns(wizardThread), ...summaryTurns, ...toTurns(postThread)];
 }
 

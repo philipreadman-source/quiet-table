@@ -133,6 +133,9 @@ Finding places:
 - Call search_quiet_table_catalog once for the first list: it already searches in the city and parts of town picked. Pass vibe from the kind of table, and query only for a specific ask (a cuisine, a dish, wine, cocktails). Treat it as vetted product data.
 - Use web_search only when the visitor asks for something the catalog clearly doesn't have (a menu, a brand-new opening). At most one web_search a turn.
 - Prefer places in the parts of town picked; only go wider if there are too few.
+- Follow-ups ("any more?", "something else"): the history lists the cards already shown ("Cards shown: …"). Pass those names in exclude, and never show a place twice in one chat.
+- When the search has nothing new where it looked, don't repeat old cards. Say so plainly and offer to look further out, naming the parts of town in more_nearby, e.g. "That's all the fish in De Pijp. Zuid and the Centre have a few more, shall I look there?" Use a confirm for it. On yes, search again with wider and the same exclude, and say where each new place is.
+- When only one or two new places turn up, show them and mention what's close by in the same line.
 - Catalog venues may carry "hours". Skip any closed on draft.date at draft.time; no hours means unknown, so keep them.
 - Dietary limits are hard filters: read draft.dietaryNeeds. Drop any place built around food the party can't eat (e.g. steakhouses for vegetarians).
 - Respect price and spend signals from the draft or chat.
@@ -156,13 +159,15 @@ const domainTools: Anthropic.Tool[] = [
   {
     name: 'search_quiet_table_catalog',
     description:
-      "Quiet Table's curated catalog for Amsterdam and London (the same places as the app): editorial picks, new openings, hours, price and dietary tags. It searches in the city and parts of town the visitor picked. Filter by vibe, or query a cuisine or keyword. Returns stable ids for render_ui.options.",
+      "Quiet Table's curated catalog for Amsterdam and London (the same places as the app): editorial picks, new openings, hours, price and dietary tags. It searches in the city and parts of town the visitor picked (or the neighbourhood in near). Filter by vibe, or query a cuisine or keyword. Returns searched (where it looked), places (not yet shown, each with part_of_town and a stable id for render_ui.options), already_shown (how many it skipped) and more_nearby (matches in the neighbouring parts of town).",
     input_schema: {
       type: 'object',
       properties: {
         vibe: {type: 'string', description: 'e.g. "date night", "group", "michelin star", "casual"'},
         near: {type: 'string', description: 'Only for a neighbourhood the visitor names in chat, e.g. "De Pijp", "Shoreditch"'},
-        query: {type: 'string', description: 'Optional name or keyword search within the catalog'},
+        query: {type: 'string', description: 'Optional name or keyword search within the catalog. Food words match the write-ups too ("fish" finds oysters and sea bass).'},
+        exclude: {type: 'array', items: {type: 'string'}, description: 'Names of places already shown in this chat (the history lists them as "Cards shown"). They are never returned again.'},
+        wider: {type: 'boolean', description: 'Also search the parts of town next to the ones searched. Use after the visitor agrees to look further out.'},
         limit: {type: 'integer', description: 'Max venues to return (default 12)'},
       },
     },
@@ -284,15 +289,15 @@ function executeDomainTool(
     case 'get_user_dining_history':
       return summarizeUserMemoryForAgent(getUserMemory(tasteProfile));
     case 'search_quiet_table_catalog': {
-      const catalog = searchTables({...input, city: draft?.location, zones: draft?.zones});
+      const result = searchTables({...input, city: draft?.location, zones: draft?.zones});
       const memory = getUserMemory(tasteProfile);
       const allowedIds = new Set(
         filterExcludedVenues(
-          catalog.map((row) => ({id: row.id})),
+          result.places.map((row) => ({id: row.id})),
           memory,
         ).map((row) => row.id),
       );
-      return catalog.filter((row) => allowedIds.has(row.id));
+      return {...result, places: result.places.filter((row) => allowedIds.has(row.id))};
     }
     default:
       return {error: `unknown tool: ${name}`};
@@ -302,6 +307,19 @@ function executeDomainTool(
 export async function GET() {
   if (USE_LOCAL_FALLBACK) return NextResponse.json({fallback: true});
   return NextResponse.json({fallback: false, credits: {remaining: await creditsRemaining(), limited: null}});
+}
+
+/** Back-to-back turns from the same side become one (a reply and the cards
+ * it showed), so the conversation alternates. */
+function mergeTurns(turns: ChatTurn[]): ChatTurn[] {
+  const merged: ChatTurn[] = [];
+  for (const turn of turns) {
+    if (turn.text.trim().length === 0) continue;
+    const last = merged[merged.length - 1];
+    if (last != null && last.role === turn.role) last.text = `${last.text}\n\n${turn.text}`;
+    else merged.push({...turn});
+  }
+  return merged;
 }
 
 /** The parts of town picked, by name, for the opening line. */
@@ -379,8 +397,7 @@ export async function POST(request: Request) {
   ];
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [
-    ...history.map((turn) => ({role: turn.role, content: turn.text})),
-    {role: 'user', content: message},
+    ...mergeTurns([...history, {role: 'user', text: message}]).map((turn) => ({role: turn.role, content: turn.text})),
   ];
 
   let textOut = '';

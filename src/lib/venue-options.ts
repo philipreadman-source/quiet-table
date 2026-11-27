@@ -1,6 +1,6 @@
 // Venue option cards for Find, built from the restaurant catalog
 // (src/lib/catalog.ts): opening hours, diet fit and the card's lines.
-import {widenZones, zoneOf} from '@/lib/zones';
+import {widenZones, zoneOf, zonesOf} from '@/lib/zones';
 import {
   CATALOG,
   catalogArea,
@@ -535,10 +535,31 @@ export function popularCatalogVenues(limit: number): VenueOptionCard[] {
     .map(placeOptionCard);
 }
 
-/** Local typeahead over the catalog — instant, no agent round-trip. */
-export function searchCatalogVenues(query: string, limit = 8): VenueOptionCard[] {
+/** Food words that mean the same ask: "fish" finds the oyster bar and the
+ * place known for its sea bass, not only places tagged Seafood. */
+const FOOD_WORDS: string[][] = [
+  ['fish', 'seafood', 'oyster', 'octopus', 'sea bass', 'seabass', 'ceviche', 'tiradito', 'dover sole', 'mussel',
+    'prawn', 'scallop', 'crudo', 'tuna', 'salmon', 'lobster', 'langoustine', 'shellfish', 'sashimi', 'fruits de mer',
+    'turbot', 'hake', 'cod', 'squid', 'calamari', 'clam'],
+  ['steak', 'meat', 'ribeye', 'côte de boeuf', 'cote de boeuf', 'tomahawk', 'bavette', 'chateaubriand', 'wagyu',
+    'tenderloin', 'picanha', 'rotisserie'],
+  ['pasta', 'ravioli', 'tagliatelle', 'pappardelle', 'spaghetti', 'gnocchi', 'lasagna', 'paccheri', 'tortellini'],
+];
+
+/** A pattern for the ask and its food-word family, as whole words (plurals too). */
+function foodPattern(needle: string): RegExp {
+  const family = FOOD_WORDS.find((words) => words.some((word) => word === needle || `${word}s` === needle)) ?? [needle];
+  const escaped = family.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`\\b(?:${escaped.join('|')})(?:s|es)?\\b`, 'i');
+}
+
+/** Local typeahead over the catalog — instant, no agent round-trip. With
+ * `descriptions` (the AI's search), a food word also matches what the
+ * write-up and cuisine say, so "fish" finds oysters and sea bass. */
+export function searchCatalogVenues(query: string, limit = 8, options: {descriptions?: boolean} = {}): VenueOptionCard[] {
   const needle = query.trim().toLowerCase();
   if (needle.length < 2) return [];
+  const food = options.descriptions ? foodPattern(needle) : null;
 
   return listUniqueCatalogVenues()
     .map((venue) => {
@@ -550,7 +571,14 @@ export function searchCatalogVenues(query: string, limit = 8): VenueOptionCard[]
       else if (title.startsWith(needle)) score = 80;
       else if (title.includes(needle)) score = 60;
       else if (neighbourhood.includes(needle) || subtitle.includes(needle)) score = 40;
-      else return null;
+      else if (food != null && food.test(subtitle)) score = 30;
+      else if (food != null) {
+        // The more of the write-up is about it, the better the fit:
+        // oysters, sea bass and ceviche beat one prawn dish.
+        const hits = (catalogPlace(venue.id)?.description ?? '').match(new RegExp(food.source, 'gi'))?.length ?? 0;
+        if (hits === 0) return null;
+        score = 20 + Math.min(hits, 6);
+      } else return null;
       return {venue, score};
     })
     .filter((row): row is {venue: VenueOptionCard; score: number} => row != null)
@@ -699,6 +727,19 @@ export function summarizeVenueForAgentCatalog(venue: VenueOptionCard) {
   };
 }
 
+/** What the AI's catalog search returns: the part of town it looked in, the
+ * places there it hasn't shown yet, and how many more match close by, so it
+ * can say "that's all in De Pijp, shall I look further out?". */
+export type AgentCatalogSearch = {
+  /** The part(s) of town searched, by name; null when it's the whole city. */
+  searched: string | null;
+  places: (ReturnType<typeof summarizeVenueForAgentCatalog> & {part_of_town: string | null})[];
+  /** Places left out because this chat already showed them. */
+  already_shown: number;
+  /** Matches in the neighbouring parts of town, not in places (search again with wider). */
+  more_nearby: {part_of_town: string; count: number}[];
+};
+
 /** Agent + search_tables tool — same pool as local fallback mode. */
 export function searchCatalogForAgent(args: {
   vibe?: string;
@@ -709,39 +750,77 @@ export function searchCatalogForAgent(args: {
   city?: string;
   /** Parts of town ticked (zones.ts ids): those places first. */
   zones?: string[];
-}): ReturnType<typeof summarizeVenueForAgentCatalog>[] {
+  /** Ids or names of places this chat already showed: never again. */
+  exclude?: string[];
+  /** Also the parts of town next to the ones searched. */
+  wider?: boolean;
+}): AgentCatalogSearch {
   const limit = Math.min(Math.max(args.limit ?? 12, 1), 24);
   const city = catalogCity(args.city);
-  const zones = args.zones ?? [];
+  const cityZones = city != null ? zonesOf(city) : [];
+  const label = (id: string | null) => cityZones.find((zone) => zone.id === id)?.label ?? null;
   const inCity = (venue: VenueOptionCard) => {
     const place = catalogPlace(venue.id);
     return city == null || (place != null && (place.city === city || place.near === city));
   };
-  let pool: VenueOptionCard[];
 
-  if (args.query != null && args.query.trim().length >= 2) {
-    pool = searchCatalogVenues(args.query.trim(), 200).filter(inCity);
-  } else {
-    // The kind of table asked for, else casual: in the city and parts of
-    // town picked, ranked as the fallback ranks them.
-    pool = getVenueOptionsForIntent(args.vibe?.trim() || 'casual', city, zones);
+  // The whole city, best first; the parts of town are split out below.
+  const pool =
+    args.query != null && args.query.trim().length >= 2
+      ? searchCatalogVenues(args.query.trim(), 400, {descriptions: true}).filter(inCity)
+      : getVenueOptionsForIntent(args.vibe?.trim() || 'casual', city, []);
+
+  // Where to look: a neighbourhood named in chat, else the parts of town picked.
+  const near = args.near?.trim().toLowerCase() ?? '';
+  const namedZones = near.length > 0
+    ? cityZones
+        .filter((zone) => zone.label.toLowerCase() === near || zone.areas.some((area) => area.toLowerCase() === near))
+        .map((zone) => zone.id)
+    : [];
+  const focus = near.length > 0 ? namedZones : (args.zones ?? []);
+  const zoneOfVenue = (venue: VenueOptionCard) => {
+    const place = catalogPlace(venue.id);
+    return place != null ? zoneOf(place) : null;
+  };
+  const inFocus = (venue: VenueOptionCard) => {
+    if (near.length > 0 && namedZones.length === 0) {
+      // A street or neighbourhood smaller than a part of town: match the area name.
+      const area = catalogPlace(venue.id)?.area?.toLowerCase() ?? venueNeighbourhood(venue)?.toLowerCase() ?? '';
+      return area.includes(near) || near.includes(area);
+    }
+    return focus.includes(zoneOfVenue(venue) ?? '');
+  };
+  const nearbyZones = focus.length > 0 && city != null ? widenZones(city, focus).filter((zone) => !focus.includes(zone)) : [];
+  const isNearby = (venue: VenueOptionCard) => nearbyZones.includes(zoneOfVenue(venue) ?? '');
+
+  const shown = new Set((args.exclude ?? []).map((value) => value.trim().toLowerCase()));
+  const notShown = (venue: VenueOptionCard) => !shown.has(venue.id.toLowerCase()) && !shown.has(venue.title.toLowerCase());
+
+  const scoped = near.length > 0 || focus.length > 0;
+  const here = scoped ? pool.filter(inFocus) : pool;
+  const around = scoped ? pool.filter((venue) => !inFocus(venue) && isNearby(venue)) : [];
+  const candidates = args.wider ? [...here, ...around] : here;
+  const fresh = candidates.filter(notShown);
+
+  const moreNearby = new Map<string, number>();
+  if (!args.wider) {
+    for (const venue of around.filter(notShown)) {
+      const name = label(zoneOfVenue(venue));
+      if (name != null) moreNearby.set(name, (moreNearby.get(name) ?? 0) + 1);
+    }
   }
 
-  if (args.near != null && args.near.trim().length > 0) {
-    const areaNeedle = args.near.trim().toLowerCase();
-    const areaPool = suggestVenuesForArea(args.near.trim(), limit * 3);
-    const areaIds = new Set(areaPool.map((venue) => venue.id));
-    const inArea = pool.filter((venue) => areaIds.has(venue.id));
-    const subtitleMatch = pool.filter((venue) => {
-      const subtitle = venue.subtitle?.toLowerCase() ?? '';
-      const neighbourhood = venueNeighbourhood(venue)?.toLowerCase() ?? '';
-      return subtitle.includes(areaNeedle) || neighbourhood.includes(areaNeedle);
-    });
-    const merged = [...inArea, ...subtitleMatch];
-    const byId = new Map<string, VenueOptionCard>();
-    for (const venue of merged) byId.set(venue.id, venue);
-    if (byId.size > 0) pool = [...byId.values()];
-  }
+  const searchedNames = near.length > 0 && namedZones.length === 0
+    ? args.near!.trim()
+    : focus.map(label).filter((name): name is string => name != null).join(', ') || null;
 
-  return pool.slice(0, limit).map(summarizeVenueForAgentCatalog);
+  return {
+    searched: scoped ? (args.wider ? `${searchedNames} and nearby` : searchedNames) : null,
+    places: fresh.slice(0, limit).map((venue) => ({
+      ...summarizeVenueForAgentCatalog(venue),
+      part_of_town: label(zoneOfVenue(venue)),
+    })),
+    already_shown: candidates.length - fresh.length,
+    more_nearby: [...moreNearby].map(([part_of_town, count]) => ({part_of_town, count})),
+  };
 }

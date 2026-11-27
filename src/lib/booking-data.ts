@@ -12,9 +12,11 @@ export function searchTables(args: {
   limit?: number;
   city?: string;
   zones?: string[];
+  exclude?: string[];
+  wider?: boolean;
 }) {
-  // Catalog places only. An empty result means the agent should use
-  // web_search for that city.
+  // Catalog places only: the part of town searched, the places there not
+  // shown yet, and how many more match close by.
   return searchCatalogForAgent({
     vibe: args.vibe,
     near: args.near,
@@ -22,5 +24,7 @@ export function searchTables(args: {
     limit: args.limit ?? 12,
     city: args.city,
     zones: args.zones,
+    exclude: args.exclude,
+    wider: args.wider,
   });
 }

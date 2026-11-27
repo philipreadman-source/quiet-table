@@ -147,7 +147,8 @@ function RestaurantPanel({place, table, onClose}: {place: CatalogPlace; table: T
 }
 
 function ScoreLine({score}: {score: PlaceScore | null}) {
-  if (score == null) return <Text color="secondary">No reviews on Quiet Table yet</Text>;
+  // No reviews: say nothing here; the Reviews column already says so.
+  if (score == null) return null;
   return (
     // One baseline: "9/10" (the /10 inline, so it sits on the 9's line),
     // then the count.
